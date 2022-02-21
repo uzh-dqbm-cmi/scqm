@@ -1,0 +1,52 @@
+
+# -------------- Requirements for production --------------- #
+# Timestamps
+pytz
+
+# Data storage / compression
+# pyarrow
+# python-snappy
+# fastparquet
+
+# Data analysis
+numpy
+pandas
+scipy
+scikit-learn
+rpy2
+openpyxl
+
+# Machine Learning
+torch
+tensorflow
+
+# Visualization
+plotly
+
+# Configuration
+python-configuration
+
+# Secrets management
+python-dotenv
+
+# Utils
+psutil
+tqdm
+numba
+
+# MLOps
+mlflow
+
+# Datamodel
+featuretools
+
+
+
+# ------------------ COMMENTS -------------------------- #
+# Pre-steps for installing python-snappy
+# Ubuntu:
+# - sudo apt-get install libsnappy-dev
+# MacOS
+# - brew install snappy
+# - export LDFLAGS="-L/usr/local/opt/openssl/lib -L/usr/local/opt/snappy/lib"
+# - export CPPFLAGS="-I/usr/local/opt/openssl/include -I/usr/local/opt/snappy/include"

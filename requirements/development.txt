@@ -1,0 +1,28 @@
+# -------------- Requirements for development --------------- #
+# Production, testing and documentation packages
+-r production.txt
+-r testing.txt
+-r documentation.txt
+
+# Data science
+
+# Visualization
+matplotlib>=3.3.3
+# bokeh
+# seaborn
+# gleam
+
+# Machine learning
+# tensorflow>=2.3.1
+
+# Jupyter
+jupyter>=1.0.0
+
+# Utilities
+pyyaml>=5.3.1
+dill>=0.3.2
+argh>=0.26.2
+
+# Program profiling
+cprofilev
+memory_profiler
