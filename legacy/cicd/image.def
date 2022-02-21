@@ -1,0 +1,15 @@
+# Singularity definition file for running SCQM package
+Bootstrap: docker
+From: python:3.8
+
+%help
+Singularity container/image for Set Function for Time Series using ICU Cockpit
+
+%files
+   /home/arhorvath/scqm/requirements/* /opt/requirements
+
+%post
+	apt-get update && apt-get -y install wget vim bash-completion curl r-base
+
+	pip3 install -r /opt/requirements/development.txt
+	pip install kedro

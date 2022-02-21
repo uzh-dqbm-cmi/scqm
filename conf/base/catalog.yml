@@ -1,0 +1,80 @@
+# Here you can define all your data sets by using simple YAML syntax.
+#
+# Documentation for this file format can be found in "The Data Catalog"
+# Link: https://kedro.readthedocs.io/en/stable/05_data/01_data_catalog.html
+
+patients:
+  type: pandas.CSVDataset
+  filepath: data/01_raw/patients.csv
+
+visits:
+  type: pandas.CSVDataset
+  filepath: data/01_raw/visits.csv
+
+medications:
+  type: pandas.CSVDataset
+  filepath: data/01_raw/medications.csv
+
+healthissues:
+  type: pandas.CSVDataset
+  filepath: data/01_raw/healthissues.csv
+
+modifiednewyorkxrayscore:
+  type: pandas.CSVDataset
+  filepath: data/01_raw/modifiednewyorkxrayscore.csv
+
+ratingenscore:
+  type: pandas.CSVDataset
+  filepath: data/01_raw/ratingenscore.csv
+
+sonaras:
+  type: pandas.CSVDataset
+  filepath: data/01_raw/sonaras.csv
+
+sonarra:
+  type: pandas.CSVDataset
+  filepath: data/01_raw/sonarra.csv
+
+asas:
+  type: pandas.CSVDataset
+  filepath: data/01_raw/asas.csv
+
+basfi:
+  type: pandas.CSVDataset
+  filepath: data/01_raw/basfi.csv
+
+basdai:
+  type: pandas.CSVDataset
+  filepath: data/01_raw/basdai.csv
+
+dlqi:
+  type: pandas.CSVDataset
+  filepath: data/01_raw/dlqi.csv
+
+euroquol:
+  type: pandas.CSVDataset
+  filepath: data/01_raw/euroquol.csv
+
+haq:
+  type: pandas.CSVDataset
+  filepath: data/01_raw/haq.csv
+
+psada:
+  type: pandas.CSVDataset
+  filepath: data/01_raw/psada.csv
+
+radai5:
+  type: pandas.CSVDataset
+  filepath: data/01_raw/radai5.csv
+
+sf12:
+  type: pandas.CSVDataset
+  filepath: data/01_raw/sf12.csv
+
+socioeco:
+  type: pandas.CSVDataset
+  filepath: data/01_raw/socioeco.csv
+
+scqmdatatables:
+  type: pandas.ExcelDataSet
+  filepath: data/01_raw/SCQM_data_tables.xlsx

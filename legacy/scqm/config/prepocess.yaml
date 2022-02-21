@@ -1,0 +1,57 @@
+# ICU Schupbach project configuration
+
+logging:
+    dir: '/opt/logs'
+
+patient_repository:
+    data_dir: '/opt/data/processed/'
+
+transform:
+    visit:
+        split:
+            max_gap_size: '30min'
+        min_duration:
+            min_duration: '30min'
+        max_length:
+            max_datapoints: 2500
+        min_datapoints:
+            monitor: 1
+
+    timeseries:
+        hypoxia_detection:
+            name: 'hypoxia'
+            label: 'alphanumeric'
+            condition_1:
+                feature: 'monitor'
+                operation: 'lower_equal'
+                threshold: 92
+                min_duration: '5min'
+                max_gap: '4min'
+
+        ventilator_detection:
+            name: 'ventilator_on'
+            label: 'alphanumeric'
+            condition_1:
+                feature: 'ventilator'
+                operation: 'greater_equal'
+                threshold: 0
+                min_duration: '60min'
+                max_gap: '30min'
+
+        fill_missing_values:
+            features:
+                - 'monitor'
+            method: 'forward-mean'
+            overwrite: False
+            mask: True
+
+        missing_values_time_interval:
+            features:
+                - 'monitor'
+            time_unit: 'sec'
+
+        target_definition:
+            feature: 'monitor'
+            window:
+                - '15min'
+                - '20min'
