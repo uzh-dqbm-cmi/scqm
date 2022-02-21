@@ -2,7 +2,7 @@
 Model interface
 """
 from typing import Tuple
-from scqm.ports.model import Model
+#from scqm.ports.model import Model
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras.layers as tfl
@@ -14,7 +14,7 @@ import uuid
 import joblib
 
 
-class ModelDNN(Model):
+class ModelDNN:
     """
     Abstract model class that acts as an interface for training and evaluating machine learning models.
     Specific models inherit and implement the abstract methods of this class. The objective is to remove the dependency
@@ -124,7 +124,7 @@ class ModelDNN(Model):
             fold_no = fold_no + 1
 
     def test(self, test_data: Tuple[np.array, np.array]) -> None:
-
+        pass
 
     def predict(self, x: np.array) -> np.array:
         """
@@ -196,6 +196,3 @@ class ModelDNN(Model):
                 score = self.model.score(self.x_test, self.y_test)
                 print(f"Accuracy: {score * 100:0.2f}%")
                 # return BinaryClassificationMetrics(confusion_matrix, score)
-
-
-
