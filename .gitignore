@@ -26,6 +26,9 @@ data/
 out/
 .idea_modules/
 
+# VS Code
+.vscode/
+
 ### macOS
 *.DS_Store
 .AppleDouble
