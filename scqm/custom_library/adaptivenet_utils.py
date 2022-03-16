@@ -11,6 +11,18 @@ from scqm.custom_library.data_objects import *
 from scqm.custom_library.modules import VisitEncoder, MedicationEncoder, LSTMModule, PredModule
 import matplotlib.pyplot as plt
 
+#global parameters : network architecture
+#encoders
+hidden_1_enc = 20
+hidden_2_enc = 20
+size_embedding = 20
+#lstm
+size_history = 20
+#prediction module
+hidden_1_pred = 10
+hidden_2_pred = 10
+
+
 def create_dataset(df_dict):
     df_dict = preprocessing(df_dict)
     patients_df, medications_df, visits_df, targets_df, _ = extract_adanet_features(df_dict, das28=True)
@@ -93,8 +105,7 @@ def get_batch_and_masks(epoch, indices, dataset, batch_size, df_v, df_m, df_p, d
 
     return t_v, t_m, t_p, t_t, seq_lengths, masks, indices, epoch, max_num_visits, visit_mask, total_num_visits_and_meds, debug_index
 
-def instantiate_model(num_visit_features, num_medications_features, num_general_features, batch_first, 
-size_embedding=10, size_history=12):
+def instantiate_model(num_visit_features, num_medications_features, num_general_features, batch_first, device):
     """Instantiate the different modules of the model with the given parameters
 
     Args:
@@ -108,17 +119,17 @@ size_embedding=10, size_history=12):
         _type_: _description_
     """
 
-    VEncoder = VisitEncoder(num_visit_features, size_embedding)
-    MEncoder = MedicationEncoder(num_medications_features, size_embedding)
-    LModule = LSTMModule(size_embedding, batch_first, size_history)
+    VEncoder = VisitEncoder(num_visit_features, size_embedding, hidden_1_enc, hidden_2_enc)
+    MEncoder = MedicationEncoder(num_medications_features, size_embedding, hidden_1_enc, hidden_2_enc)
+    LModule = LSTMModule(size_embedding, batch_first, size_history, device)
     # + 1 for time to prediction
-    PModule = PredModule(size_history + num_general_features + 1)
-    model = {'visit_encoder': VEncoder, 'medications_encoder': MEncoder,
-             'lstm': LModule, 'pred_module': PModule}
+    PModule = PredModule(size_history + num_general_features + 1, hidden_1_pred, hidden_2_pred)
+    model = {'visit_encoder': VEncoder.to(device), 'medications_encoder': MEncoder.to(device),
+             'lstm': LModule.to(device), 'pred_module': PModule.to(device)}
     model_parameters = list(VEncoder.parameters()) + list(MEncoder.parameters()) + list(LModule.parameters()) + list(PModule.parameters())
     return model, model_parameters
 
-def train_model(dataset, device = torch.device('cpu'), batch_size=32, n_epochs =1, min_num_visits = 2, debug_patient = False):
+def train_model(dataset, device, batch_size=32, n_epochs =1, min_num_visits = 2, debug_patient = False):
     #dfs and tensors
     df_v = dataset.visits_df_proc.copy()
     df_p = dataset.patients_df_proc.copy()
@@ -140,16 +151,16 @@ def train_model(dataset, device = torch.device('cpu'), batch_size=32, n_epochs =
     batch_first = True
     print(
         f'Starting training process with {num_visit_features} visit features, {num_medications_features} medication features, {num_general_features} general features and one time feature')
-    model, model_parameters = instantiate_model(num_visit_features, num_medications_features, num_general_features, batch_first)
+    model, model_parameters = instantiate_model(num_visit_features, num_medications_features, num_general_features, batch_first, device)
     #model components
     VEncoder = model['visit_encoder']
     MEncoder = model['medications_encoder']
     LModule = model['lstm']
     PModule = model['pred_module']
-    VEncoder.to(device)
-    MEncoder.to(device)
-    LModule.to(device)
-    PModule.to(device)
+    # VEncoder.to(device)
+    # MEncoder.to(device)
+    # LModule.to(device)
+    # PModule.to(device)
     # initial available indices and number of epochs
     indices = dataset.train_ids
     e = 0
@@ -179,7 +190,7 @@ def train_model(dataset, device = torch.device('cpu'), batch_size=32, n_epochs =
         # f'visits tensor first row {t_v[debug_dict["indices_in_tensors"][0]]}')
         # print(f'all targets for debug patient {t_t[debug_dict["indices_in_tensors"][3]]}')
         
-        loss = apply_model_and_get_loss(VEncoder, MEncoder, LModule, PModule, t_v, t_m, t_p, t_t,
+        loss = apply_model_and_get_loss(device, VEncoder, MEncoder, LModule, PModule, t_v, t_m, t_p, t_t,
                                         min_num_visits, max_num_visits, visit_mask, masks, seq_lengths, total_num, debug_index)
 
         # take optimizer step once loss wrt all visits has been computed
@@ -192,7 +203,7 @@ def train_model(dataset, device = torch.device('cpu'), batch_size=32, n_epochs =
             with torch.no_grad():
                 loss_per_epoch[e-1] = loss
                 if e%valid_rate == 0:
-                    loss_valid = apply_model_and_get_loss(VEncoder, MEncoder, LModule, PModule, tensor_v_val, tensor_m_val, tensor_p_val, tensor_t_val,
+                    loss_valid = apply_model_and_get_loss(device, VEncoder, MEncoder, LModule, PModule, tensor_v_val, tensor_m_val, tensor_p_val, tensor_t_val,
                                         min_num_visits, max_num_visits_val, visit_mask_val, masks_val, seq_lengths_val, total_num_val)
                     loss_per_epoch_valid[e//valid_rate-1] = loss_valid
                     print(f'epoch : {e} loss {loss} loss_valid {loss_valid}')
@@ -235,7 +246,7 @@ def get_masks(dataset, subset, min_num_visits, debug_patient=None):
             seq_lengths[visit, i, 0], seq_lengths[visit, i,
                                                     1], _, cropped_timeline_mask, visual = dataset.patients[patient].get_cropped_timeline(visit + min_num_visits)
             masks[i].append(torch.broadcast_to(torch.tensor([[tuple_[0]] for tuple_ in cropped_timeline_mask]),
-                                                (len(cropped_timeline_mask), 10)))
+                                               (len(cropped_timeline_mask), size_embedding)))
             if debug_patient and patient == debug_patient:
                 print(f'visit {visit} cropped timeline mask {visual} ')
     
@@ -250,11 +261,13 @@ def get_masks(dataset, subset, min_num_visits, debug_patient=None):
         [[len(dataset.patients[patient].visits), dataset.patients[patient].num_med_events] for patient in subset])
     return max_num_visits, seq_lengths, masks, visit_mask, total_num_visits_and_meds
 
-def apply_model_and_get_loss(VEncoder, MEncoder, LModule, PModule, tensor_v, tensor_m, tensor_p, tensor_t, min_num_visits, max_num_visits, visit_mask, masks, seq_lengths, total_num, debug = None):
+def apply_model_and_get_loss(device, VEncoder, MEncoder, LModule, PModule, tensor_v, tensor_m, tensor_p, tensor_t, min_num_visits, max_num_visits, visit_mask, masks, seq_lengths, total_num, debug = None):
     batch_first = True
     loss = 0
-    criterion = torch.nn.MSELoss()
+    criterion = torch.nn.MSELoss(reduction='sum')
     o_v, o_m = VEncoder(tensor_v), MEncoder(tensor_m)
+    # for scaling of loss
+    num_targets = 0
     for v in range(0, max_num_visits - min_num_visits + 1):
         # stores for all the patients in the batch the tensor of ordered events (of varying size)
         sequence = []
@@ -262,9 +275,9 @@ def apply_model_and_get_loss(VEncoder, MEncoder, LModule, PModule, tensor_v, ten
         index_visits = 0
         index_medications = 0
         # targets
-        targets = torch.empty(size=(torch.sum(visit_mask[:, v] == True).item(), 1))
+        targets = torch.empty(size=(torch.sum(visit_mask[:, v] == True).item(), 1), device = device)
         # delta t
-        time_to_targets = torch.empty(size=(torch.sum(visit_mask[:, v] == True).item(), 1))
+        time_to_targets = torch.empty(size=(torch.sum(visit_mask[:, v] == True).item(), 1), device = device)
         # for each patient combine the medication and visit events in the right order up to visit v
         index_target = 0
         debug_index_target = None
@@ -276,6 +289,7 @@ def apply_model_and_get_loss(VEncoder, MEncoder, LModule, PModule, tensor_v, ten
                                                         o_m[index_medications:index_medications + seq[1]]]))
                 combined[masks[patient][v]] = o_v[index_visits:index_visits + seq[0]].flatten()
                 combined[~masks[patient][v]] = o_m[index_medications:index_medications + seq[1]].flatten()
+
                 sequence.append(combined)
                 targets[index_target] = tensor_t[index_visits + seq[0], 1]
                 time_to_targets[index_target] = tensor_t[index_visits + seq[0], 0]
@@ -303,18 +317,21 @@ def apply_model_and_get_loss(VEncoder, MEncoder, LModule, PModule, tensor_v, ten
         out = PModule(pred_input)
         # compute loss
         loss += criterion(out, targets)
+        num_targets += len(targets)
         if debug_index_target != None:
             #print(out)
             print(f'prediction {out[debug_index_target].item()}')
-    return loss
+    return loss/num_targets
 
 
-def test_model(dataset, VEncoder, MEncoder, LModule, PModule, tensor_v, tensor_m, tensor_p, tensor_t, min_num_visits, max_num_visits, visit_mask, masks, seq_lengths, total_num, debug=None):
+def test_model(device, subset, dataset, VEncoder, MEncoder, LModule, PModule, tensor_v, tensor_m, tensor_p, tensor_t, min_num_visits, max_num_visits, visit_mask, masks, seq_lengths, total_num, debug=None):
+
     batch_first = True
     loss = 0
     criterion = torch.nn.MSELoss()
     o_v, o_m = VEncoder(tensor_v), MEncoder(tensor_m)
-    results = torch.full(size=(len(dataset.test_ids), max_num_visits - min_num_visits + 1), fill_value=100.0)
+    # 100 dummy value to indicate the visits that are not predicted for a given patient (i.e. all the visits > #num visits for this patient)
+    results = torch.full(size=(len(subset), max_num_visits - min_num_visits + 1), fill_value=100.0, device=device)
     for v in range(0, max_num_visits - min_num_visits + 1):
         # stores for all the patients in the batch the tensor of ordered events (of varying size)
         sequence = []
@@ -322,9 +339,9 @@ def test_model(dataset, VEncoder, MEncoder, LModule, PModule, tensor_v, tensor_m
         index_visits = 0
         index_medications = 0
         # targets
-        targets = torch.empty(size=(torch.sum(visit_mask[:, v] == True).item(), 1))
+        targets = torch.empty(size=(torch.sum(visit_mask[:, v] == True).item(), 1), device = device)
         # delta t
-        time_to_targets = torch.empty(size=(torch.sum(visit_mask[:, v] == True).item(), 1))
+        time_to_targets = torch.empty(size=(torch.sum(visit_mask[:, v] == True).item(), 1), device = device)
         # for each patient combine the medication and visit events in the right order up to visit v
         index_target = 0
         debug_index_target = None
@@ -337,13 +354,13 @@ def test_model(dataset, VEncoder, MEncoder, LModule, PModule, tensor_v, tensor_m
                                                        o_m[index_medications:index_medications + seq[1]]]))
                 combined[masks[patient][v]] = o_v[index_visits:index_visits + seq[0]].flatten()
                 combined[~masks[patient][v]] = o_m[index_medications:index_medications + seq[1]].flatten()
+
                 sequence.append(combined)
                 targets[index_target] = tensor_t[index_visits + seq[0], 1]
                 time_to_targets[index_target] = tensor_t[index_visits + seq[0], 0]
                 if debug != None and patient == debug:
                     print(f'next target : {targets[index_target]}')
                     debug_index_target = index_target
-                    #print(f'visit info {tensor_v[index_visits:index_visits + seq[0]]} \n medication info {tensor_m[index_medications:index_medications + seq[1]]}')
                 index_target += 1
             # update the indices to select from in the tensors
             index_visits += total_num[patient, 0]
@@ -356,6 +373,7 @@ def test_model(dataset, VEncoder, MEncoder, LModule, PModule, tensor_v, tensor_m
         pack_padded_sequence = torch.nn.utils.rnn.pack_padded_sequence(
             padded_sequence, batch_first=batch_first, lengths=lengths, enforce_sorted=False)
         # apply lstm
+        LModule.to(device)
         output, (hn, cn) = LModule(pack_padded_sequence)
         history = hn[-1]
         # concat computed patient history with general information
@@ -368,7 +386,7 @@ def test_model(dataset, VEncoder, MEncoder, LModule, PModule, tensor_v, tensor_m
         if debug_index_target != None:
             #print(out)
             print(f'prediction {out[debug_index_target].item()}')
-    results_df = create_results_df(dataset, results)
+    results_df = create_results_df(device, subset, dataset, results)
     return results, results_df
 
 
@@ -378,33 +396,68 @@ def train_and_test_pipeline(dataset, batch_size, n_epochs, min_num_visits=2):
     print(f'device {device}')
     #train
     loss_per_epoch, loss_per_epoch_valid, VEncoder, MEncoder, LModule, PModule = train_model(
-        dataset, batch_size=batch_size, n_epochs=n_epochs, min_num_visits=min_num_visits, debug_patient=False)
+        dataset, device, batch_size=batch_size, n_epochs=n_epochs, min_num_visits=min_num_visits, debug_patient=False)
+
     #test
     with torch.no_grad():
+
+        debug_patient, debug_index = None, None
         tensor_v_test = dataset.visits_df_scaled_tensor_test.detach().clone().to(device)
         tensor_p_test = dataset.patients_df_scaled_tensor_test.detach().clone().to(device)
         tensor_m_test = dataset.medications_df_scaled_tensor_test.detach().clone().to(device)
         tensor_t_test = dataset.targets_df_scaled_tensor_test.detach().clone().to(device)
 
         max_num_visits_test, seq_lengths_test, masks_test, visit_mask_test, total_num_test = get_masks(
-            dataset, dataset.test_ids, min_num_visits)
-        results, results_df = test_model(dataset, VEncoder, MEncoder, LModule, PModule, tensor_v_test, tensor_m_test, tensor_p_test, tensor_t_test,
-                                         min_num_visits, max_num_visits_test, visit_mask_test, masks_test, seq_lengths_test, total_num_test)
+            dataset, dataset.test_ids, min_num_visits, debug_patient=debug_patient)
+        results, results_df = test_model(device, dataset.test_ids, dataset, VEncoder, MEncoder, LModule, PModule, tensor_v_test, tensor_m_test, tensor_p_test, tensor_t_test,
+                                         min_num_visits, max_num_visits_test, visit_mask_test, masks_test, seq_lengths_test, total_num_test, debug= debug_index)
+        
+        # test model on training data (just to see if predictions can get ~perfect)
+        #subset = np.random.choice(dataset.train_ids, 3)
+        subset = dataset.train_ids
+        # debug_patient = np.random.choice(subset, size=1)[0]
+        # debug_index = list(subset).index(debug_patient)
+        # df_t = dataset.targets_df_proc.copy()
+        # print(
+        #     f'Debug patient {debug_patient} \nall targets \n{df_t[df_t.patient_id == debug_patient]["das283bsr_score"]}')
+        tensor_v = dataset.visits_df_scaled_tensor_train.detach().clone().to(device)
+        tensor_p = dataset.patients_df_scaled_tensor_train.detach().clone().to(device)
+        tensor_m = dataset.medications_df_scaled_tensor_train.detach().clone().to(device)
+        tensor_t = dataset.targets_df_scaled_tensor_train.detach().clone().to(device)
+        max_num_visits, seq_lengths, masks, visit_mask, total_num = get_masks(
+            dataset, subset, min_num_visits, debug_patient=debug_patient)
+        results_train, results_train_df = test_model(device, subset, dataset, VEncoder, MEncoder, LModule, PModule, tensor_v, tensor_m, tensor_p, tensor_t,
+                                         min_num_visits, max_num_visits, visit_mask, masks, seq_lengths, total_num, debug=debug_index)
     
     if len(loss_per_epoch_valid) > 0:
         plt.plot(range(0, len(loss_per_epoch), 1), loss_per_epoch)
         plt.plot(range(0, len(loss_per_epoch), int(len(loss_per_epoch) / len(loss_per_epoch_valid))), loss_per_epoch_valid)
-    return loss_per_epoch, loss_per_epoch_valid, results, results_df
+        plt.ylim(0, 0.05)
+    return loss_per_epoch, loss_per_epoch_valid, results_df, results_train_df
 
-def create_results_df(dataset, results):
-    tmp_1 = dataset.targets_df[dataset.targets_df.patient_id.isin(dataset.test_ids)].copy()
+def create_results_df(device, subset, dataset, results, algo = 'adanet', num_targets = None):
+    # join the dataframes with unormalized values, normalized values and predicted values
+    tmp_1 = dataset.targets_df[dataset.targets_df.patient_id.isin(subset)].copy()
     tmp_2 = dataset.targets_df_proc[dataset.targets_df_proc.patient_id.isin(
-        dataset.test_ids)][['patient_id', 'visit_date', 'das283bsr_score']]
+        subset)][['patient_id', 'visit_date', 'das283bsr_score']]
     tmp_3 = pd.concat([tmp_1, tmp_2.rename(columns={'visit_date': 'visit_date_scaled', 'das283bsr_score':'das28_scaled'})], axis=1)
     results_df = tmp_3.loc[:, ~tmp_3.columns.duplicated()]
-    for index, elem in enumerate(results_df['patient_id'].unique()):
-        predictions = [np.nan] + [value for value in results[index, :] if value != 100.0]
-        results_df.loc[results_df.patient_id == elem, 'scaled_predictions'] = predictions
+    results = results.cpu()
+    # different results shape
+    if algo == 'adanet':
+        for index, elem in enumerate(results_df['patient_id'].unique()):
+            predictions = [np.nan] + [value for value in results[index, :] if value != 100.0]
+            results_df.loc[results_df.patient_id == elem, 'scaled_predictions'] = predictions
+
+    else :
+        index_in_results = 0
+        for index, elem in enumerate(results_df['patient_id'].unique()):
+            
+            predictions = torch.cat([torch.tensor([np.nan]), results[index_in_results:index_in_results + int(num_targets[index])].flatten()])
+
+            results_df.loc[results_df.patient_id == elem, 'scaled_predictions'] = np.array(predictions)
+            index_in_results += int(num_targets[index])
+           
     results_df['predictions'] = results_df['scaled_predictions'] * (dataset.visits_df_scaling_values[1]['das283bsr_score'] -
                                                                     dataset.visits_df_scaling_values[0]['das283bsr_score']) + dataset.visits_df_scaling_values[0]['das283bsr_score']
     results_df['squarred_error'] = (results_df['predictions'] - results_df['das283bsr_score'])**2
@@ -431,11 +484,11 @@ def analyze_results(dataset, results_df):
         f' {np.nansum(((results_df["predictions"][1:].values - results_df["das283bsr_score"][:-1].values)**2))/non_nan}')
     print(
         f'MSE between das28 and das28 at previous visit (naive baseline) {results_df["squarred_error_naive_baseline"].sum()/non_nan}')
-    f1 = plt.figure()
-    plt.scatter(results_df['days_to_prev_visit'], results_df['squarred_error'], marker='x', alpha=0.5)
-    plt.xlabel('days')
-    plt.ylabel('Squarred error')
-    plt.xlim(0,1000)
+    # f1 = plt.figure()
+    # plt.scatter(results_df['days_to_prev_visit'], results_df['squarred_error'], marker='x', alpha=0.5)
+    # plt.xlabel('days to previous visita')
+    # plt.ylabel('Squarred error')
+    # plt.xlim(0,1000)
     f2 = plt.figure()
     plt.scatter(results_df['history_length'], results_df['squarred_error'], marker='x', alpha=0.5)
 

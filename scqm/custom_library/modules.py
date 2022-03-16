@@ -48,8 +48,9 @@ class LSTMModule(nn.Module):
     LSTM feature encoder
     """
 
-    def __init__(self, input_size, batch_first = True, hidden_size=12):
+    def __init__(self, input_size, batch_first=True, hidden_size=12, device='cpu'):
         super(LSTMModule, self).__init__()
+        self.device = device
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.num_layers = 1
@@ -59,10 +60,10 @@ class LSTMModule(nn.Module):
     def forward(self, x):
         # x is PackedSequence object
         # Initialize hidden state with zeros
-        h0 = torch.zeros(self.num_layers, max(x.batch_sizes).item(), self.hidden_size).requires_grad_()
+        h0 = torch.zeros(self.num_layers, max(x.batch_sizes).item(), self.hidden_size, device = self.device).requires_grad_()
         # Initialize cell state
         c0 = torch.zeros(self.num_layers, max(
-            x.batch_sizes).item(), self.hidden_size).requires_grad_()
+            x.batch_sizes).item(), self.hidden_size, device = self.device).requires_grad_()
         lstm_out, (hn, cn) = self.lstm(x, (h0, c0))
         return lstm_out, (hn, cn)
 
@@ -86,7 +87,7 @@ class MLP(nn.Module):
     MLP baseline
     """
 
-    def __init__(self, input_size, hidden_1=10, hidden_2=10):
+    def __init__(self, input_size, hidden_1=30, hidden_2=30):
         super(MLP, self).__init__()
         self.fc1 = nn.Linear(input_size, hidden_1)
         self.fc2 = nn.Linear(hidden_1, hidden_2)

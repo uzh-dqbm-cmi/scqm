@@ -221,9 +221,12 @@ class Dataset:
         test_size = int(len(self)*prop_test)
         valid_size = int(len(self)*prop_valid)
         train_size = len(self) - valid_size - test_size
-        self.train_ids = np.random.choice(self.patient_ids, size=train_size, replace=False)
+        train_ids = np.random.choice(self.patient_ids, size=train_size, replace=False)
+        # order
+        self.train_ids = np.array([id_ for id_ in self.patient_ids if id_ in train_ids])
         available_ids = [id_ for id_ in self.patient_ids if id_ not in self.train_ids]
-        self.valid_ids = np.random.choice(available_ids, size = valid_size, replace=False)
+        valid_ids = np.random.choice(available_ids, size = valid_size, replace=False)
+        self.valid_ids = np.array([id_ for id_ in self.patient_ids if id_ in valid_ids])
         self.test_ids = np.array([id_ for id_ in available_ids if id_ not in self.valid_ids])
         return
     
@@ -265,8 +268,9 @@ class Dataset:
                                                                                    ], drop_first=True)
         self.patients_df_proc = pd.get_dummies(self.patients_df_proc, columns = ['gender', 'anti_ccp', 'ra_crit_rheumatoid_factor'], drop_first=True)
         #TODO add condition here
-        self.joint_df_proc = pd.get_dummies(self.joint_df_proc, columns=[
-            '.smoker', '.morning_stiffness_duration_radai', 'medication_generic_drug', 'medication_drug_classification'], drop_first=True)
+        if hasattr(self, 'joint_df_proc'):
+            self.joint_df_proc = pd.get_dummies(self.joint_df_proc, columns=[
+                '.smoker', '.morning_stiffness_duration_radai', 'medication_generic_drug', 'medication_drug_classification'], drop_first=True)
         return
     
 
