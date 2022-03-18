@@ -1,4 +1,4 @@
-from scqm.custom_library.adaptivenet_utils import create_results_df
+from scqm.custom_library.utils import create_results_df
 from scqm.custom_library.preprocessing import *
 from scqm.custom_library.data_objects import *
 from scqm.custom_library.modules import MLP

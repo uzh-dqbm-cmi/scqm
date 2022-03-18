@@ -9,38 +9,39 @@ import torch.nn.functional as F
 # phi visit/medication
 
 
-class VisitEncoder(nn.Module):
-    """
-    visit encoder
-    """
+# class VisitEncoder(nn.Module):
+#     """
+#     visit encoder
+#     """
 
-    def __init__(self, num_visit_features, size_out=10, hidden_1=10, hidden_2=10):
-        super(VisitEncoder, self).__init__()
-        self.fc1 = nn.Linear(num_visit_features, hidden_1)
-        self.fc2 = nn.Linear(hidden_1, hidden_2)
-        self.out = nn.Linear(hidden_2, size_out)
+#     def __init__(self, num_visit_features, size_out=10, hidden_1=10, hidden_2=10):
+#         super(VisitEncoder, self).__init__()
+#         self.size_embedding = size_out
+#         self.fc1 = nn.Linear(num_visit_features, hidden_1)
+#         self.fc2 = nn.Linear(hidden_1, hidden_2)
+#         self.out = nn.Linear(hidden_2, size_out)
 
-    def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        return self.out(x)
+#     def forward(self, x):
+#         x = F.relu(self.fc1(x))
+#         x = F.relu(self.fc2(x))
+#         return self.out(x)
 
 
-class MedicationEncoder(nn.Module):
-    """
-    visit encoder
-    """
+# class MedicationEncoder(nn.Module):
+#     """
+#     visit encoder
+#     """
 
-    def __init__(self, num_medications_features, size_out=10, hidden_1=10, hidden_2=10):
-        super(MedicationEncoder, self).__init__()
-        self.fc1 = nn.Linear(num_medications_features, hidden_1)
-        self.fc2 = nn.Linear(hidden_1, hidden_2)
-        self.out = nn.Linear(hidden_2, size_out)
+#     def __init__(self, num_medications_features, size_out=10, hidden_1=10, hidden_2=10):
+#         super(MedicationEncoder, self).__init__()
+#         self.fc1 = nn.Linear(num_medications_features, hidden_1)
+#         self.fc2 = nn.Linear(hidden_1, hidden_2)
+#         self.out = nn.Linear(hidden_2, size_out)
 
-    def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        return self.out(x)
+#     def forward(self, x):
+#         x = F.relu(self.fc1(x))
+#         x = F.relu(self.fc2(x))
+#         return self.out(x)
 
 
 class LSTMModule(nn.Module):
@@ -48,12 +49,12 @@ class LSTMModule(nn.Module):
     LSTM feature encoder
     """
 
-    def __init__(self, input_size, batch_first=True, hidden_size=12, device='cpu'):
+    def __init__(self, input_size, device='cpu', batch_first=True, hidden_size=12, num_layers = 1):
         super(LSTMModule, self).__init__()
         self.device = device
         self.input_size = input_size
         self.hidden_size = hidden_size
-        self.num_layers = 1
+        self.num_layers = num_layers
         self.lstm = nn.LSTM(input_size=self.input_size, hidden_size=self.hidden_size,
                             num_layers=self.num_layers, batch_first=batch_first)
 
@@ -68,18 +69,73 @@ class LSTMModule(nn.Module):
         return lstm_out, (hn, cn)
 
 
+# class PredModule(nn.Module):
+#     """Module to perform final prediction"""
+
+#     def __init__(self, input_size, hidden_1=10, hidden_2=10):
+#         super(PredModule, self).__init__()
+#         self.fc1 = nn.Linear(input_size, hidden_1)
+#         self.fc2 = nn.Linear(hidden_1, hidden_2)
+#         self.out = nn.Linear(hidden_2, 1)
+
+#     def forward(self, x):
+#         x = F.relu(self.fc1(x))
+#         x = F.relu(self.fc2(x))
+#         return self.out(x)
+
+
+class VisitEncoder(nn.Module):
+    """
+    visit encoder
+    """
+
+    def __init__(self, num_visit_features, size_out, num_hidden=2, hidden_size=10):
+        super(VisitEncoder, self).__init__()
+        self.size_embedding = size_out
+        self.input_layer = nn.Linear(num_visit_features, hidden_size)
+        self.linears = nn.ModuleList([nn.Linear(hidden_size, hidden_size) for i in range(1, num_hidden)])
+        self.out = nn.Linear(hidden_size, size_out)
+
+    def forward(self, x):
+        x = F.relu(self.input_layer(x))
+        for l in self.linears:
+            x = F.relu(l(x))
+        return self.out(x)
+
+
+class MedicationEncoder(nn.Module):
+    """
+    visit encoder
+    """
+
+    def __init__(self, num_medications_features, size_out, num_hidden=2, hidden_size=10):
+        super(MedicationEncoder, self).__init__()
+        self.input_layer = nn.Linear(num_medications_features, hidden_size)
+        self.linears = nn.ModuleList([nn.Linear(hidden_size, hidden_size) for i in range(1, num_hidden)])
+        self.out = nn.Linear(hidden_size, size_out)
+
+    def forward(self, x):
+        x = F.relu(self.input_layer(x))
+        for l in self.linears:
+            x = F.relu(l(x))
+        return self.out(x)
+
+
+
+
+
 class PredModule(nn.Module):
     """Module to perform final prediction"""
 
-    def __init__(self, input_size, hidden_1=10, hidden_2=10):
+    def __init__(self, input_size, num_hidden=2, hidden_size = 10):
         super(PredModule, self).__init__()
-        self.fc1 = nn.Linear(input_size, hidden_1)
-        self.fc2 = nn.Linear(hidden_1, hidden_2)
-        self.out = nn.Linear(hidden_2, 1)
-
+        self.input_layer = nn.Linear(input_size, hidden_size)
+        self.linears = nn.ModuleList([nn.Linear(hidden_size, hidden_size) for i in range(1, num_hidden)])
+        self.out = nn.Linear(hidden_size, 1)
     def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
+        x = F.relu(self.input_layer(x))
+        for l in self.linears:
+            x = F.relu(l(x))
         return self.out(x)
 
 class MLP(nn.Module):
@@ -121,10 +177,11 @@ if __name__ == "__main__":
     pack_padded_seq = torch.nn.utils.rnn.pack_padded_sequence(
         padded_seq, batch_first=True, lengths=lengths, enforce_sorted=False)
     # instanciate LSTM
-    lstm = LSTMModule(input_size, hidden_size)
+    lstm = LSTMModule(input_size, 'cpu', batch_first=True, hidden_size=hidden_size, num_layers=1)
     output, (hn, cn) = lstm(pack_padded_seq)
     # test prediction module
     input = hn[-1]
     input_size = hidden_size
     pred_module = PredModule(input_size)
     out = pred_module(input)
+    print(out)
