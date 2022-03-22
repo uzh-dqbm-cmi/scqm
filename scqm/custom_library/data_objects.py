@@ -217,7 +217,7 @@ class Dataset:
     def __len__(self):
         return len(self.patient_ids)
     
-    def split_data(self, prop_valid= 0.2, prop_test = 0.2):
+    def split_data(self, prop_valid= 0.1, prop_test = 0.1):
         test_size = int(len(self)*prop_test)
         valid_size = int(len(self)*prop_valid)
         train_size = len(self) - valid_size - test_size

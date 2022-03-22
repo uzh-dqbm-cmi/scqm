@@ -3,12 +3,18 @@ from scqm.custom_library.preprocessing import load_dfs, preprocessing, extract_a
 from scqm.custom_library.data_objects import Dataset
 import itertools
 import numpy as np
-from adaptivenet_utils import train_model_on_partition, instantiate_model
+from adaptivenet_utils import train_model_on_partition
+from scqm.custom_library.modules import Model
 import sys
 import csv
 import random
 import time
+import torch
 
+# seed = 0
+# random.seed(seed)
+# torch.manual_seed(seed)
+# np.random.seed(seed)
 
 if __name__ == '__main__':
 
@@ -25,7 +31,7 @@ if __name__ == '__main__':
     partition = DataPartition(dataset, k=5)
     print('start')
     fold = int(sys.argv[1])
-    device = 'cuda:0'
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print(f'fold {fold}')
 
     # instantiate model
@@ -33,41 +39,35 @@ if __name__ == '__main__':
     num_medications_features = dataset.medications_df_scaled_tensor_train.shape[1]
     num_general_features = dataset.patients_df_scaled_tensor_train.shape[1]
     batch_first = True
-    SIZE_EMBEDDING = np.array([10, 30, 50])
-    NUM_LAYERS_ENC = np.array([1, 2, 5, 10])
-    HIDDEN_ENC = np.array([10, 30, 50])
-    SIZE_HISTORY = np.array([10, 30, 50])
-    NUM_LAYERS = np.array([1, 2,  5, 10])
-    NUM_LAYERS_PRED = np.array([1, 5, 10, 15, 30])
-    HIDDEN_PRED = np.array([10, 30, 50])
-    LR = np.array([1e-4, 1e-3])
+    SIZE_EMBEDDING = np.array([30, 50])
+    NUM_LAYERS_ENC = np.array([2, 5, 10])
+    HIDDEN_ENC = np.array([50, 100])
+    SIZE_HISTORY = np.array([30, 50])
+    NUM_LAYERS = np.array([2,  5, 10])
+    NUM_LAYERS_PRED = np.array([5, 10])
+    HIDDEN_PRED = np.array([30, 50, 100])
+    LR = np.array([1e-3])
+    P = np.array([0.1, 0.2, 0.3])
+    BALANCE_CLASSES = np.array([False, True])
     timestr = time.strftime("%Y%m%d-%H%M")
+    task = 'classification'
     with open('/cluster/home/ctrottet/code/scqm_cv_results/' + timestr + '_fold_' + str(fold) + '.csv', 'w') as f:
-        header = ['size_embedding', 'num_layers_enc','hidden_enc', 'size_history', 'num_layers', 'num_layers_pred', 'hidden_pred', 'lr', 'epochs', 'loss', 'loss_valid']
+        header = ['size_embedding', 'num_layers_enc','hidden_enc', 'size_history', 'num_layers', 'num_layers_pred', 'hidden_pred', 'p', 'lr', 'bal_classes','epochs', 'loss', 'loss_valid',
+        'accuracy', 'accuracy_valid']
         writer = csv.writer(f)
         writer.writerow(header)
         combinations = list(itertools.product(SIZE_EMBEDDING, NUM_LAYERS_ENC, HIDDEN_ENC,
-                            SIZE_HISTORY, NUM_LAYERS, NUM_LAYERS_PRED, HIDDEN_PRED, LR))
-        combinations_sample = random.sample(combinations, 40)
-        for ind, (size_embedding, num_layers_enc, hidden_enc, size_history, num_layers, num_layers_pred, hidden_pred, lr) in enumerate(combinations_sample):
+                            SIZE_HISTORY, NUM_LAYERS, NUM_LAYERS_PRED, HIDDEN_PRED, P, LR, BALANCE_CLASSES))
+        combinations_sample = random.sample(combinations, 30)
+        for ind, (size_embedding, num_layers_enc, hidden_enc, size_history, num_layers, num_layers_pred, hidden_pred, p, lr, bal) in enumerate(combinations_sample):
             print(f'{ind} combination out of {len(combinations_sample)}')
             print(
-                f'size_embedding {size_embedding}, num_layers_enc {num_layers_enc},hidden_enc {hidden_enc}, size_history {size_history}, num_layers {num_layers}, num_layers_pred {num_layers_pred}, hidden_pred {hidden_pred}, lr {lr}')
+                f'size_embedding {size_embedding}, num_layers_enc {num_layers_enc},hidden_enc {hidden_enc}, size_history {size_history}, num_layers {num_layers}, num_layers_pred {num_layers_pred}, hidden_pred {hidden_pred}, dropout {p}, lr {lr}')
             model_specifics = {'size_embedding': size_embedding, 'num_layers_enc': num_layers_enc, 'hidden_enc': hidden_enc,  'size_history': size_history, 'num_layers': num_layers, 'num_layers_pred': num_layers_pred, 'hidden_pred': hidden_pred, 
-                            'num_visit_features': num_visit_features, 'num_medications_features': num_medications_features, 'num_general_features': num_general_features, 'batch_first': batch_first, 'device': device}
-            model, model_parameters = instantiate_model(
-                model_specifics)
-            parameters = {'data': dataset,
-                        'partition': partition,
-                        'fold': fold,
-                        'device': device,
-                        'model': model,
-                        'model_parameters': model_parameters,
-                        'batch_size': 32,
-                        'epochs': 400,
-                        'lr': lr,
-                        'min_num_visits': 2,
-                        'debug_patient': False}
-            e, loss, loss_valid = train_model_on_partition(parameters)
+                            'num_visit_features': num_visit_features, 'num_medications_features': num_medications_features, 'num_general_features': num_general_features, 'dropout' : p, 'batch_first': batch_first, 'device': device, 'task' : task}
+            model = Model(model_specifics, device)
+            
+            model.set_training_parameters(n_epochs = 400, batch_size = 32, lr = lr, min_num_visits = 2, balance_classes = bal)
+            e, loss, loss_valid, accuracy, accuracy_valid = train_model_on_partition(model, dataset, partition, fold, debug_patient = False)
             writer.writerow(np.array([size_embedding, num_layers_enc, hidden_enc, size_history,
-                            num_layers, num_layers_pred, hidden_pred, lr, e, loss, loss_valid]))
+                            num_layers, num_layers_pred, hidden_pred, p, lr, bal, e, loss, loss_valid, accuracy, accuracy_valid]))

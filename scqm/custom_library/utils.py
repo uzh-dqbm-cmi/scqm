@@ -35,8 +35,38 @@ class DataPartition:
             tensor_slice = tensor[processed_df[processed_df.patient_id.isin(
                 self.partitions_train[fold])].tensor_indices_train.values]
         return tensor_slice
-    
-        
+
+class Metrics:
+    def __init__(self, predictions = torch.empty(0), true_values=torch.empty(0)):
+        self.predictions = predictions
+        self.true_values = true_values
+
+    def __len__(self):
+        if len(self.predictions) != len(self.true_values):    
+            raise ValueError('length of predictions doesnt match true values')
+        else:
+            return len(self.predictions)
+    def add_observations(self, new_predictions, new_true_values):
+        self.predictions = torch.cat([self.predictions, new_predictions])
+        self.true_values = torch.cat([self.true_values, new_true_values])
+        return
+    def mse(self):
+        return 1/len(self)* torch.sum((self.predictions - self.true_values)**2)
+    def discrete_metrics(self):
+        self.TP = len([elem for index, elem in enumerate(self.predictions) if elem == 1 and elem == self.true_values[index]])
+        self.TN = len([elem for index, elem in enumerate(self.predictions)
+                      if elem == 0 and elem == self.true_values[index]])
+        self.FP = len([elem for index, elem in enumerate(self.predictions)
+                      if elem == 1 and elem != self.true_values[index]])
+        self.FN = len([elem for index, elem in enumerate(self.predictions)
+                      if elem == 0 and elem != self.true_values[index]])
+        if self.TP + self.TN + self.FP + self.FN != len(self):
+            raise ArithmeticError('Sum of TP, TN, FP, FN doesnt match len of self')
+        self.sensitivity = self.TP/(self.TP + self.FN)
+        self.specificity = self.TN/(self.TN + self.FP)
+        self.accuracy = (self.TP + self.TN)/(self.TP + self.TN + self.FP + self.FN)
+        self.f1 = self.TP/(self.TP + 1/2 * (self.FP + self.FN))
+       
 
 
 def create_results_df(device, subset, dataset, results, algo='adanet', num_targets=None):
@@ -82,23 +112,39 @@ def create_results_df(device, subset, dataset, results, algo='adanet', num_targe
 
     return results_df
 
-def analyze_results(dataset, results_df):
+def analyze_results(dataset, results_df, task = 'regression'):
     non_nan = len(results_df['predictions'].dropna())
     print(f'Number of predicitions {non_nan}')
-    print(f'MSE between targets and prediction {results_df["squarred_error"].sum()/non_nan}')
-    print(f'MSE between prediction and previous visit value'
-          f' {np.nansum(((results_df["predictions"][1:].values - results_df["das283bsr_score"][:-1].values)**2))/non_nan}')
-    print(
-        f'MSE between das28 and das28 at previous visit (naive baseline) {results_df["squarred_error_naive_baseline"].sum()/non_nan}')
-    # f1 = plt.figure()
-    # plt.scatter(results_df['days_to_prev_visit'], results_df['squarred_error'], marker='x', alpha=0.5)
-    # plt.xlabel('days to previous visita')
-    # plt.ylabel('Squarred error')
-    # plt.xlim(0,1000)
-    f2 = plt.figure()
-    plt.scatter(results_df['history_length'], results_df['squarred_error'], marker='x', alpha=0.5)
+    if task == 'regression':
+        print(f'MSE between targets and prediction {results_df["squarred_error"].sum()/non_nan}')
+        print(f'MSE between prediction and previous visit value'
+            f' {np.nansum(((results_df["predictions"][1:].values - results_df["das283bsr_score"][:-1].values)**2))/non_nan}')
+        print(
+            f'MSE between das28 and das28 at previous visit (naive baseline) {results_df["squarred_error_naive_baseline"].sum()/non_nan}')
+        # f1 = plt.figure()
+        # plt.scatter(results_df['days_to_prev_visit'], results_df['squarred_error'], marker='x', alpha=0.5)
+        # plt.xlabel('days to previous visita')
+        # plt.ylabel('Squarred error')
+        # plt.xlim(0,1000)
+        f2 = plt.figure()
+        plt.scatter(results_df['history_length'], results_df['squarred_error'], marker='x', alpha=0.5)
 
-    plt.xlabel('history length')
-    plt.ylabel('Squarred error')
-
+        plt.xlabel('history length')
+        plt.ylabel('Squarred error')
+    else :
+        reduced = results_df[results_df['scaled_predictions'].notna()]
+        conf_matrix = pd.crosstab(reduced['scaled_predictions'], reduced['das28_category'])
+        print(conf_matrix)
+        print(f'accuracy : {(conf_matrix.loc[0, 0] + conf_matrix.loc[1, 1])/conf_matrix.sum().sum()}')
+        print(f'sensitivity : {(conf_matrix.loc[1, 1])/(conf_matrix.loc[1,1] + conf_matrix.loc[0, 1])}')
+        print(f'specificity : {conf_matrix.loc[0, 0]/(conf_matrix.loc[0, 0] + conf_matrix.loc[1,0])}')
     return
+
+def compute_metrics(device, output, targets):
+    predictions = torch.tensor([1 if elem >= 0.5 else 0 for elem in output], device = device)
+    TP = len([elem for index, elem in enumerate(predictions) if elem==targets[index] and elem == 1])
+    TN = len([elem for index, elem in enumerate(predictions) if elem == targets[index] and elem == 0])
+    FP = len([elem for index, elem in enumerate(predictions) if elem != targets[index] and elem == 1])
+    FN = len([elem for index, elem in enumerate(predictions) if elem != targets[index] and elem == 0])
+    
+    return (TP, TN, FP, FN)

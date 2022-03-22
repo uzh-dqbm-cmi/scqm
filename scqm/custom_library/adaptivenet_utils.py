@@ -10,7 +10,7 @@ from scqm.custom_library.preprocessing import extract_adanet_features, preproces
 from scqm.custom_library.data_objects import *
 from scqm.custom_library.modules import VisitEncoder, MedicationEncoder, LSTMModule, PredModule
 import matplotlib.pyplot as plt
-from scqm.custom_library.utils import create_results_df
+from scqm.custom_library.utils import create_results_df, compute_metrics, Metrics
 
 # # global parameters : network architecture
 # # encoders
@@ -22,7 +22,10 @@ from scqm.custom_library.utils import create_results_df
 # # prediction module
 # hidden_1_pred = 10
 # hidden_2_pred = 10
-
+seed = 0
+random.seed(seed)
+torch.manual_seed(seed)
+np.random.seed(seed)
 
 def KFoldCVpipeline(df_dict):
     df_dict = preprocessing(df_dict)
@@ -138,16 +141,16 @@ def instantiate_model(model_specifics):
     Returns:
         _type_: _description_
     """
-
+    # regression or classification
     VEncoder = VisitEncoder(model_specifics['num_visit_features'], model_specifics['size_embedding'], model_specifics['num_layers_enc'],
-                            model_specifics['hidden_enc'])
+                            model_specifics['hidden_enc'], model_specifics['dropout'])
     MEncoder = MedicationEncoder(model_specifics['num_medications_features'], model_specifics['size_embedding'],
-                                 model_specifics['num_layers_enc'], model_specifics['hidden_enc'])
+                                 model_specifics['num_layers_enc'], model_specifics['hidden_enc'], model_specifics['dropout'])
     LModule = LSTMModule(model_specifics['size_embedding'], model_specifics['device'],
                          model_specifics['batch_first'], model_specifics['size_history'], model_specifics['num_layers'])
     # + 1 for time to prediction
     PModule = PredModule(model_specifics['size_history'] + model_specifics['num_general_features'] +
-                         1, model_specifics['num_layers_pred'], model_specifics['hidden_pred'])
+                         1, model_specifics['num_layers_pred'], model_specifics['hidden_pred'], model_specifics['dropout'])
     model = {'visit_encoder': VEncoder.to(model_specifics['device']), 'medications_encoder': MEncoder.to(model_specifics['device']),
              'lstm': LModule.to(model_specifics['device']), 'pred_module': PModule.to(model_specifics['device'])}
     model_parameters = list(VEncoder.parameters()) + list(MEncoder.parameters()) + \
@@ -175,6 +178,7 @@ def train_model(dataset, device, model_specifics, batch_size=32, n_epochs=1, min
     num_medications_features = tensor_m.shape[1]
     num_general_features = tensor_p.shape[1]
     batch_first = True
+    task = model_specifics['task']
     print(
         f'Starting training process with {num_visit_features} visit features, {num_medications_features} medication features, {num_general_features} general features and one time feature')
     
@@ -196,29 +200,48 @@ def train_model(dataset, device, model_specifics, batch_size=32, n_epochs=1, min
     if debug_patient:
         debug_patient = np.random.choice(all_indices, size=1)[0]
         print(
-            f'Debug patient {debug_patient} \nall targets \n{df_t[df_t.patient_id == debug_patient]["das283bsr_score"]}')
+            f'Debug patient {debug_patient} \nall targets \n{df_t[df_t.patient_id == debug_patient][["das283bsr_score", "das28_category"]]}')
     # validation data
     max_num_visits_val, seq_lengths_val, masks_val, visit_mask_val, total_num_val = get_masks(
         dataset, dataset.valid_ids, min_num_visits, size_embedding)
     # compute valid loss all valid_rate steps
-    valid_rate = 10
     loss_per_epoch = torch.empty(size=(n_epochs, 1))
-    loss_per_epoch_valid = torch.empty(size=(n_epochs // valid_rate, 1))
+    loss_per_epoch_valid = torch.empty(size=(n_epochs, 1))
+    accuracy_per_epoch = torch.empty(size=(n_epochs, 1))
+    accuracy_per_epoch_valid = torch.empty(size=(n_epochs, 1))
     indices = all_indices
-    while (e < n_epochs):
+    # for weighting
+    patients_train = dataset.visits_df.patient_id.isin(dataset.train_ids)
+    class_0 = len(dataset.visits_df[patients_train][dataset.visits_df[patients_train]
+                                                                  ['das28_category'] == 0])
+    class_1 = len(dataset.visits_df[patients_train][dataset.visits_df[patients_train]
+                                                                  ['das28_category'] == 1])
+    pos_weight = torch.tensor(class_1/class_0) if model_specifics['balance_classes'] else None
+
+    early_stopping = False
+    print(f'weighting for positive class {pos_weight}')
+    # loss
+    criterion = torch.nn.MSELoss(reduction='sum') if task == 'regression' else torch.nn.BCEWithLogitsLoss(
+        reduction='sum', pos_weight=pos_weight)
+    TP, TN, FP, FN = 0, 0, 0, 0
+    while (e < n_epochs) and early_stopping==False:
+        VEncoder.train()
+        MEncoder.train()
+        LModule.train()
+        PModule.train()
 
         # get batch, corresponding tensor slices and masks to combine the visits/medication events and to select the
         # patients with a given number of visits
         t_v, t_m, t_p, t_t, seq_lengths, masks, indices, e, max_num_visits, visit_mask, \
-            total_num, debug_index = get_batch_and_masks(
+            total_num, debug_index= get_batch_and_masks(
                 all_indices, e, indices, dataset, batch_size, df_v, df_m, df_p, df_t, tensor_v, tensor_m, tensor_p, tensor_t, min_num_visits, size_embedding, debug_patient)
         # uncomment to check that dfs are the same
         # print(f'visits df first row debug patient {df_v[df_v.patient_id == debug_dict["id"]]}',
         # f'visits tensor first row {t_v[debug_dict["indices_in_tensors"][0]]}')
         # print(f'all targets for debug patient {t_t[debug_dict["indices_in_tensors"][3]]}')
 
-        loss = apply_model_and_get_loss(device, VEncoder, MEncoder, LModule, PModule, t_v, t_m, t_p, t_t,
-                                        min_num_visits, max_num_visits, visit_mask, masks, seq_lengths, total_num, debug_index)
+        loss, TP, TN, FP, FN = apply_model_and_get_loss(criterion, task, device, VEncoder, MEncoder, LModule, PModule, t_v, t_m, t_p, t_t,
+                                                  min_num_visits, max_num_visits, visit_mask, masks, seq_lengths, total_num, TP, TN, FP, FN, debug_index)
 
         # take optimizer step once loss wrt all visits has been computed
         optimizer.zero_grad()
@@ -228,49 +251,46 @@ def train_model(dataset, device, model_specifics, batch_size=32, n_epochs=1, min
         # store loss and evaluate on validation data
         if len(indices) == len(dataset.train_ids):
             with torch.no_grad():
+                VEncoder.eval()
+                MEncoder.eval()
+                LModule.eval()
+                PModule.eval()
+                TP_val, TN_val, FP_val, FN_val = 0, 0, 0, 0
+                loss_valid, TP_val, TN_val, FP_val, FN_val = apply_model_and_get_loss(criterion, task, device, VEncoder, MEncoder, LModule, PModule, tensor_v_val, tensor_m_val, tensor_p_val, tensor_t_val,
+                                                                                      min_num_visits, max_num_visits_val, visit_mask_val, masks_val, seq_lengths_val, total_num_val, TP_val, TN_val, FP_val, FN_val)
+                loss_per_epoch_valid[e - 1] = loss_valid
+                accuracy = (TP + TN)/(TP + TN + FP + FN)
+                accuracy_valid = (TP_val + TN_val)/(TP_val + TN_val + FP_val + FN_val)
+                accuracy_per_epoch_valid[e - 1] = accuracy_valid
                 loss_per_epoch[e - 1] = loss
-                if e % valid_rate == 0:
-                    loss_valid = apply_model_and_get_loss(device, VEncoder, MEncoder, LModule, PModule, tensor_v_val, tensor_m_val, tensor_p_val, tensor_t_val,
-                                                          min_num_visits, max_num_visits_val, visit_mask_val, masks_val, seq_lengths_val, total_num_val)
-                    loss_per_epoch_valid[e // valid_rate - 1] = loss_valid
-                    print(f'epoch : {e} loss {loss} loss_valid {loss_valid}')
-
+                accuracy_per_epoch[e - 1] = accuracy
+                TP, TN, FP, FN = 0, 0, 0, 0
+                print(
+                    f'epoch : {e} loss {np.round(loss, 4)} loss_valid {np.round(loss_valid, 4)} accuracy {np.round(accuracy, 4)} accuracy_valid {np.round(accuracy_valid, 4)}')
+                if e > 35 and (loss_per_epoch_valid[e - 1 - 20:e - 1] / loss_per_epoch_valid[e - 1 - 30:e - 1 - 10]).mean() > 1:
+                    early_stopping = True
+                    print('valid loss increasing')
     #print(f'loss all epochs{loss_per_epoch} \n valid {loss_per_epoch_valid}')
 
-    return loss_per_epoch, loss_per_epoch_valid, VEncoder, MEncoder, LModule, PModule
+    return e, loss_per_epoch, loss_per_epoch_valid, accuracy_per_epoch, accuracy_per_epoch_valid, VEncoder, MEncoder, LModule, PModule
 
 
-def train_model_on_partition(parameters):
-
-    dataset = parameters['data']
-    partition = parameters['partition']
-    fold = parameters['fold']
-    device = parameters['device']
-    batch_size = parameters['batch_size']
-    epochs = parameters['epochs']
-    lr = parameters['lr']
-    min_num_visits = parameters['min_num_visits']
-    debug_patient = parameters['debug_patient']
-    model = parameters['model']
-    model_parameters = parameters['model_parameters']
-
-    print(f'device {device}')
+def train_model_on_partition(model, dataset, partition, fold, debug_patient):
+  
+    print(f'device {model.device}')
     #dfs and tensors
     df_v = dataset.visits_df_proc
     df_p = dataset.patients_df_proc
     df_m = dataset.medications_df_proc
     df_t = dataset.targets_df_proc
-    tensor_v = dataset.visits_df_scaled_tensor_train.to(device)
-    tensor_p = dataset.patients_df_scaled_tensor_train.to(device)
-    tensor_m = dataset.medications_df_scaled_tensor_train.to(device)
-    tensor_t = dataset.targets_df_scaled_tensor_train.to(device)
+    tensor_v = dataset.visits_df_scaled_tensor_train.to(model.device)
+    tensor_p = dataset.patients_df_scaled_tensor_train.to(model.device)
+    tensor_m = dataset.medications_df_scaled_tensor_train.to(model.device)
+    tensor_t = dataset.targets_df_scaled_tensor_train.to(model.device)
 
     # model components
-    VEncoder = model['visit_encoder']
-    MEncoder = model['medications_encoder']
-    LModule = model['lstm']
-    PModule = model['pred_module']
-    size_embedding = VEncoder.size_embedding
+
+    size_embedding = model.VEncoder.size_embedding
 
     # validation
 
@@ -290,13 +310,12 @@ def train_model_on_partition(parameters):
     tensor_m_val = tensor_m[tensor_indices_meds_val]
     tensor_t_val = tensor_t[tensor_indices_targ_val]
     max_num_visits_val, seq_lengths_val, masks_val, visit_mask_val, total_num_val = get_masks(
-        dataset, partition.partitions_test[fold], min_num_visits, size_embedding)
+        dataset, partition.partitions_test[fold], model.min_num_visits, size_embedding)
 
     # initial available indices and number of epochs
     all_indices = partition.partitions_train[fold]
     e = 0
     min_num_visits = 2
-    optimizer = torch.optim.Adam(model_parameters, lr=lr)
 
     # debug patient
     if debug_patient:
@@ -304,29 +323,41 @@ def train_model_on_partition(parameters):
         print(
             f'Debug patient {debug_patient} \nall targets \n{df_t[df_t.patient_id == debug_patient]["das283bsr_score"]}')
 
-    loss_per_epoch = torch.empty(size=(epochs, 1))
-    loss_per_epoch_valid = torch.empty(size=(epochs, 1))
+    loss_per_epoch = torch.empty(size=(model.n_epochs, 1))
+    loss_per_epoch_valid = torch.empty(size=(model.n_epochs, 1))
     indices = all_indices
     early_stopping = False
-    while (e < epochs) and early_stopping == False:
 
+    # loss
+    # for weighting
+    patients_train = dataset.visits_df.patient_id.isin(dataset.train_ids)
+    class_0 = len(dataset.visits_df[patients_train][dataset.visits_df[patients_train]
+                                                    ['das28_category'] == 0])
+    class_1 = len(dataset.visits_df[patients_train][dataset.visits_df[patients_train]
+                                                    ['das28_category'] == 1])
+    pos_weight = torch.tensor(class_1 / class_0) if model.balance_classes else None
+    #TODO change
+    model.criterion = torch.nn.MSELoss(reduction='sum') if model.task == 'regression' else torch.nn.BCEWithLogitsLoss(reduction = 'sum', pos_weight=pos_weight)
+    metrics = Metrics()
+    while (e < model.n_epochs) and early_stopping == False:
+        model.train()
         # get batch, corresponding tensor slices and masks to combine the visits/medication events and to select the
         # patients with a given number of visits
         t_v, t_m, t_p, t_t, seq_lengths, masks, indices, e, max_num_visits, visit_mask, \
             total_num, debug_index = get_batch_and_masks(all_indices,
-                                                         e, indices, dataset, batch_size, df_v, df_m, df_p, df_t, tensor_v, tensor_m, tensor_p, tensor_t, min_num_visits, size_embedding, debug_patient)
+                                                         e, indices, dataset, model.batch_size, df_v, df_m, df_p, df_t, tensor_v, tensor_m, tensor_p, tensor_t, min_num_visits, size_embedding, debug_patient)
         # uncomment to check that dfs are the same
         # print(f'visits df first row debug patient {df_v[df_v.patient_id == debug_dict["id"]]}',
         # f'visits tensor first row {t_v[debug_dict["indices_in_tensors"][0]]}')
         # print(f'all targets for debug patient {t_t[debug_dict["indices_in_tensors"][3]]}')
 
-        loss = apply_model_and_get_loss(device, VEncoder, MEncoder, LModule, PModule, t_v, t_m, t_p, t_t,
-                                        min_num_visits, max_num_visits, visit_mask, masks, seq_lengths, total_num, debug_index)
+        loss, metrics = apply_model_and_get_loss(model.criterion, model, t_v, t_m, t_p, t_t,
+                                                        min_num_visits, max_num_visits, visit_mask, masks, seq_lengths, total_num, metrics, debug_index)
 
         # take optimizer step once loss wrt all visits has been computed
-        optimizer.zero_grad()
+        model.optimizer.zero_grad()
         loss.backward()
-        optimizer.step()
+        model.optimizer.step()
 
         # store loss and evaluate on validation data
         if len(indices) == len(all_indices):
@@ -339,15 +370,23 @@ def train_model_on_partition(parameters):
                 # debug_index_valid = list(partition.partitions_test[fold]).index(debug_patient_valid)
                 # print(
                 #     f'Debug patient {debug_patient_valid} \nall targets \n{df_t[df_t.patient_id == debug_patient_valid]["das283bsr_score"]}')
-                loss_valid = apply_model_and_get_loss(device, VEncoder, MEncoder, LModule, PModule, tensor_v_val, tensor_m_val, tensor_p_val, tensor_t_val,
-                                                      min_num_visits, max_num_visits_val, visit_mask_val, masks_val, seq_lengths_val, total_num_val)
+                model.eval()
+                metrics_val = Metrics()
+                loss_valid, metrics_val = apply_model_and_get_loss(model.criterion, model, tensor_v_val, tensor_m_val, tensor_p_val, tensor_t_val,
+                                                                      min_num_visits, max_num_visits_val, visit_mask_val, masks_val, seq_lengths_val, total_num_val, metrics_val)
                 loss_per_epoch_valid[e - 1] = loss_valid
-                print(f'epoch : {e} loss {loss} loss_valid {loss_valid}')
-                if e > 20 and (loss_per_epoch_valid[e - 1 - 10:e - 1] / loss_per_epoch_valid[e - 1 - 20:e - 1 - 10]).mean() > 1:
+                metrics.discrete_metrics()
+                accuracy = metrics.accuracy
+                metrics_val.discrete_metrics()
+                accuracy_val = metrics_val.accuracy
+                print(f'epoch : {e} loss {loss} loss_valid {loss_valid} accuracy {accuracy} accuracy_valid {accuracy_val}')
+                #re-initialize metrics for new epoch
+                metrics = Metrics()
+                if e > 35 and (loss_per_epoch_valid[e - 1 - 20:e - 1] / loss_per_epoch_valid[e - 1 - 30:e - 1 - 10]).mean() > 1:
                     early_stopping = True
                     print('valid loss increasing')
 
-    return e, loss.item(), loss_valid.item()
+    return e, loss.item(), loss_valid.item(), accuracy, accuracy_val
 
 
 def get_masks(dataset, subset, min_num_visits, size_embedding, debug_patient=None):
@@ -397,11 +436,10 @@ def get_masks(dataset, subset, min_num_visits, size_embedding, debug_patient=Non
     return max_num_visits, seq_lengths, masks, visit_mask, total_num_visits_and_meds
 
 
-def apply_model_and_get_loss(device, VEncoder, MEncoder, LModule, PModule, tensor_v, tensor_m, tensor_p, tensor_t, min_num_visits, max_num_visits, visit_mask, masks, seq_lengths, total_num, debug=None):
+def apply_model_and_get_loss(criterion, model, tensor_v, tensor_m, tensor_p, tensor_t, min_num_visits, max_num_visits, visit_mask, masks, seq_lengths, total_num, metrics, debug=None):
     batch_first = True
     loss = 0
-    criterion = torch.nn.MSELoss(reduction='sum')
-    o_v, o_m = VEncoder(tensor_v), MEncoder(tensor_m)
+    o_v, o_m = model.VEncoder(tensor_v), model.MEncoder(tensor_m)
     # for scaling of loss
     num_targets = 0
     for v in range(0, max_num_visits - min_num_visits + 1):
@@ -410,10 +448,12 @@ def apply_model_and_get_loss(device, VEncoder, MEncoder, LModule, PModule, tenso
         # to keep track of the right index in the visits/medication tensors
         index_visits = 0
         index_medications = 0
-        # targets
-        targets = torch.empty(size=(torch.sum(visit_mask[:, v] == True).item(), 1), device=device)
+        # targets (values)
+        target_values = torch.empty(size=(torch.sum(visit_mask[:, v] == True).item(), 1), device=model.device)
+        # targets (categories : 0 if <= 2.6 else 1)
+        target_categories = torch.empty(size=(torch.sum(visit_mask[:, v] == True).item(), 1), device=model.device)
         # delta t
-        time_to_targets = torch.empty(size=(torch.sum(visit_mask[:, v] == True).item(), 1), device=device)
+        time_to_targets = torch.empty(size=(torch.sum(visit_mask[:, v] == True).item(), 1), device=model.device)
         # for each patient combine the medication and visit events in the right order up to visit v
         index_target = 0
         debug_index_target = None
@@ -427,10 +467,12 @@ def apply_model_and_get_loss(device, VEncoder, MEncoder, LModule, PModule, tenso
                 combined[~masks[patient][v]] = o_m[index_medications:index_medications + seq[1]].flatten()
 
                 sequence.append(combined)
-                targets[index_target] = tensor_t[index_visits + seq[0], 1]
+                target_values[index_target] = tensor_t[index_visits + seq[0], 1]
                 time_to_targets[index_target] = tensor_t[index_visits + seq[0], 0]
+                target_categories[index_target] = tensor_t[index_visits + seq[0], 2]
                 if debug != None and patient == debug:
-                    print(f'next target : {targets[index_target]}')
+                    print(f'next target value: {target_values[index_target]}')
+                    print(f'Next target category : {target_categories[index_target]}')
                     debug_index_target = index_target
                     #print(f'visit info {tensor_v[index_visits:index_visits + seq[0]]} \n medication info {tensor_m[index_medications:index_medications + seq[1]]}')
                 index_target += 1
@@ -446,29 +488,45 @@ def apply_model_and_get_loss(device, VEncoder, MEncoder, LModule, PModule, tenso
             padded_sequence, batch_first=batch_first, lengths=lengths, enforce_sorted=False)
 
         # apply lstm
-        output, (hn, cn) = LModule(pack_padded_sequence)
+        output, (hn, cn) = model.LModule(pack_padded_sequence)
         history = hn[-1]
         # concat computed patient history with general information
         pred_input = torch.cat((tensor_p[visit_mask[:, v]], history, time_to_targets), dim=1)
         # apply prediction module
-        out = PModule(pred_input)
+        out = model.PModule(pred_input)
         # compute loss
+        if model.task == 'classification':
+            targets = target_categories
+        else:
+            targets = target_values
         loss += criterion(out, targets)
         num_targets += len(targets)
+        #compute other training metrics
+        if model.task == 'classification':
+            predictions = torch.tensor([1 if elem >= 0.5 else 0 for elem in out], device=model.device)
+        else:
+            predictions = out
+        metrics.add_observations(predictions, targets)
+
         if debug_index_target != None:
             # print(out)
             print(f'prediction {out[debug_index_target].item()}')
-    return loss / num_targets
+
+    return loss / num_targets, metrics
 
 
-def test_model(device, subset, dataset, VEncoder, MEncoder, LModule, PModule, tensor_v, tensor_m, tensor_p, tensor_t, min_num_visits, max_num_visits, visit_mask, masks, seq_lengths, total_num, debug=None):
+
+def test_model(task, device, subset, dataset, VEncoder, MEncoder, LModule, PModule, tensor_v, tensor_m, tensor_p, tensor_t, min_num_visits, max_num_visits, visit_mask, masks, seq_lengths, total_num, debug=None):
 
     batch_first = True
     loss = 0
-    criterion = torch.nn.MSELoss()
+    #criterion = torch.nn.MSELoss()
     o_v, o_m = VEncoder(tensor_v), MEncoder(tensor_m)
     # 100 dummy value to indicate the visits that are not predicted for a given patient (i.e. all the visits > #num visits for this patient)
-    results = torch.full(size=(len(subset), max_num_visits - min_num_visits + 1), fill_value=100.0, device=device)
+    if task == 'regression':
+        results = torch.full(size=(len(subset), max_num_visits - min_num_visits + 1), fill_value=100.0, device=device)
+    else:
+        results = torch.full(size=(len(subset), max_num_visits - min_num_visits + 1), fill_value=100.0, device=device, dtype = torch.int64)
     for v in range(0, max_num_visits - min_num_visits + 1):
         # stores for all the patients in the batch the tensor of ordered events (of varying size)
         sequence = []
@@ -518,8 +576,11 @@ def test_model(device, subset, dataset, VEncoder, MEncoder, LModule, PModule, te
         # apply prediction module
         out = PModule(pred_input)
         # compute loss
-        loss += criterion(out, targets)
-        results[visit_mask[:, v], v] = out.flatten()
+        # loss += criterion(out, targets)
+        if task == 'regression':
+            results[visit_mask[:, v], v] = out.flatten()
+        else :
+            results[visit_mask[:, v], v] = torch.tensor([1 if elem >= 0.5 else 0 for elem in out])
         if debug_index_target != None:
             # print(out)
             print(f'prediction {out[debug_index_target].item()}')
@@ -527,7 +588,7 @@ def test_model(device, subset, dataset, VEncoder, MEncoder, LModule, PModule, te
     return results, results_df
 
 
-def train_and_test_pipeline(dataset, batch_size, n_epochs, min_num_visits=2, debug = False):
+def train_and_test_pipeline(dataset, batch_size, n_epochs, task = 'regression', min_num_visits=2, debug = False):
     # device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'device {device}')
@@ -535,11 +596,12 @@ def train_and_test_pipeline(dataset, batch_size, n_epochs, min_num_visits=2, deb
     num_visit_features = dataset.visits_df_scaled_tensor_train.shape[1]
     num_medications_features = dataset.medications_df_scaled_tensor_train.shape[1]
     num_general_features = dataset.patients_df_scaled_tensor_train.shape[1]
-    size_embedding = 10
+    size_embedding = 50
     batch_first = True
-    model_specifics = {'size_embedding': size_embedding, 'num_layers_enc': 2, 'hidden_enc': 20, 'size_history': 12, 'num_layers': 2, 'num_layers_pred': 2, 'hidden_pred': 20,
-                       'num_visit_features': num_visit_features, 'num_medications_features': num_medications_features, 'num_general_features': num_general_features, 'batch_first': batch_first, 'device': device}
-    loss_per_epoch, loss_per_epoch_valid, VEncoder, MEncoder, LModule, PModule = train_model(
+    model_specifics = {'task' : task, 'size_embedding': size_embedding, 'num_layers_enc': 1, 'hidden_enc': 10, 'size_history': 10, 'num_layers': 2, 'num_layers_pred': 1, 'hidden_pred': 30,
+                       'num_visit_features': num_visit_features, 'num_medications_features': num_medications_features, 'num_general_features': num_general_features, 'batch_first': batch_first, 'device': device, 'dropout':0.1,
+                       'balance_classes': True}
+    e, loss_per_epoch, loss_per_epoch_valid, accuracy_per_epoch, accuracy_per_epoch_valid, VEncoder, MEncoder, LModule, PModule = train_model(
         dataset, device, model_specifics, batch_size=batch_size, n_epochs=n_epochs, min_num_visits=min_num_visits, debug_patient=debug)
 
     # test
@@ -553,7 +615,11 @@ def train_and_test_pipeline(dataset, batch_size, n_epochs, min_num_visits=2, deb
 
         max_num_visits_test, seq_lengths_test, masks_test, visit_mask_test, total_num_test = get_masks(
             dataset, dataset.test_ids, min_num_visits, size_embedding, debug_patient=debug_patient)
-        results, results_df = test_model(device, dataset.test_ids, dataset, VEncoder, MEncoder, LModule, PModule, tensor_v_test, tensor_m_test, tensor_p_test, tensor_t_test,
+        VEncoder.eval()
+        MEncoder.eval()
+        LModule.eval()
+        PModule.eval()
+        results, results_df = test_model(task, device, dataset.test_ids, dataset, VEncoder, MEncoder, LModule, PModule, tensor_v_test, tensor_m_test, tensor_p_test, tensor_t_test,
                                          min_num_visits, max_num_visits_test, visit_mask_test, masks_test, seq_lengths_test, total_num_test, debug=debug_index)
 
         # # test model on training data (just to see if predictions can get ~perfect)
@@ -574,7 +640,12 @@ def train_and_test_pipeline(dataset, batch_size, n_epochs, min_num_visits=2, deb
         #                                              min_num_visits, max_num_visits, visit_mask, masks, seq_lengths, total_num, debug=debug_index)
 
     if len(loss_per_epoch_valid) > 0:
-        plt.plot(range(0, len(loss_per_epoch), 1), loss_per_epoch)
-        plt.plot(range(0, len(loss_per_epoch), int(len(loss_per_epoch) / len(loss_per_epoch_valid))), loss_per_epoch_valid)
-        plt.ylim(0, 0.05)
+        plt.plot(range(0, len(loss_per_epoch[:e]), 1), loss_per_epoch[:e])
+        plt.plot(range(0, len(loss_per_epoch[:e]), 1), loss_per_epoch_valid[:e])
+        if task == 'regression':
+            plt.ylim(0, 0.05)
+        plt.figure()
+        plt.plot(range(0, len(accuracy_per_epoch[:e]), 1), accuracy_per_epoch[:e])
+        plt.plot(range(0, len(accuracy_per_epoch[:e]), 1), accuracy_per_epoch_valid[:e])
+
     return loss_per_epoch, loss_per_epoch_valid, results_df

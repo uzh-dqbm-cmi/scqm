@@ -86,6 +86,8 @@ def extract_adanet_features(df_dict, transform_meds = True, das28=True, joint_df
         #keep only visits with available das28 score
         print(f'Dropping {visits_df["das283bsr_score"].isna().sum()} out of {len(visits_df)} visits because das28 is unavailable')
         visits_df = visits_df.dropna(subset=['das283bsr_score'])
+        # add column for classification
+        visits_df['das28_category'] = [0 if value <= 2.6 else 1 for value in visits_df['das283bsr_score']]
         #keep only subset of patients appearing in visits_id
         patients = visits_df['patient_id'].unique()
         print(
@@ -96,7 +98,8 @@ def extract_adanet_features(df_dict, transform_meds = True, das28=True, joint_df
     visits_df.sort_values(['patient_id', 'visit_date'], inplace=True)
     general_df.sort_values(['patient_id'], inplace=True)
     med_df.sort_values(['patient_id', 'medication_start_date', 'medication_end_date'], inplace=True)
-    targets_df = visits_df[['patient_id', 'visit_date', 'uid_num', 'das283bsr_score']]
+    targets_df = visits_df[['patient_id', 'visit_date', 'uid_num', 'das283bsr_score', 'das28_category']]
+
     if transform_meds:
         # add new column to med_df indicating for each event if it is a start or end of medication (0 false, 1 true) and replace med_start and med_end 
         # by unique column (date). If start date is not available, drop the row. If start and end are available duplicate the row (with different date and is_start dates)

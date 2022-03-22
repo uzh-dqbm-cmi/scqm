@@ -6,44 +6,6 @@ import torch.nn.functional as F
 
 #TODO add l1-regularization for the weights of the network ?
 
-# phi visit/medication
-
-
-# class VisitEncoder(nn.Module):
-#     """
-#     visit encoder
-#     """
-
-#     def __init__(self, num_visit_features, size_out=10, hidden_1=10, hidden_2=10):
-#         super(VisitEncoder, self).__init__()
-#         self.size_embedding = size_out
-#         self.fc1 = nn.Linear(num_visit_features, hidden_1)
-#         self.fc2 = nn.Linear(hidden_1, hidden_2)
-#         self.out = nn.Linear(hidden_2, size_out)
-
-#     def forward(self, x):
-#         x = F.relu(self.fc1(x))
-#         x = F.relu(self.fc2(x))
-#         return self.out(x)
-
-
-# class MedicationEncoder(nn.Module):
-#     """
-#     visit encoder
-#     """
-
-#     def __init__(self, num_medications_features, size_out=10, hidden_1=10, hidden_2=10):
-#         super(MedicationEncoder, self).__init__()
-#         self.fc1 = nn.Linear(num_medications_features, hidden_1)
-#         self.fc2 = nn.Linear(hidden_1, hidden_2)
-#         self.out = nn.Linear(hidden_2, size_out)
-
-#     def forward(self, x):
-#         x = F.relu(self.fc1(x))
-#         x = F.relu(self.fc2(x))
-#         return self.out(x)
-
-
 class LSTMModule(nn.Module):
     """
     LSTM feature encoder
@@ -69,37 +31,24 @@ class LSTMModule(nn.Module):
         return lstm_out, (hn, cn)
 
 
-# class PredModule(nn.Module):
-#     """Module to perform final prediction"""
-
-#     def __init__(self, input_size, hidden_1=10, hidden_2=10):
-#         super(PredModule, self).__init__()
-#         self.fc1 = nn.Linear(input_size, hidden_1)
-#         self.fc2 = nn.Linear(hidden_1, hidden_2)
-#         self.out = nn.Linear(hidden_2, 1)
-
-#     def forward(self, x):
-#         x = F.relu(self.fc1(x))
-#         x = F.relu(self.fc2(x))
-#         return self.out(x)
-
-
 class VisitEncoder(nn.Module):
     """
     visit encoder
     """
 
-    def __init__(self, num_visit_features, size_out, num_hidden=2, hidden_size=10):
+    def __init__(self, num_visit_features, size_out, num_hidden=2, hidden_size=10, p=0):
         super(VisitEncoder, self).__init__()
         self.size_embedding = size_out
         self.input_layer = nn.Linear(num_visit_features, hidden_size)
         self.linears = nn.ModuleList([nn.Linear(hidden_size, hidden_size) for i in range(1, num_hidden)])
         self.out = nn.Linear(hidden_size, size_out)
-
+        self.dropout = nn.Dropout(p)
     def forward(self, x):
         x = F.relu(self.input_layer(x))
+        x = self.dropout(x)
         for l in self.linears:
             x = F.relu(l(x))
+            x = self.dropout(x)
         return self.out(x)
 
 
@@ -108,35 +57,78 @@ class MedicationEncoder(nn.Module):
     visit encoder
     """
 
-    def __init__(self, num_medications_features, size_out, num_hidden=2, hidden_size=10):
+    def __init__(self, num_medications_features, size_out, num_hidden=2, hidden_size=10, p=0):
         super(MedicationEncoder, self).__init__()
         self.input_layer = nn.Linear(num_medications_features, hidden_size)
         self.linears = nn.ModuleList([nn.Linear(hidden_size, hidden_size) for i in range(1, num_hidden)])
         self.out = nn.Linear(hidden_size, size_out)
-
+        self.dropout = nn.Dropout(p)
     def forward(self, x):
         x = F.relu(self.input_layer(x))
+        x = self.dropout(x)
         for l in self.linears:
             x = F.relu(l(x))
+            x = self.dropout(x)
         return self.out(x)
-
-
 
 
 
 class PredModule(nn.Module):
     """Module to perform final prediction"""
 
-    def __init__(self, input_size, num_hidden=2, hidden_size = 10):
+    def __init__(self, input_size, num_hidden=2, hidden_size = 10, p= 0):
         super(PredModule, self).__init__()
         self.input_layer = nn.Linear(input_size, hidden_size)
         self.linears = nn.ModuleList([nn.Linear(hidden_size, hidden_size) for i in range(1, num_hidden)])
+        self.dropout = nn.Dropout(p=p)
         self.out = nn.Linear(hidden_size, 1)
     def forward(self, x):
         x = F.relu(self.input_layer(x))
+        x = self.dropout(x)
         for l in self.linears:
             x = F.relu(l(x))
+            x = self.dropout(x)
         return self.out(x)
+
+
+class Model:
+    def __init__(self, model_specifics, device):
+        self.device = device
+        self.VEncoder = VisitEncoder(model_specifics['num_visit_features'], model_specifics['size_embedding'], model_specifics['num_layers_enc'],
+                                model_specifics['hidden_enc'], model_specifics['dropout']).to(device)
+        self.MEncoder = MedicationEncoder(model_specifics['num_medications_features'], model_specifics['size_embedding'],
+                                 model_specifics['num_layers_enc'], model_specifics['hidden_enc'], model_specifics['dropout']).to(device)
+        self.LModule = LSTMModule(model_specifics['size_embedding'], model_specifics['device'],
+                         model_specifics['batch_first'], model_specifics['size_history'], model_specifics['num_layers']).to(device)
+        # + 1 for time to prediction
+        self.PModule = PredModule(model_specifics['size_history'] + model_specifics['num_general_features'] +
+                         1, model_specifics['num_layers_pred'], model_specifics['hidden_pred'], model_specifics['dropout']).to(device)
+        self.task = model_specifics['task']
+        self.parameters = list(self.VEncoder.parameters()) + list(self.MEncoder.parameters()) + \
+        list(self.LModule.parameters()) + list(self.PModule.parameters())
+    
+    def train(self):
+        self.VEncoder.train()
+        self.MEncoder.train()
+        self.LModule.train()
+        self.PModule.train()
+    
+    def eval(self):
+        self.VEncoder.eval()
+        self.MEncoder.eval()
+        self.LModule.eval()
+        self.PModule.eval()
+    
+    def set_training_parameters(self, n_epochs, batch_size, lr, min_num_visits, balance_classes):
+        self.n_epochs = n_epochs
+        self.batch_size = batch_size
+        self.lr = lr
+        self.min_num_visits = min_num_visits
+        self.balance_classes = balance_classes
+        self.optimizer = torch.optim.Adam(self.parameters, lr=self.lr)
+        
+        
+
 
 class MLP(nn.Module):
     """
