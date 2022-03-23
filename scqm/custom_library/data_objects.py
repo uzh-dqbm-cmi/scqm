@@ -160,18 +160,6 @@ class Medication:
             self.is_close_to_interval(visit, tol)
         return
     
-    # def is_in_interval(self, visit_class):
-    #     if visit_class.date == self.interval[0]:
-    #         self.visit_start.append(visit_class.id)
-    #         visit_class.med_start.append(self.med_id)
-    #     elif visit_class.date == self.interval[1]:
-    #         self.visit_end.append(visit_class.id)
-    #         visit_class.med_end.append(self.med_id)
-    #     elif self.interval[0] < visit_class.date < self.interval[1]:
-    #         self.visit_during.append(visit_class.id)
-    #         visit_class.med_during.append(self.med_id)
-    #     # all of the above is False if at least one of the dates is NaT
-    #     return
     
     def is_close_to_interval(self, visit_class, tol):
 
@@ -191,7 +179,6 @@ class Medication:
 
 #mapping and get_item
 class Dataset:
-    #TODO write get item method
     def __init__(self, df_dict, ids):
         self.initial_df_dict = df_dict
         self.patient_ids = list(ids)
@@ -216,6 +203,14 @@ class Dataset:
 
     def __len__(self):
         return len(self.patient_ids)
+
+    def __getitem__(self, x):
+        return self.patients[x]
+    
+    def move_to_device(self, device):
+        for tensor_name in self.tensor_names:
+            setattr(self, tensor_name, getattr(self, tensor_name).to(device))
+        return
     
     def split_data(self, prop_valid= 0.1, prop_test = 0.1):
         test_size = int(len(self)*prop_test)
@@ -277,6 +272,8 @@ class Dataset:
     
     def scale_and_tensor(self, nan_dummies =True):
         #(x-min)/(max-min)
+        # attribute to keep track of all tensor names¨
+        self.tensor_names = []
         for name in self.df_names:
             df = getattr(self, name + '_proc')
             # get train min and max values
@@ -296,6 +293,8 @@ class Dataset:
                         torch.tensor(df[df.patient_id.isin(self.valid_ids)][columns].fillna(-1).values, dtype=torch.float32))
                 setattr(self, str(name) + '_scaled_tensor_test',
                         torch.tensor(df[df.patient_id.isin(self.test_ids)][columns].fillna(-1).values, dtype=torch.float32))
+                self.tensor_names.extend([str(name) + '_scaled_tensor_train', str(name) +
+                                         '_scaled_tensor_valid', str(name) + '_scaled_tensor_test'])
             else:
                 setattr(self, str(name) + '_scaled_tensor_train',
                         torch.tensor(df[df.patient_id.isin(self.train_ids)][columns].values, dtype=torch.float32))
@@ -303,6 +302,8 @@ class Dataset:
                         torch.tensor(df[df.patient_id.isin(self.valid_ids)][columns].values, dtype=torch.float32))
                 setattr(self, str(name) + '_scaled_tensor_test',
                         torch.tensor(df[df.patient_id.isin(self.test_ids)][columns].values, dtype=torch.float32))
+                self.tensor_names.extend([str(name) + '_scaled_tensor_train', str(name) +
+                                         '_scaled_tensor_valid', str(name) + '_scaled_tensor_test'])
             # store mapping btw patient_ids and tensor indices
             df['tensor_indices_train'] = np.nan
             df['tensor_indices_valid'] = np.nan
