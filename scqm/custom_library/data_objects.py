@@ -8,6 +8,9 @@ class DataObject:
         for name in df_dict.keys():
             setattr(self, str(name) + '_df', df_dict[name][df_dict[name]['patient_id'] == patient_id])
         return
+    def add_info(self, name, value):
+        setattr(self, name, value)
+        return
 
 
 class Patient(DataObject):
@@ -58,6 +61,7 @@ class Patient(DataObject):
                               for event in all_events]
         self.timeline_visual = ['o' if event[1] == 'a_visit' else 'x'
                                 for event in all_events]
+        self.mask = [[event[0]] for event in self.timeline_mask]
         return all_events
     
     def time_between_events(self, event='visit'):
@@ -314,8 +318,21 @@ class Dataset:
                 len(df.loc[df.patient_id.isin(self.valid_ids), 'tensor_indices_valid']))]
             df.loc[df.patient_id.isin(self.test_ids), 'tensor_indices_test'] = [index for index in range(
                 len(df.loc[df.patient_id.isin(self.test_ids), 'tensor_indices_test']))]
-        # get targets
-        #TODO add method to retrieve scaled values directly from patients
+
+            # To retrieve scaled values directly from patients
+            tensor_name = name + '_tensor'
+            for patient in self.train_ids :
+                value = getattr(self, str(name) + '_scaled_tensor_train')[df[df.patient_id == patient]['tensor_indices_train'].values]
+                self[patient].add_info(tensor_name, value)
+            for patient in self.valid_ids:
+                value = getattr(self, str(name) +
+                                '_scaled_tensor_valid')[df[df.patient_id == patient]['tensor_indices_valid'].values]
+                self[patient].add_info(tensor_name, value)
+            for patient in self.test_ids:
+                value = getattr(self, str(name) +
+                                '_scaled_tensor_test')[df[df.patient_id == patient]['tensor_indices_test'].values]
+                self[patient].add_info(tensor_name, value)
+        #TODO have only one tensor and mapping to train, valid test (instead of 3 different ?)
         return
     
     def visit_count(self):

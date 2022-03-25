@@ -21,3 +21,8 @@ radai5 df has many missing uid_num/visit_dates (2500 out of 7000) is it somethin
 
 ## notes
 # brDMARD = biologic DMARD
+
+patients with more than two visits and a minimum prediction horizon of 3 months up to a maximum of one year
+different history lengths of 6 months up to 5 years
+For the classification task DAS28-BSR>2.6 at next visit (mean interval 8.1 +-2.9 months from initial visit)
+TODO implement a filter that only selects the consultations from the last n years (5 in paper)

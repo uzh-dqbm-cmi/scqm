@@ -1,19 +1,23 @@
-from scqm.custom_library.utils import DataPartition, Trainer
+from scqm.custom_library.models import Adaptivenet
+from scqm.custom_library.training import AdaptivenetTrainer
+from scqm.custom_library.partition import DataPartition
 from scqm.custom_library.preprocessing import load_dfs, preprocessing, extract_adanet_features
 from scqm.custom_library.data_objects import Dataset
 import itertools
 import numpy as np
-from scqm.custom_library.modules import Model
 import sys
 import csv
 import random
 import time
 import torch
 
-# seed = 0
-# random.seed(seed)
-# torch.manual_seed(seed)
-# np.random.seed(seed)
+#TODO early stopping as parameter
+#TODO module for cv
+#TODO cleaner preprocessing
+#TODO testing module
+#TODO class inheritance for e.g. trainer since it could be more generic
+#TODO modularise baseline
+#TODO check seeds (implement function that sets them all)
 
 if __name__ == '__main__':
 
@@ -39,10 +43,10 @@ if __name__ == '__main__':
     num_medications_features = dataset.medications_df_scaled_tensor_train.shape[1]
     num_general_features = dataset.patients_df_scaled_tensor_train.shape[1]
     batch_first = True
-    SIZE_EMBEDDING = np.array([5, 10, 30])
-    NUM_LAYERS_ENC = np.array([1, 2, 5])
+    SIZE_EMBEDDING = np.array([2,3, 5, 10, 30])
+    NUM_LAYERS_ENC = np.array([1, 2, 5, 10])
     HIDDEN_ENC = np.array([20, 40])
-    SIZE_HISTORY = np.array([5, 10, 30])
+    SIZE_HISTORY = np.array([3, 5, 10, 30])
     NUM_LAYERS = np.array([1, 2,  5])
     NUM_LAYERS_PRED = np.array([1, 2, 5])
     HIDDEN_PRED = np.array([20, 40])
@@ -58,16 +62,16 @@ if __name__ == '__main__':
         writer.writerow(header)
         combinations = list(itertools.product(SIZE_EMBEDDING, NUM_LAYERS_ENC, HIDDEN_ENC,
                             SIZE_HISTORY, NUM_LAYERS, NUM_LAYERS_PRED, HIDDEN_PRED, P, LR, BALANCE_CLASSES))
-        combinations_sample = random.sample(combinations, 40)
+        combinations_sample = random.sample(combinations, 60)
         for ind, (size_embedding, num_layers_enc, hidden_enc, size_history, num_layers, num_layers_pred, hidden_pred, p, lr, bal) in enumerate(combinations_sample):
             print(f'{ind} combination out of {len(combinations_sample)}')
             print(
                 f'size_embedding {size_embedding}, num_layers_enc {num_layers_enc},hidden_enc {hidden_enc}, size_history {size_history}, num_layers {num_layers}, num_layers_pred {num_layers_pred}, hidden_pred {hidden_pred}, dropout {p}, lr {lr}')
             model_specifics = {'size_embedding': size_embedding, 'num_layers_enc': num_layers_enc, 'hidden_enc': hidden_enc,  'size_history': size_history, 'num_layers': num_layers, 'num_layers_pred': num_layers_pred, 'hidden_pred': hidden_pred, 
                             'num_visit_features': num_visit_features, 'num_medications_features': num_medications_features, 'num_general_features': num_general_features, 'dropout' : p, 'batch_first': batch_first, 'device': device, 'task' : task}
-            model = Model(model_specifics, device)
+            model = Adaptivenet(model_specifics, device)
             dataset.min_num_visits = 2
-            trainer = Trainer(model, dataset, n_epochs=400, batch_size=32, lr=lr, balance_classes=bal)
+            trainer = AdaptivenetTrainer(model, dataset, n_epochs=400, batch_size=32, lr=lr, balance_classes=bal)
             accuracy, accuracy_valid = trainer.train_model(model, dataset, partition, debug_patient = False)
             writer.writerow(np.array([size_embedding, num_layers_enc, hidden_enc, size_history,
                             num_layers, num_layers_pred, hidden_pred, p, lr, bal, trainer.current_epoch, trainer.loss.item(), trainer.loss_valid.item(), accuracy, accuracy_valid]))
