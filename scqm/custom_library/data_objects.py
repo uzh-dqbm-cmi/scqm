@@ -183,9 +183,10 @@ class Medication:
 
 #mapping and get_item
 class Dataset:
-    def __init__(self, df_dict, ids):
+    def __init__(self, df_dict, ids, target_name):
         self.initial_df_dict = df_dict
         self.patient_ids = list(ids)
+        self.target_name = target_name
         self.instantiate_patients()
         self.df_names = []
         for name in df_dict.keys():
@@ -281,7 +282,8 @@ class Dataset:
         for name in self.df_names:
             df = getattr(self, name + '_proc')
             # get train min and max values
-            columns = [col for col in df.columns if col not in ['patient_id', 'uid_num', 'med_id']]
+            columns_to_exclude = ['patient_id', 'uid_num', 'med_id']
+            columns = [col for col in df.columns if col not in columns_to_exclude]
             min_train_values = df[df.patient_id.isin(self.train_ids)][columns].min()
             max_train_values = df[df.patient_id.isin(self.train_ids)][columns].max()
 
@@ -332,6 +334,11 @@ class Dataset:
                 value = getattr(self, str(name) +
                                 '_scaled_tensor_test')[df[df.patient_id == patient]['tensor_indices_test'].values]
                 self[patient].add_info(tensor_name, value)
+            # store column number of target and time to target visit
+            if name == 'targets_df':
+                self.target_index = list(df[columns].columns).index(self.target_name)
+                self.time_index = list(df[columns].columns).index('visit_date')
+                self.target_value_index = list(df[columns].columns).index('das283bsr_score')
         #TODO have only one tensor and mapping to train, valid test (instead of 3 different ?)
         return
     

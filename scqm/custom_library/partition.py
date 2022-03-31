@@ -8,6 +8,7 @@ class DataPartition:
         self.split()
 
     def split(self):
+        #TODO implement stratifier (on the targets)
         # split data into train and test (no valid)
         self.dataset.split_data(prop_valid=0.0, prop_test=0.2)
         self.dataset.scale_and_tensor()

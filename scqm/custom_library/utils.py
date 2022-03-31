@@ -4,6 +4,7 @@ import torch
 import pandas as pd
 import math
 import random
+from sklearn.metrics import roc_curve, roc_auc_score
 
 def set_seeds(seed=0):
     random.seed(seed)
@@ -18,30 +19,51 @@ class Results:
     def evaluate_model(self, patient_ids):
         results_df = pd.DataFrame()
         naive_results = pd.Series()
+        # for naive baseline
+        patients_train = self.dataset.visits_df.patient_id.isin(self.dataset.train_ids)
+        class_0 = len(self.dataset.visits_df[patients_train][self.dataset.visits_df[patients_train]
+                                                        [self.dataset.target_name] == 0])
+        class_1 = len(self.dataset.visits_df[patients_train][self.dataset.visits_df[patients_train]
+                                                        [self.dataset.target_name] == 1])
         for patient in patient_ids:
-            target_values = self.dataset[patient].targets_df['das283bsr_score'][self.dataset.min_num_visits - 1:]
-            target_categories = self.dataset[patient].targets_df['das28_category'][self.dataset.min_num_visits - 1:]
+            target_values = self.dataset[patient].targets_df[self.dataset.target_name][self.dataset.min_num_visits - 1:]
+            target_categories = self.dataset[patient].targets_df[self.dataset.target_name][self.dataset.min_num_visits - 1:]
             predictions, predicted_categories = self.model.apply(self.dataset, patient)
-            results_df = results_df.append(pd.DataFrame({'patient_id': patient, 'targets' : target_values, 'target_categories':target_categories, 'predicted_categories': predicted_categories}))
+            results_df = results_df.append(pd.DataFrame({'patient_id': patient, 'targets' : target_values, 'target_categories':target_categories, 'predicted_categories': predicted_categories, 'predictions' :torch.sigmoid(predictions).flatten().detach()}))
             #for naive baseline
-            naive_categories = pd.Series(self.dataset[patient].targets_df['das28_category'][self.dataset.min_num_visits-2:-1])
+            # in that case, naive baseline is no change in das28 (i.e. same category as at last visit)
+            if self.dataset.target_name == 'das28_category':
+                naive_categories = pd.Series(self.dataset[patient].targets_df['das28_category'][self.dataset.min_num_visits-2:-1])
+            else :
+                # in that case, naive baseline is 0 with proba #class0_in_train/length(train) and class 1 with proba #class1_in_train/length(train)
+                naive_categories = pd.Series(np.random.binomial(1, class_1/(class_0 + class_1), size = len(target_categories)))
+                # other baseline : first predicition is random, and then predict value of previous target (i.e. predict increasing if it was before)
+                # naive_results = naive_results.append(pd.Series(np.random.binomial(
+                #     1, class_1 / (class_0 + class_1), size=1)))
+                # naive_categories = pd.Series(
+                #     self.dataset[patient].targets_df[self.dataset.target_name][self.dataset.min_num_visits - 1:-1])
             naive_results = naive_results.append(naive_categories)
-        metrics = Metrics(self.model.device, results_df['predicted_categories'], results_df['target_categories'])
+        metrics = Metrics(self.model.device, results_df['predicted_categories'], results_df['target_categories'], results_df['predictions'])
         metrics_naive_baseline = Metrics(self.model.device, naive_results, results_df['target_categories'])
         return results_df, metrics, metrics_naive_baseline
 
 
 class Metrics:
-    def __init__(self, device, predictions = None, true_values=None):
+    def __init__(self, device, predictions = None, true_values=None, predicted_probas = None):
         if predictions is None :
             self.predictions = torch.empty(0, device = device)
             self.true_values = torch.empty(0, device = device)
+            self.predicted_probas = torch.empty(0, device=device)
         elif isinstance(predictions, pd.Series):
             self.predictions = torch.tensor(predictions.values)
             self.true_values = torch.tensor(true_values.values)
+            self.predicted_probas = torch.tensor(
+                predicted_probas.values) if predicted_probas is not None else self.predictions
+
         else : 
             self.predictions = predictions
             self.true_values = true_values
+            self.predicted_probas = predicted_probas if predicted_probas else predictions
 
     def __len__(self):
         if len(self.predictions) != len(self.true_values):    
@@ -70,6 +92,27 @@ class Metrics:
         self.f1 = self.TP/(self.TP + 1/2 * (self.FP + self.FN))
         if print_confusion:
             print(pd.DataFrame(data = [[self.TN, self.FN], [self.FP, self.TP]], index = ['pred 0', 'pred 1'], columns = ['true 0', 'true 1']))
+    def get_auroc(self):
+        fpr, tpr, thresholds = roc_curve(self.true_values, self.predicted_probas, pos_label=1)
+        auc = roc_auc_score(self.true_values, self.predicted_probas)
+        plt.figure()
+        lw = 2
+        plt.plot(
+            fpr,
+            tpr,
+            color="darkorange",
+            lw=lw,
+            label=f"ROC curve (AUC = {np.round(auc,2)})",
+        )
+        plt.plot([0, 1], [0, 1], color="navy", lw=lw, linestyle="--")
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel("False Positive Rate")
+        plt.ylabel("True Positive Rate")
+        plt.title("ROC")
+        plt.legend(loc="lower right")
+        plt.show()
+
        
 
 

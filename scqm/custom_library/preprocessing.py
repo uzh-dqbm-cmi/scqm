@@ -37,7 +37,6 @@ def load_dfs():
 
 def preprocessing(df_dict, nan_prop=1):
     df_dict_processed = df_dict.copy()
-    #TODO exclude columns with only single value
     #drop the two patients in patients that have no 
     # drop columns with nan proportion equal or more than nan_prop
     for index, table in df_dict_processed.items():
@@ -49,6 +48,11 @@ def preprocessing(df_dict, nan_prop=1):
         date_columns = table.filter(regex=("date")).columns
         df_dict_processed[index][date_columns] = table[date_columns].apply(pd.to_datetime)
         df_dict_processed[index] = df_dict_processed[index].replace('unknown', np.nan)
+    # drop columns with unique values
+    for index, table in df_dict_processed.items():
+        for col in table.columns:
+            if table[col].nunique() == 1:
+                df_dict_processed[index] = df_dict_processed[index].drop(col, axis=1)
     # radai5 df has some missing visit ids drop these rows for now
     df_dict_processed['radai5'] = df_dict_processed['radai5'].dropna(subset=['uid_num'])
     # socioeco specific preprocessing
@@ -61,11 +65,12 @@ def preprocessing(df_dict, nan_prop=1):
     df_dict_processed['medications']['medication_generic_drug'] = df_dict_processed['medications']['medication_generic_drug'].replace({'prednison_steroid_mr':'prednisone'})
     # add med_id identifiers to medications df
     df_dict_processed['medications']['med_id'] = ['med_' + str(i) for i in range(len(df_dict_processed['medications']))]
-                
+
+    df_dict_processed['medications'] = find_drug_categories_and_names(df_dict_processed['medications'])
     return df_dict_processed
 
 
-def extract_adanet_features(df_dict, transform_meds = True, das28=True, joint_df = False):
+def extract_adanet_features(df_dict, transform_meds = True, das28=True, only_meds=False, joint_df = False):
     general_df = df_dict['patients'][['patient_id', 'date_of_birth', 'gender', 'anti_ccp', 'ra_crit_rheumatoid_factor',
                                       'date_first_symptoms', 'date_diagnosis']]
     med_df = df_dict['medications'][['patient_id', 'med_id', 'medication_generic_drug', 'medication_drug_classification', 'medication_dose',
@@ -92,13 +97,26 @@ def extract_adanet_features(df_dict, transform_meds = True, das28=True, joint_df
         patients = visits_df['patient_id'].unique()
         print(
             f'Keeping {len(general_df[general_df.patient_id.isin(patients)])} patients out of {len(general_df.patient_id.unique())}')
+        # column saying if das28 at next visit increased (1) or decreased/remained stable 0
+        visits_df['das28_increase'] = np.nan
+        for patient in patients:
+            visits_df.loc[visits_df.patient_id == patient, 'das28_increase'] = [np.nan if index == 0 else 1 if visits_df[visits_df.patient_id == patient]['das283bsr_score'].iloc[index - 1]
+                                           < visits_df[visits_df.patient_id == patient]['das283bsr_score'].iloc[index] else 0 for index in range(len(visits_df[visits_df.patient_id == patient]))]
         general_df = general_df[general_df.patient_id.isin(patients)]
         med_df = med_df[med_df.patient_id.isin(patients)]
+    if only_meds :
+        patients = med_df['patient_id'].unique()
+        print(
+            f'keeping only patients with medical info, keeping {len(patients)} out of {len(general_df.patient_id.unique())}')
+        general_df = general_df[general_df.patient_id.isin(patients)]
+        visits_df = visits_df[visits_df.patient_id.isin(patients)]
+
+
     #sort dfs
     visits_df.sort_values(['patient_id', 'visit_date'], inplace=True)
     general_df.sort_values(['patient_id'], inplace=True)
     med_df.sort_values(['patient_id', 'medication_start_date', 'medication_end_date'], inplace=True)
-    targets_df = visits_df[['patient_id', 'visit_date', 'uid_num', 'das283bsr_score', 'das28_category']]
+    targets_df = visits_df[['patient_id', 'visit_date', 'uid_num', 'das283bsr_score', 'das28_category', 'das28_increase']]
 
     if transform_meds:
         # add new column to med_df indicating for each event if it is a start or end of medication (0 false, 1 true) and replace med_start and med_end 
@@ -122,4 +140,53 @@ def extract_adanet_features(df_dict, transform_meds = True, das28=True, joint_df
         joint_df = []
     return general_df, med_df, visits_df, targets_df, joint_df
 
-# 
+def find_drug_categories_and_names(df):
+    """replace missing drug names and categories in df medications"""
+
+    # Reassmbly of the medication
+    # Create a drug to category dictionary to impute any missing category values
+    drugs_per_cat = df.groupby(by='medication_drug_classification')['medication_drug'].apply(list)
+    drugs_per_generic = df.groupby(by='medication_generic_drug')['medication_drug'].apply(list)
+    drug_to_category = dict()
+    drug_to_generic = dict()
+
+    for i in range(len(drugs_per_cat)):
+        list_of_subcat_drug = list(set(drugs_per_cat[i]))
+        for j in list_of_subcat_drug:
+            drug_to_category[j] = drugs_per_cat.index[i]
+
+    for i in range(len(drugs_per_generic)):
+        list_of_drugs_in_genericdrug = list(set(drugs_per_generic[i]))
+        for j in list_of_drugs_in_genericdrug:
+            drug_to_generic[j] = drugs_per_generic.index[i]
+
+    # Manually add the missing drugs:
+    drug_to_category['spiricort'] = 'steroid'
+    drug_to_category['Imurek (Azathioprin)'] = 'csDMARD'
+    drug_to_generic['spiricort'] = 'spiricort'
+    drug_to_generic['Imurek (Azathioprin)'] = 'azathioprine'
+
+
+    # Display the medications without category
+    not_cat_drugs = list(set(df['medication_drug'].to_list()) - set(list(drug_to_category.keys())))
+    print(not_cat_drugs)
+
+    # Display the medications without generic label
+    no_generic_label = list(set(df['medication_drug'].to_list()) - set(list(drug_to_generic.keys())))
+    print(no_generic_label)
+
+    # Impute all missing medication category based on the created category dictionary
+    for i in df.index:
+        if pd.isnull(df['medication_drug_classification'][i]):
+            if df['medication_drug'][i] not in not_cat_drugs:
+                df['medication_drug_classification'][i] = drug_to_category[df['medication_drug'][i]]
+
+    print(df['medication_drug_classification'].unique())
+    # Impute all missing generic medication label based on the created generic label dictionary
+
+    for i in df.index:
+        if pd.isnull(df['medication_generic_drug'][i]):
+            if df['medication_drug'][i] not in no_generic_label:
+                df['medication_generic_drug'][i] = drug_to_generic[df['medication_drug'][i]]
+
+    return df

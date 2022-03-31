@@ -65,9 +65,10 @@ class AdaptivenetTrainer(Trainer):
     def get_target_weighting(self, dataset):
         patients_train = dataset.visits_df.patient_id.isin(dataset.train_ids)
         class_0 = len(dataset.visits_df[patients_train][dataset.visits_df[patients_train]
-                                                        ['das28_category'] == 0])
+                                                        [dataset.target_name] == 0])
         class_1 = len(dataset.visits_df[patients_train][dataset.visits_df[patients_train]
-                                                        ['das28_category'] == 1])
+                                                        [dataset.target_name] == 1])
+        # (the remaining are nan)
         pos_weight = torch.tensor(class_1 / class_0) if self.balance_classes else None
         return pos_weight
 
@@ -91,7 +92,7 @@ class AdaptivenetTrainer(Trainer):
         if debug_patient:
             debug_patient = np.random.choice(partition.partitions_train[partition.current_fold], size=1)[0]
             print(
-                f'Debug patient {debug_patient} \nall targets \n{self.dataset.targets_df_proc[self.dataset.targets_df_proc.patient_id == debug_patient]["das283bsr_score"]}')
+                f'Debug patient {debug_patient} \nall targets \n{self.dataset.targets_df_proc[self.dataset.targets_df_proc.patient_id == debug_patient][["das283bsr_score", self.dataset.target_name]]}')
 
         metrics = Metrics(device=model.device)
 

@@ -81,9 +81,10 @@ class Adaptivenet(Model):
                     combined[~batch.masks[patient][v]] = o_m[index_medications:index_medications + seq[1]].flatten()
 
                     sequence.append(combined)
-                    target_values[index_target] = dataset.targets_df_scaled_tensor_train[batch.indices_t][index_visits + seq[0], 1]
-                    time_to_targets[index_target] = dataset.targets_df_scaled_tensor_train[batch.indices_t][index_visits + seq[0], 0]
-                    target_categories[index_target] = dataset.targets_df_scaled_tensor_train[batch.indices_t][index_visits + seq[0], 2]
+                    target_values[index_target] = dataset.targets_df_scaled_tensor_train[batch.indices_t][index_visits + seq[0], dataset.target_value_index]
+                    time_to_targets[index_target] = dataset.targets_df_scaled_tensor_train[batch.indices_t][index_visits + seq[0], dataset.time_index]
+                    target_categories[index_target] = dataset.targets_df_scaled_tensor_train[batch.indices_t][index_visits +
+                                                                                                              seq[0], dataset.target_index]
                     if batch.debug_index != None and patient == batch.debug_index:
                         print(f'next target value: {target_values[index_target]}')
                         print(f'Next target category : {target_categories[index_target]}')
