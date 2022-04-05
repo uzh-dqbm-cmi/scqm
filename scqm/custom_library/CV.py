@@ -1,8 +1,8 @@
-from scqm.custom_library.models import Adaptivenet
-from scqm.custom_library.training import AdaptivenetTrainer
-from scqm.custom_library.partition import DataPartition
-from scqm.custom_library.preprocessing import load_dfs, preprocessing, extract_adanet_features
-from scqm.custom_library.data_objects import Dataset
+from models import Adaptivenet
+from training import AdaptivenetTrainer
+from partition import DataPartition
+from preprocessing import load_dfs, preprocessing, extract_adanet_features
+from data_objects import Dataset
 import itertools
 import numpy as np
 import sys
@@ -11,7 +11,7 @@ import random
 import time
 import torch
 
-from scqm.custom_library.utils import set_seeds
+from utils import set_seeds
 
 
 #TODO early stopping as parameter
@@ -20,7 +20,8 @@ from scqm.custom_library.utils import set_seeds
 #TODO testing module
 #TODO modularise baseline
 #TODO stratifier
-#TODO prediction module with 4 classes instead of 2
+#TODO decoders in AE style
+#TODO find out which tables/features are time dependent and which are general. Implement separate encoders for each "event" i.e. dataframe and try one for several/all
 
 class CVWrapper:
     def __init__(self, dataset, k):
@@ -37,7 +38,7 @@ class CVWrapper:
         raise NotImplementedError
 
 class CVAdaptivenet(CVWrapper):
-    def perform_cv(self, fold, n_epochs = 400, file='/cluster/home/ctrottet/code/scqm_cv_results/', search='random', num_combi=40):
+    def perform_cv(self, fold, n_epochs = 400, file='/cluster/home/ctrottet/code/scqm_cv_results/', search='random', num_combi=2):
         filename = file + time.strftime("%Y%m%d-%H%M") + '_fold_' + str(fold) + '.csv'
         with open(filename, 'w') as f:
             header = self.parameter_names + ['epochs', 'loss', 'loss_valid',
@@ -48,10 +49,14 @@ class CVAdaptivenet(CVWrapper):
             self.partition.set_current_fold(fold)
             device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
             task = 'classification'
+
             # instantiate model
-            num_visit_features = self.dataset.visits_df_scaled_tensor_train.shape[1]
-            num_medications_features = self.dataset.medications_df_scaled_tensor_train.shape[1]
+            num_visit_features = self.dataset.a_visit_df_scaled_tensor_train.shape[1]
+            num_medications_features = self.dataset.med_df_scaled_tensor_train.shape[1]
             num_general_features = self.dataset.patients_df_scaled_tensor_train.shape[1]
+            num_socio_features = self.dataset.socio_df_scaled_tensor_train.shape[1]
+            num_radai_features = self.dataset.radai_df_scaled_tensor_train.shape[1]
+            num_haq_features = self.dataset.haq_df_scaled_tensor_train.shape[1]
             batch_first = True
             # random search instead of grid search
             if search == 'random':
@@ -61,7 +66,8 @@ class CVAdaptivenet(CVWrapper):
                 print(
                     f'size_embedding {size_embedding}, num_layers_enc {num_layers_enc}, hidden_enc {hidden_enc}, size_history {size_history}, num_layers {num_layers}, num_layers_pred {num_layers_pred}, hidden_pred {hidden_pred}, dropout {p}, lr {lr}')
                 model_specifics = {'size_embedding': size_embedding, 'num_layers_enc': num_layers_enc, 'hidden_enc': hidden_enc, 'size_history': size_history, 'num_layers': num_layers, 'num_layers_pred': num_layers_pred, 'hidden_pred': hidden_pred,
-                                'num_visit_features': num_visit_features, 'num_medications_features': num_medications_features, 'num_general_features': num_general_features, 'dropout': p, 'batch_first': batch_first, 'device': device, 'task': task}
+                                   'event_names': ['a_visit', 'med', 'socio', 'radai', 'haq'], 'a_visit' : {'num_features': num_visit_features}, 'med' : {'num_features': num_medications_features},
+                'socio': {'num_features': num_socio_features}, 'radai': {'num_features': num_radai_features}, 'haq': {'num_features': num_haq_features}, 'num_general_features': num_general_features, 'dropout': p, 'batch_first': batch_first, 'device': device, 'task': task}
                 model = Adaptivenet(model_specifics, device)
                 self.dataset.min_num_visits = 2
                 trainer = AdaptivenetTrainer(model, self.dataset, n_epochs, batch_size=32, lr=lr, balance_classes=bal, use_early_stopping = True)
@@ -74,9 +80,12 @@ if __name__ == '__main__':
 
     df_dict = load_dfs()
     df_dict = preprocessing(df_dict)
-    patients_df, medications_df, visits_df, targets_df, _ = extract_adanet_features(df_dict, das28=True)
-    df_dict_anet = {'visits': visits_df, 'patients': patients_df, 'medications': medications_df, 'targets': targets_df}
-    dataset = Dataset(df_dict_anet, df_dict_anet['patients']['patient_id'].unique(), target_name = 'das28_increase')
+    patients_df, medications_df, visits_df, targets_df, socioeco_df, radai_df, haq_df, _ = extract_adanet_features(
+        df_dict, das28=True)
+    df_dict_anet = {'a_visit': visits_df, 'patients': patients_df, 'med': medications_df, 'targets': targets_df,
+                    'socio': socioeco_df, 'radai': radai_df, 'haq': haq_df}
+    dataset = Dataset(df_dict_anet, df_dict_anet['patients']['patient_id'].unique(
+    ), 'das28_increase', ['a_visit', 'med', 'socio', 'radai', 'haq'])
     # keep only patients with more than two visits
     dataset.drop([id_ for id_, patient in dataset.patients.items() if len(patient.visit_ids) <= 2])
     print(f'Dropping patients with less than 3 visits, keeping {len(dataset)}')
@@ -86,17 +95,17 @@ if __name__ == '__main__':
     cv = CVAdaptivenet(dataset, k=5)
     parameters = {
     "SIZE_EMBEDDING" : np.array([3, 5, 10]),
-    "NUM_LAYERS_ENC" : np.array([1, 2, 5, 10]),
-    "HIDDEN_ENC" : np.array([20, 50, 100]),
-    "SIZE_HISTORY" : np.array([3, 5, 10]),
-    "NUM_LAYERS" : np.array([1, 2, 5]),
-    "NUM_LAYERS_PRED" : np.array([1, 2, 5]),
-    "HIDDEN_PRED" : np.array([20, 50, 100]),
+    "NUM_LAYERS_ENC" : np.array([1, 2, 5, 10, 15]),
+    "HIDDEN_ENC" : np.array([50, 100, 200]),
+    "SIZE_HISTORY" : np.array([5, 10]),
+    "NUM_LAYERS" : np.array([1, 2, 5, 10]),
+    "NUM_LAYERS_PRED" : np.array([1, 2, 5, 10]),
+    "HIDDEN_PRED" : np.array([50, 100, 200]),
     "LR" : np.array([1e-3]),
-    "P" : np.array([0.0, 0.1, 0.2]),
-    "BALANCE_CLASSES" : np.array([False, True])}
+    "P" : np.array([0.2, 0.3, 0.5]),
+    "BALANCE_CLASSES" : np.array([False])}
     cv.set_grid(parameters)
     fold = int(sys.argv[1])
     print(f'fold {fold}')
-    cv.perform_cv(fold=fold, n_epochs=400)
+    cv.perform_cv(fold=fold, n_epochs=1)
 

@@ -48,12 +48,23 @@ def preprocessing(df_dict, nan_prop=1):
         date_columns = table.filter(regex=("date")).columns
         df_dict_processed[index][date_columns] = table[date_columns].apply(pd.to_datetime)
         df_dict_processed[index] = df_dict_processed[index].replace('unknown', np.nan)
+    # unify date column name
+    for index, elem in df_dict_processed.items():
+        name = list(elem.filter(regex="visit_date").columns)
+        if len(name) == 1:
+            df_dict_processed[index] = elem.rename(columns={name[0]: 'date'})
+    # manually change date names in ratingenscore, healthissues and modifiednewyorkxrayscore
+    df_dict_processed['ratingenscore'] = df_dict_processed['ratingenscore'].rename(
+        columns={'u.imaging_score_scoring_date': 'date'})
+    # for healthissues, '.health_issue_date' is 90% missing, use recording time when it is missing ?
+    df_dict_processed['modifiednewyorkxrayscore'] = df_dict_processed['modifiednewyorkxrayscore'].rename(
+        columns={'y.imaging_score_scoring_date': 'date'})
     # drop columns with unique values
     for index, table in df_dict_processed.items():
         for col in table.columns:
             if table[col].nunique() == 1:
                 df_dict_processed[index] = df_dict_processed[index].drop(col, axis=1)
-    # radai5 df has some missing visit ids drop these rows for now
+    # radai5 df has some missing visit ids drop these rows for now (#TODO not forget to change)
     df_dict_processed['radai5'] = df_dict_processed['radai5'].dropna(subset=['uid_num'])
     # socioeco specific preprocessing
     df_dict_processed['socioeco']['.smoker'] = df_dict_processed['socioeco']['.smoker'].replace({'never_been_smoking':'i_have_never_smoked',
@@ -67,6 +78,8 @@ def preprocessing(df_dict, nan_prop=1):
     df_dict_processed['medications']['med_id'] = ['med_' + str(i) for i in range(len(df_dict_processed['medications']))]
 
     df_dict_processed['medications'] = find_drug_categories_and_names(df_dict_processed['medications'])
+    # unify the different visit_date columns and rename to date
+
     return df_dict_processed
 
 
@@ -75,18 +88,18 @@ def extract_adanet_features(df_dict, transform_meds = True, das28=True, only_med
                                       'date_first_symptoms', 'date_diagnosis']]
     med_df = df_dict['medications'][['patient_id', 'med_id', 'medication_generic_drug', 'medication_drug_classification', 'medication_dose',
                                     'medication_start_date', 'medication_end_date']]
-    visits_df = df_dict['visits'][['patient_id', 'uid_num', 'visit_date', 'weight_kg', 'das283bsr_score', 'n_swollen_joints', 'n_painfull_joints', 'bsr',
+    visits_df = df_dict['visits'][['patient_id', 'uid_num', 'date', 'weight_kg', 'das283bsr_score', 'n_swollen_joints', 'n_painfull_joints', 'bsr',
                                    'n_painfull_joints_28', 'height_cm', 'crp']]
-    socioeco_df = df_dict['socioeco'][['uid_num', '.smoker']]
-    radai_df = df_dict['radai5'][['uid_num', '.pain_level_today_radai', '.morning_stiffness_duration_radai',
+    socioeco_df = df_dict['socioeco'][['patient_id','uid_num', 'date', '.smoker']]
+    radai_df = df_dict['radai5'][['patient_id','uid_num', 'date', '.pain_level_today_radai', '.morning_stiffness_duration_radai',
                                   '.activity_of_rheumatic_disease_today_radai']]
-    haq_df = df_dict['haq'][['uid_num', 'haq_score']]
+    haq_df = df_dict['haq'][['patient_id', 'uid_num', 'date', 'haq_score']]
     # keep only some specific medications and change the label of remaining to "other"
     drugs_to_keep = ['methotrexate', 'prednisone', 'rituximab', 'adalimumab', 'sulfasalazine', 'leflunomide', 'etanercept', 'infliximab']
     med_df.loc[~med_df["medication_generic_drug"].isin(
         drugs_to_keep), "medication_generic_drug"] = "Other"
-    for other_df in [socioeco_df, radai_df, haq_df]:
-        visits_df = visits_df.merge(other_df, how='outer', on='uid_num')
+    # for other_df in [socioeco_df, radai_df, haq_df]:
+    #     visits_df = visits_df.merge(other_df, how='outer', on='uid_num')
     if das28:
         #keep only visits with available das28 score
         print(f'Dropping {visits_df["das283bsr_score"].isna().sum()} out of {len(visits_df)} visits because das28 is unavailable')
@@ -102,21 +115,31 @@ def extract_adanet_features(df_dict, transform_meds = True, das28=True, only_med
         for patient in patients:
             visits_df.loc[visits_df.patient_id == patient, 'das28_increase'] = [np.nan if index == 0 else 1 if visits_df[visits_df.patient_id == patient]['das283bsr_score'].iloc[index - 1]
                                            < visits_df[visits_df.patient_id == patient]['das283bsr_score'].iloc[index] else 0 for index in range(len(visits_df[visits_df.patient_id == patient]))]
+
         general_df = general_df[general_df.patient_id.isin(patients)]
         med_df = med_df[med_df.patient_id.isin(patients)]
+        socioeco_df = socioeco_df[socioeco_df.patient_id.isin(patients)]
+        radai_df = radai_df[radai_df.patient_id.isin(patients)]
+        haq_df = haq_df[haq_df.patient_id.isin(patients)]
+
     if only_meds :
         patients = med_df['patient_id'].unique()
         print(
             f'keeping only patients with medical info, keeping {len(patients)} out of {len(general_df.patient_id.unique())}')
         general_df = general_df[general_df.patient_id.isin(patients)]
         visits_df = visits_df[visits_df.patient_id.isin(patients)]
-
+        socioeco_df = socioeco_df[socioeco_df.patient_id.isin(patients)]
+        radai_df = radai_df[radai_df.patient_id.isin(patients)]
+        haq_df = haq_df[haq_df.patient_id.isin(patients)]
 
     #sort dfs
-    visits_df.sort_values(['patient_id', 'visit_date'], inplace=True)
+    visits_df.sort_values(['patient_id', 'date'], inplace=True)
     general_df.sort_values(['patient_id'], inplace=True)
     med_df.sort_values(['patient_id', 'medication_start_date', 'medication_end_date'], inplace=True)
-    targets_df = visits_df[['patient_id', 'visit_date', 'uid_num', 'das283bsr_score', 'das28_category', 'das28_increase']]
+    targets_df = visits_df[['patient_id', 'date', 'uid_num', 'das283bsr_score', 'das28_category', 'das28_increase']]
+    socioeco_df.sort_values(['patient_id', 'date'], inplace =True)
+    radai_df.sort_values(['patient_id', 'date'], inplace = True)
+    haq_df.sort_values(['patient_id', 'date'], inplace = True)
 
     if transform_meds:
         # add new column to med_df indicating for each event if it is a start or end of medication (0 false, 1 true) and replace med_start and med_end 
@@ -129,16 +152,16 @@ def extract_adanet_features(df_dict, transform_meds = True, das28=True, only_med
         tmp['is_start'] = 0
         med_df = pd.concat([med_df, tmp]).drop(columns = ['medication_end_date'])
         med_df.sort_values(['patient_id', 'date'], inplace=True)
+
     #create a single df that contains all the info (for the baselines)
     if joint_df:
         visits_df['is_visit'] = 1
         med_df['is_visit'] = 0
-        joint_df = pd.concat([visits_df.rename(
-            columns={'visit_date': 'date'}), med_df], ignore_index=True).sort_values(by=['patient_id', 'date', 'uid_num'], axis=0)
+        joint_df = pd.concat([visits_df, med_df], ignore_index=True).sort_values(by=['patient_id', 'date', 'uid_num'], axis=0)
 
     else: 
         joint_df = []
-    return general_df, med_df, visits_df, targets_df, joint_df
+    return general_df, med_df, visits_df, targets_df, socioeco_df, radai_df, haq_df, joint_df
 
 def find_drug_categories_and_names(df):
     """replace missing drug names and categories in df medications"""

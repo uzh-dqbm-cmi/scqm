@@ -31,16 +31,17 @@ class LSTMModule(nn.Module):
         lstm_out, (hn, cn) = self.lstm(x, (h0, c0))
         return lstm_out, (hn, cn)
 
+#note both encoders are actually the same.
 
-class VisitEncoder(nn.Module):
+class Encoder(nn.Module):
     """
     visit encoder
     """
 
-    def __init__(self, num_visit_features, size_out, num_hidden=2, hidden_size=10, p=0):
-        super(VisitEncoder, self).__init__()
+    def __init__(self, num_features, size_out, num_hidden=2, hidden_size=10, p=0):
+        super(Encoder, self).__init__()
         self.size_embedding = size_out
-        self.input_layer = nn.Linear(num_visit_features, hidden_size)
+        self.input_layer = nn.Linear(num_features, hidden_size)
         self.linears = nn.ModuleList([nn.Linear(hidden_size, hidden_size) for i in range(1, num_hidden)])
         self.out = nn.Linear(hidden_size, size_out)
         self.dropout = nn.Dropout(p)
@@ -51,28 +52,6 @@ class VisitEncoder(nn.Module):
             x = F.relu(l(x))
             x = self.dropout(x)
         return self.out(x)
-
-
-class MedicationEncoder(nn.Module):
-    """
-    visit encoder
-    """
-
-    def __init__(self, num_medications_features, size_out, num_hidden=2, hidden_size=10, p=0):
-        super(MedicationEncoder, self).__init__()
-        self.input_layer = nn.Linear(num_medications_features, hidden_size)
-        self.linears = nn.ModuleList([nn.Linear(hidden_size, hidden_size) for i in range(1, num_hidden)])
-        self.out = nn.Linear(hidden_size, size_out)
-        self.dropout = nn.Dropout(p)
-    def forward(self, x):
-        x = F.relu(self.input_layer(x))
-        x = self.dropout(x)
-        for l in self.linears:
-            x = F.relu(l(x))
-            x = self.dropout(x)
-        return self.out(x)
-
-
 
 class PredModule(nn.Module):
     """Module to perform final prediction"""
@@ -111,7 +90,7 @@ class MLP(nn.Module):
 
 if __name__ == "__main__":
     # test encoder
-    encoder = VisitEncoder(2, 5)
+    encoder = Encoder(2, 5)
     tensor = torch.tensor([[1.0, 2.0]], dtype=torch.float32)
     encoder(tensor)
     # test lstm

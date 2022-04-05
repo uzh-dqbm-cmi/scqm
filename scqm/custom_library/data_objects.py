@@ -15,25 +15,28 @@ class DataObject:
 
 class Patient(DataObject):
     #TODO be coherent with sorting (also other dfs)
-    def __init__(self, df_dict, patient_id):
+    def __init__(self, df_dict, patient_id, event_names):
         super().__init__(df_dict, patient_id)
         self.id = patient_id
         self.visits = self.get_visits()
         self.medications = self.get_medications()
+        self.event_names = event_names
+        self.other_events = self.get_other_events()
         self.timeline = self.get_timeline()
         return
 
     def get_visits(self):
-        self.visits_df = self.visits_df.sort_values(by='visit_date', axis=0)
+        self.visits_df = self.a_visit_df.sort_values(by='date', axis=0)
         self.visit_ids = self.visits_df['uid_num'].values
-        self.visit_dates = self.visits_df['visit_date'].values
+        self.visit_dates = self.visits_df['date'].values
+        self.num_a_visit_events = len(self.visit_ids)
         visits = []
         for id_, date in zip(self.visit_ids, self.visit_dates):
             visits.append(Visit(self, id_, date))
         return visits
 
     def get_medications(self):
-        self.medications_df = self.medications_df.sort_values(by='date', axis=0)
+        self.medications_df = self.med_df.sort_values(by='date', axis=0)
         self.med_ids = self.medications_df['med_id'].unique()
         #total number of medication events counting all the available start and end dates
         self.num_med_events = len(self.medications_df['med_id'])
@@ -45,21 +48,33 @@ class Patient(DataObject):
             self.med_intervals.append(m.interval)
         return meds
 
+    def get_other_events(self):
+        other_events = []
+        events = [name for name in self.event_names if name not in ['a_visit', 'med']]
+        for name in events:
+            df = getattr(self, name + '_df')
+            setattr(self, 'num_'+name+'_events', len(df))
+            for index in df.index:
+                #TODO change maybe uid_num and put generic event id
+                other_events.append(Event(name, df.loc[index, 'uid_num'], df.loc[index, 'date']))
+        return other_events
+
     def get_timeline(self):
         #get sorted dates of events
         visit_event_list = [(self.visit_dates[index], 'a_visit', self.visit_ids[index]) for index in range(len(self.visit_dates))]
-        med_sart_list = [(self.med_intervals[index][0], 'b_start_med_' + str(index), self.med_ids[index]) for index in range(len(self.med_intervals))]
-        med_end_list = [(self.med_intervals[index][1], 'c_end_med_' + str(index), self.med_ids[index]) for index in range(len(self.med_intervals))]
-        all_events = visit_event_list + med_sart_list + med_end_list
+        med_sart_list = [(self.med_intervals[index][0], 'med', self.med_ids[index]) for index in range(len(self.med_intervals))]
+        med_end_list = [(self.med_intervals[index][1], 'med', self.med_ids[index]) for index in range(len(self.med_intervals))]
+        other_events = [(event.date, event.name, event.id) for event in self.other_events]
+        all_events = visit_event_list + med_sart_list + med_end_list + other_events
         # the 'a', 'b', 'c' flags before visit and meds are there to ensure that if they occur at the same date, the visit comes before
         all_events.sort()
         #remove NaT events
         all_events = [event for event in all_events if not pd.isnull(event[0])]
         #get sorted ids of events, format : True --> visit, False --> medication along with id
         #e.g. [(True, visit_id), (False, med_id), ...]
-        self.timeline_mask = [(True, event[2]) if event[1] == 'a_visit' else (False, event[2])
+        self.timeline_mask = [(event[1], event[2])
                               for event in all_events]
-        self.timeline_visual = ['o' if event[1] == 'a_visit' else 'x'
+        self.timeline_visual = ['v' if event[1] == 'a_visit' else 'm' if event[1] == 'med' else event[1]
                                 for event in all_events]
         self.mask = [[event[0]] for event in self.timeline_mask]
         return all_events
@@ -100,31 +115,34 @@ class Patient(DataObject):
         # get all events up to n-th visit
         else :
             cropped_timeline = []
-            num_visits = 0
-            num_meds = 0
+            num_of_each_event = torch.zeros(size=(len(self.event_names),))
+            index_of_visit = self.event_names.index('a_visit')
             index = 0
-            while (num_visits < n and index < len(self.timeline)):
+            while (num_of_each_event[index_of_visit] < n and index < len(self.timeline)):
                 event = self.timeline[index]
                 cropped_timeline.append(event)
-                if event[1] != 'a_visit':
-                    num_meds += 1
-                else:
-                    num_visits += 1
+                index_of_event = self.event_names.index(event[1])
+                num_of_each_event[index_of_event] += 1
                 index += 1
             #remove last visit
             cropped_timeline = cropped_timeline[:-1]
-            num_visits -= 1
-            cropped_timeline_mask = [(True, event[2]) if event[1] == 'a_visit' else (False, event[2])
+            num_of_each_event[index_of_visit] -= 1
+            cropped_timeline_mask = [(event[1], event[2])
                                   for event in cropped_timeline]
-            cropped_timeline_visual = ['o' if event[1] == 'a_visit' else 'x'
+            cropped_timeline_visual = ['v' if event[1] == 'a_visit' else 'm' if event[1] == 'med' else 'e'
                                        for event in cropped_timeline]
-            return num_visits, num_meds, cropped_timeline, cropped_timeline_mask, cropped_timeline_visual
+            return num_of_each_event, cropped_timeline, cropped_timeline_mask, cropped_timeline_visual
   
+class Event:
+    def __init__(self, name, id, date =None):
+        self.name = name
+        self.id = id
+        self.date = date
 
-class Visit:
+class Visit(Event):
     def __init__(self, patient_class, visit_id, date, target='das283bsr_score'):
+        super().__init__('a_visit', visit_id)
         self.patient = patient_class
-        self.id = visit_id
         self.date = date
         self.data = self.patient.visits_df[self.patient.visits_df['uid_num'] == visit_id]
         if target:
@@ -136,11 +154,11 @@ class Visit:
 
 
 
-class Medication:
+class Medication(Event):
     def __init__(self, patient_class, med_id):
+        super().__init__('med', med_id)
         self.patient = patient_class
-        self.med_id = med_id
-        self.data = self.patient.medications_df[self.patient.medications_df['med_id'] == med_id]
+        self.data = self.patient.medications_df[self.patient.medications_df['med_id'] == self.id]
         #start and end available
         if len(self.data) == 2: 
             self.start_date = self.data[self.data['is_start']==1]['date'].item()
@@ -171,22 +189,23 @@ class Medication:
         if self.interval[0] -tol <= visit_class.date <= self.interval[0]:
             self.visit_start.append(visit_class.id)
             #TODO change this dependency
-            visit_class.med_start.append(self.med_id)
+            visit_class.med_start.append(self.id)
         elif self.interval[1] -tol <= visit_class.date <= self.interval[1]:
             self.visit_end.append(visit_class.id)
-            visit_class.med_end.append(self.med_id)
+            visit_class.med_end.append(self.id)
         elif self.interval[0] < visit_class.date < self.interval[1] -tol:
             self.visit_during.append(visit_class.id)
-            visit_class.med_during.append(self.med_id)
+            visit_class.med_during.append(self.id)
         # all of the above conditions are False if at least one of the dates is NaT
         return
 
 #mapping and get_item
 class Dataset:
-    def __init__(self, df_dict, ids, target_name):
+    def __init__(self, df_dict, ids, target_name, event_names):
         self.initial_df_dict = df_dict
         self.patient_ids = list(ids)
         self.target_name = target_name
+        self.event_names = event_names
         self.instantiate_patients()
         self.df_names = []
         for name in df_dict.keys():
@@ -196,7 +215,7 @@ class Dataset:
         return
     
     def instantiate_patients(self):
-        self.patients = {id_: Patient(self.initial_df_dict, id_) for id_ in self.patient_ids}
+        self.patients = {id_: Patient(self.initial_df_dict, id_, self.event_names) for id_ in self.patient_ids}
         return 
 
     def drop(self, ids):
@@ -262,9 +281,11 @@ class Dataset:
                 df_processed[date_col] = (pd.to_datetime("01/01/2022") - df_processed[date_col]).dt.days
             setattr(self, name + '_proc', df_processed)
         # specific one hot encoding
-        self.visits_df_proc = pd.get_dummies(self.visits_df_proc, columns=[
-                                             '.smoker', '.morning_stiffness_duration_radai'], drop_first=True)
-        self.medications_df_proc = pd.get_dummies(self.medications_df_proc, columns=['medication_generic_drug', 'medication_drug_classification',
+        # self.a_visit_df_proc = pd.get_dummies(self.a_visit_df_proc, columns=[
+        #                                      '.smoker', '.morning_stiffness_duration_radai'], drop_first=True)
+        self.socio_df_proc = pd.get_dummies(self.socio_df_proc, columns = ['.smoker'], drop_first=True)
+        self.radai_df_proc = pd.get_dummies(self.radai_df_proc, columns=['.morning_stiffness_duration_radai'], drop_first=True)
+        self.med_df_proc = pd.get_dummies(self.med_df_proc, columns=['medication_generic_drug', 'medication_drug_classification',
                                                                                    ], drop_first=True)
         self.patients_df_proc = pd.get_dummies(self.patients_df_proc, columns = ['gender', 'anti_ccp', 'ra_crit_rheumatoid_factor'], drop_first=True)
         #TODO add condition here
@@ -337,10 +358,11 @@ class Dataset:
             # store column number of target and time to target visit
             if name == 'targets_df':
                 self.target_index = list(df[columns].columns).index(self.target_name)
-                self.time_index = list(df[columns].columns).index('visit_date')
+                self.time_index = list(df[columns].columns).index('date')
                 self.target_value_index = list(df[columns].columns).index('das283bsr_score')
         #TODO have only one tensor and mapping to train, valid test (instead of 3 different ?)
         return
+    
     
     def visit_count(self):
         # number of available visits per patient
