@@ -49,33 +49,43 @@ class Results:
 
 
 class Metrics:
-    def __init__(self, device, predictions = None, true_values=None, predicted_probas = None):
-        if predictions is None :
-            self.predictions = torch.empty(0, device = device)
-            self.true_values = torch.empty(0, device = device)
-            self.predicted_probas = torch.empty(0, device=device)
+    def __init__(self, device, predictions=None, true_values=None):
+        if predictions is None:
+            self.predictions = torch.empty(0, device=device)
+            self.true_values = torch.empty(0, device=device)
+
         elif isinstance(predictions, pd.Series):
             self.predictions = torch.tensor(predictions.values)
             self.true_values = torch.tensor(true_values.values)
-            self.predicted_probas = torch.tensor(
-                predicted_probas.values) if predicted_probas is not None else self.predictions
 
-        else : 
+        else:
             self.predictions = predictions
             self.true_values = true_values
-            self.predicted_probas = predicted_probas if predicted_probas else predictions
 
     def __len__(self):
-        if len(self.predictions) != len(self.true_values):    
+        if len(self.predictions) != len(self.true_values):
             raise ValueError('length of predictions doesnt match true values')
         else:
             return len(self.predictions)
+
     def add_observations(self, new_predictions, new_true_values):
         self.predictions = torch.cat([self.predictions, new_predictions])
         self.true_values = torch.cat([self.true_values, new_true_values])
         return
+
     def mse(self):
-        return 1/len(self)* torch.sum((self.predictions - self.true_values)**2)
+        return 1 / len(self) * torch.sum((self.predictions - self.true_values)**2)
+
+class BinaryMetrics(Metrics):
+    def __init__(self, device, predictions = None, true_values=None, predicted_probas = None):
+        super().__init__(device, predictions, true_values)
+        if predictions is None :
+            self.predicted_probas = torch.empty(0, device=device)
+        elif isinstance(predictions, pd.Series):
+            self.predicted_probas = torch.tensor(
+                predicted_probas.values) if predicted_probas is not None else self.predictions
+        else : 
+            self.predicted_probas = predicted_probas if predicted_probas else predictions
     def discrete_metrics(self, print_confusion =False):
         self.TP = len([elem for index, elem in enumerate(self.predictions) if elem == 1 and elem == self.true_values[index]])
         self.TN = len([elem for index, elem in enumerate(self.predictions)
@@ -112,6 +122,46 @@ class Metrics:
         plt.title("ROC")
         plt.legend(loc="lower right")
         plt.show()
+
+
+class MulticlassMetrics(Metrics):
+    def __init__(self, device, possible_classes, predictions=None, true_values=None, predicted_probas=None):
+        super().__init__(device, predictions, true_values)
+        self.possible_classes = possible_classes
+        if predictions is None:
+            self.predicted_probas = torch.empty(0, device=device)
+        elif isinstance(predictions, pd.Series):
+            self.predicted_probas = torch.tensor(
+                predicted_probas.values) if predicted_probas is not None else self.predictions
+        else:
+            self.predicted_probas = predicted_probas if predicted_probas else predictions
+    def get_metrics(self):
+        self.macro_f1 = 0
+        for class_ in self.possible_classes:
+            TP = len([elem for index, elem in enumerate(self.predictions)
+                     if elem == class_ and elem == self.true_values[index]])
+            FP = len([elem for index, elem in enumerate(self.predictions)
+                        if elem == class_ and elem != self.true_values[index]])
+            FN = len([elem for index, elem in enumerate(self.predictions)
+                      if elem != class_ and class_ == self.true_values[index]])
+            if TP + FN != len([elem for elem in self.true_values if elem == class_]):
+                raise(ArithmeticError('number of positives dont match'))
+            if TP + FP == 0:
+                precision= 0
+            else:
+                precision = TP/(TP + FP)
+            if TP + FN == 0:
+                recall=0
+            else:
+                recall = TP/(TP+FN)
+            if precision + recall == 0:
+                print(f'Setting f1 to zero for class {class_} because division by zero')
+                F1 =0
+            else:
+                F1 = 2*(precision*recall)/(precision + recall)
+            self.macro_f1 += F1
+        self.macro_f1 = self.macro_f1/len(self.possible_classes)        
+        return
 
        
 

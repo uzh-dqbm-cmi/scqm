@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from utils import Metrics
+from utils import MulticlassMetrics
 import matplotlib.pyplot as plt
 
 
@@ -8,6 +8,7 @@ class Trainer:
     def __init__(self, model, dataset, n_epochs, batch_size, lr, use_early_stopping):
         self.dataset = dataset
         self.n_epochs = n_epochs
+        self.model = model
         self.batch_size = batch_size
         self.lr = lr
         # use early stopping or not
@@ -55,23 +56,45 @@ class AdaptivenetTrainer(Trainer):
     def __init__(self, model, dataset, n_epochs, batch_size, lr, balance_classes, use_early_stopping):
         super().__init__(model, dataset, n_epochs, batch_size, lr, use_early_stopping)
         self.balance_classes = balance_classes
-        self.accuracy_per_epoch = torch.empty(size=(n_epochs, 1))
-        self.accuracy_per_epoch_valid = torch.empty(size=(n_epochs, 1))
+        self.f1_per_epoch = torch.empty(size=(n_epochs, 1))
+        self.f1_per_epoch_valid = torch.empty(size=(n_epochs, 1))
         if model.task == 'regression':
             self.criterion = torch.nn.MSELoss(reduction='sum')
         else:
-            self.pos_weight = self.get_target_weighting(self.dataset)
-            self.criterion = torch.nn.BCEWithLogitsLoss(reduction='sum', pos_weight=self.pos_weight)
+            self.weights = self.get_weights(self.dataset)
+            #self.criterion = torch.nn.BCEWithLogitsLoss(reduction='sum', pos_weight=self.weights)
+            self.criterion = torch.nn.CrossEntropyLoss(reduction='sum', weight=self.weights)
+            print(f'weights : {self.weights}')
 
-    def get_target_weighting(self, dataset):
-        patients_train = dataset.a_visit_df.patient_id.isin(dataset.train_ids)
-        class_0 = len(dataset.a_visit_df[patients_train][dataset.a_visit_df[patients_train]
-                                                        [dataset.target_name] == 0])
-        class_1 = len(dataset.a_visit_df[patients_train][dataset.a_visit_df[patients_train]
-                                                        [dataset.target_name] == 1])
-        # (the remaining are nan)
-        pos_weight = torch.tensor(class_1 / class_0) if self.balance_classes else None
-        return pos_weight
+    def get_weights(self, dataset):
+        if self.model.num_targets == 2:
+            patients_train = dataset.a_visit_df.patient_id.isin(dataset.train_ids)
+            class_0 = len(dataset.a_visit_df[patients_train][dataset.a_visit_df[patients_train]
+                                                            [dataset.target_name] == 0])
+            class_1 = len(dataset.a_visit_df[patients_train][dataset.a_visit_df[patients_train]
+                                                            [dataset.target_name] == 1])
+            # (the remaining are nan)
+            weights = torch.tensor(class_1 / class_0) if self.balance_classes else None
+        else :
+            patients_train = dataset.a_visit_df.patient_id.isin(dataset.train_ids)
+            weights = torch.empty(self.model.num_targets, device = self.model.device)
+            for w in range(self.model.num_targets):
+                weights[w] = len(dataset.a_visit_df[patients_train][dataset.a_visit_df[patients_train]
+                                                                    [dataset.target_name] == w])
+            weights = weights / weights.sum()
+            weights = 1 / weights if self.balance_classes else None
+        return weights
+    
+    # def get_weights(self, dataset):
+    #     patients_train = dataset.a_visit_df.patient_id.isin(dataset.train_ids)
+    #     weights = np.empty(len(self.model.num_targets))
+    #     for w in range(self.model.num_targets):
+    #         weights[w]=len(dataset.a_visit_df[patients_train][dataset.a_visit_df[patients_train]
+    #                                                [dataset.target_name] == w])
+    #     weights = weights/weights.sum()
+    #     weights = 1/weights                           
+            
+    #     return weights
 
     def train_model(self, model, partition, debug_patient):
 
@@ -92,10 +115,11 @@ class AdaptivenetTrainer(Trainer):
         # debug patient
         if debug_patient:
             debug_patient = np.random.choice(partition.partitions_train[partition.current_fold], size=1)[0]
+            #debug_patient = '0034bdeb-8b71-15f5-2006-4a49be283b3f'
             print(
                 f'Debug patient {debug_patient} \nall targets \n{self.dataset.targets_df_proc[self.dataset.targets_df_proc.patient_id == debug_patient][["das283bsr_score", self.dataset.target_name]]}')
 
-        metrics = Metrics(device=model.device)
+        metrics = MulticlassMetrics(device=model.device, possible_classes=torch.tensor([0, 1, 2], device=model.device))
 
         batch = Batch(partition.partitions_train[partition.current_fold],
                       partition.partitions_train[partition.current_fold])
@@ -121,24 +145,25 @@ class AdaptivenetTrainer(Trainer):
                     self.loss_per_epoch[self.current_epoch - 1] = self.loss
 
                     model.eval()
-                    metrics_val = Metrics(device=model.device)
+                    metrics_val = MulticlassMetrics(device=model.device, possible_classes=torch.tensor([0,1,2], device = model.device))
                     self.loss_valid, metrics_val = model.apply_and_get_loss(self.dataset, self.criterion,
                                                                             batch_valid, metrics_val)
                     self.loss_per_epoch_valid[self.current_epoch - 1] = self.loss_valid
-                    metrics.discrete_metrics()
-                    accuracy = metrics.accuracy
-                    self.accuracy_per_epoch[self.current_epoch - 1] = accuracy
-                    metrics_val.discrete_metrics()
-                    accuracy_val = metrics_val.accuracy
-                    self.accuracy_per_epoch_valid[self.current_epoch - 1] = accuracy_val
+                    metrics.get_metrics()
+                    f1 = metrics.macro_f1
+                    self.f1_per_epoch[self.current_epoch - 1] = f1
+                    metrics_val.get_metrics()
+                    f1_val = metrics_val.macro_f1
+                    self.f1_per_epoch_valid[self.current_epoch - 1] = f1_val
                     print(
-                        f'epoch : {self.current_epoch} loss {self.loss} loss_valid {self.loss_valid} accuracy {accuracy} accuracy_valid {accuracy_val}')
+                        f'epoch : {self.current_epoch} loss {self.loss} loss_valid {self.loss_valid} f1 {f1} f1_valid {f1_val}')
                     # re-initialize metrics for new epoch
-                    metrics = Metrics(device=model.device)
+                    metrics = MulticlassMetrics(
+                        device=model.device, possible_classes=torch.tensor([0, 1, 2], device=model.device))
                     if self.use_early_stopping:
                         self.check_early_stopping()
 
-        return accuracy, accuracy_val
+        return f1, f1_val
 
     def plot_accuracy(self):
         plt.figure()
@@ -166,6 +191,7 @@ class Batch:
             size = min(len(self.available_indices), batch_size)
             # batch and corresponding tensor indices
             self.current_indices = np.random.choice(self.available_indices, size=size, replace=False)
+            print(f'len available indices {len(self.available_indices)}')
 
         # get corresponding indices in tensors
         indices_dict = {name : [] for name in dataset.event_names}
@@ -210,7 +236,7 @@ class Batch:
         # get max number of visits for a patient in subset
         self.max_num_visits = max([len(dataset.patients[index].visits) for index in self.current_indices])
         seq_lengths = torch.zeros(size=(self.max_num_visits - dataset.min_num_visits + 1,
-                                        len(self.current_indices), len(dataset.event_names)), dtype=torch.long)
+                                        len(self.current_indices), len(dataset.event_names)), dtype=torch.long, device=model.device)
         # to store for each patient for each visit the visit/medication mask up to that visit. This mask allows
         # us to then easily combine the visit and medication events in the right order. True is for visit events and False for medications.
         # E.g. if a patient has the timeline [m1, m2, v1, m3, m4, v2, m5, v3] the corresponding masks up to each of the 3 visits would be
@@ -232,13 +258,13 @@ class Batch:
         # tensor of shape batch_size x max_num_visits with True in position (p, v) if patient p has at least v visits
         # and False else. we use this mask later to select the patients up to each visit.
         self.available_visit_mask = torch.tensor([[True if index <= len(dataset.patients[patient].visits)
-                                                  else False for index in range(dataset.min_num_visits, self.max_num_visits + 1)] for patient in self.current_indices])
+                                                  else False for index in range(dataset.min_num_visits, self.max_num_visits + 1)] for patient in self.current_indices], device = model.device)
 
         # stores for each patient in batch the total number of visits and medications
         # it is used later to index correctly the visits and medications dataframes
         # total num visits and meds
 
-        self.total_num = torch.tensor([[getattr(dataset.patients[patient], 'num_'+event+'_events') for event in dataset.event_names] for patient in self.current_indices])
+        self.total_num = torch.tensor([[getattr(dataset.patients[patient], 'num_'+event+'_events') for event in dataset.event_names] for patient in self.current_indices], device =model.device)
         self.seq_lengths = seq_lengths
         for event in dataset.event_names:
             setattr(self, event + '_masks', masks_dict[event])

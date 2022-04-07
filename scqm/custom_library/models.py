@@ -22,6 +22,7 @@ class Adaptivenet(Model):
     def __init__(self, model_specifics, device):
         super().__init__(device)
         self.size_embedding = model_specifics['size_embedding']
+        self.num_targets = model_specifics['num_targets']
         self.encoders = {name: Encoder(model_specifics[name]['num_features'], model_specifics['size_embedding'], model_specifics['num_layers_enc'],
                                        model_specifics['hidden_enc'], model_specifics['dropout']).to(device) for name in model_specifics['event_names']}
 
@@ -66,14 +67,14 @@ class Adaptivenet(Model):
             # stores for all the patients in the batch the tensor of ordered events (of varying size)
             sequence = []
             # to keep track of the right index in the visits/medication tensors
-            indices = torch.zeros((len(dataset.event_names),), dtype=torch.int32)
+            indices = torch.zeros((len(dataset.event_names),), dtype=torch.int32, device = self.device)
             visit_index = dataset.event_names.index('a_visit')
             # targets (values)
             target_values = torch.empty(
                 size=(torch.sum(batch.available_visit_mask[:, v] == True).item(), 1), device=self.device)
             # targets (categories : 0 if <= 2.6 else 1)
             target_categories = torch.empty(
-                size=(torch.sum(batch.available_visit_mask[:, v] == True).item(), 1), device=self.device)
+                size=(torch.sum(batch.available_visit_mask[:, v] == True).item(),), dtype = torch.int64, device=self.device)
             # delta t
             time_to_targets = torch.empty(
                 size=(torch.sum(batch.available_visit_mask[:, v] == True).item(), 1), device=self.device)
@@ -84,7 +85,7 @@ class Adaptivenet(Model):
                 # check if the patient has at least v visits
                 if batch.available_visit_mask[patient, v] == True:
                     # create combined ordered list of visit/medication/events up to v
-                    combined = torch.zeros(size=(seq.sum(), self.size_embedding))
+                    combined = torch.zeros(size=(seq.sum(), self.size_embedding), device = self.device)
                     for index, event in enumerate(dataset.event_names):
                         mask = getattr(batch, event + '_masks')
                         combined[mask[patient][v]] = encoder_outputs[event][indices[index]:indices[index]+ seq[index]].flatten()
@@ -106,7 +107,7 @@ class Adaptivenet(Model):
             # "preprocessing" to apply lstm
             padded_sequence = torch.nn.utils.rnn.pad_sequence(sequence, batch_first=self.batch_first)
             # compute the lengths of the sequences for each patient with available visit v
-            lengths = batch.seq_lengths[v].sum(dim=1)[batch.available_visit_mask[:, v]]
+            lengths = batch.seq_lengths[v].sum(dim=1)[batch.available_visit_mask[:, v]].cpu()
 
             pack_padded_sequence = torch.nn.utils.rnn.pack_padded_sequence(
                 padded_sequence, batch_first=self.batch_first, lengths=lengths, enforce_sorted=False)
@@ -128,14 +129,14 @@ class Adaptivenet(Model):
             num_targets += len(targets)
             # compute other training metrics
             if self.task == 'classification':
-                predictions = torch.tensor([1 if elem >= 0.5 else 0 for elem in out], device=self.device)
+                predictions = torch.tensor([torch.argmax(elem) for elem in out], device=self.device)
             else:
                 predictions = out
             metrics.add_observations(predictions, targets)
 
             if debug_index_target != None:
                 # print(out)
-                print(f'prediction {out[debug_index_target].item()}')
+                print(f'prediction {out[debug_index_target]}')
 
         return loss / num_targets, metrics
 

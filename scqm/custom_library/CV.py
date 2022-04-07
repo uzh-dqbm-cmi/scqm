@@ -1,7 +1,7 @@
 from models import Adaptivenet
 from training import AdaptivenetTrainer
 from partition import DataPartition
-from preprocessing import load_dfs, preprocessing, extract_adanet_features
+from preprocessing import load_dfs, load_dfs_all_data, preprocessing, extract_adanet_features
 from data_objects import Dataset
 import itertools
 import numpy as np
@@ -22,6 +22,7 @@ from utils import set_seeds
 #TODO stratifier
 #TODO decoders in AE style
 #TODO find out which tables/features are time dependent and which are general. Implement separate encoders for each "event" i.e. dataframe and try one for several/all
+#TODO add prediction of das28 as stable (delta <= 1.2)
 
 class CVWrapper:
     def __init__(self, dataset, k):
@@ -78,10 +79,10 @@ class CVAdaptivenet(CVWrapper):
 
 if __name__ == '__main__':
 
-    df_dict = load_dfs()
+    df_dict = load_dfs_all_data()
     df_dict = preprocessing(df_dict)
     patients_df, medications_df, visits_df, targets_df, socioeco_df, radai_df, haq_df, _ = extract_adanet_features(
-        df_dict, das28=True)
+        df_dict, only_meds=True, das28=True)
     df_dict_anet = {'a_visit': visits_df, 'patients': patients_df, 'med': medications_df, 'targets': targets_df,
                     'socio': socioeco_df, 'radai': radai_df, 'haq': haq_df}
     dataset = Dataset(df_dict_anet, df_dict_anet['patients']['patient_id'].unique(

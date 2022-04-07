@@ -2,6 +2,7 @@ import datetime
 import numpy as np
 import pandas as pd
 import torch
+from tqdm import tqdm
 
 class DataObject:
     def __init__(self, df_dict, patient_id):
@@ -215,7 +216,7 @@ class Dataset:
         return
     
     def instantiate_patients(self):
-        self.patients = {id_: Patient(self.initial_df_dict, id_, self.event_names) for id_ in self.patient_ids}
+        self.patients = {id_: Patient(self.initial_df_dict, id_, self.event_names) for id_ in tqdm(self.patient_ids)}
         return 
 
     def drop(self, ids):
@@ -283,15 +284,22 @@ class Dataset:
         # specific one hot encoding
         # self.a_visit_df_proc = pd.get_dummies(self.a_visit_df_proc, columns=[
         #                                      '.smoker', '.morning_stiffness_duration_radai'], drop_first=True)
-        self.socio_df_proc = pd.get_dummies(self.socio_df_proc, columns = ['.smoker'], drop_first=True)
-        self.radai_df_proc = pd.get_dummies(self.radai_df_proc, columns=['.morning_stiffness_duration_radai'], drop_first=True)
+        self.socio_df_proc = pd.get_dummies(self.socio_df_proc, columns = ['smoker'], drop_first=True)
+        self.radai_df_proc = pd.get_dummies(self.radai_df_proc, columns=['morning_stiffness_duration_radai'], drop_first=True)
         self.med_df_proc = pd.get_dummies(self.med_df_proc, columns=['medication_generic_drug', 'medication_drug_classification',
                                                                                    ], drop_first=True)
         self.patients_df_proc = pd.get_dummies(self.patients_df_proc, columns = ['gender', 'anti_ccp', 'ra_crit_rheumatoid_factor'], drop_first=True)
+        # transform to numeric
+        columns_to_exclude = ['patient_id', 'uid_num', 'med_id']
+        for name in self.df_names:
+            df = getattr(self, name + '_proc')
+            columns = [col for col in df.columns if col not in columns_to_exclude]
+            df[columns] = df[columns].apply(pd.to_numeric, axis=1)
+            setattr(self, name + '_proc', df)
         #TODO add condition here
         if hasattr(self, 'joint_df_proc'):
             self.joint_df_proc = pd.get_dummies(self.joint_df_proc, columns=[
-                '.smoker', '.morning_stiffness_duration_radai', 'medication_generic_drug', 'medication_drug_classification'], drop_first=True)
+                'smoker', 'morning_stiffness_duration_radai', 'medication_generic_drug', 'medication_drug_classification'], drop_first=True)
         return
     
 
@@ -302,12 +310,17 @@ class Dataset:
         self.tensor_names = []
         for name in self.df_names:
             df = getattr(self, name + '_proc')
+
             # get train min and max values
             columns_to_exclude = ['patient_id', 'uid_num', 'med_id']
             columns = [col for col in df.columns if col not in columns_to_exclude]
             min_train_values = df[df.patient_id.isin(self.train_ids)][columns].min()
             max_train_values = df[df.patient_id.isin(self.train_ids)][columns].max()
-
+            # to not scale classification targets
+            
+            if self.target_name in min_train_values.index:
+                min_train_values[self.target_name] = 0
+                max_train_values[self.target_name] = 1
             # store scaling values
             setattr(self, str(name) + '_scaling_values', (min_train_values, max_train_values))
             # scale everything
@@ -360,6 +373,7 @@ class Dataset:
                 self.target_index = list(df[columns].columns).index(self.target_name)
                 self.time_index = list(df[columns].columns).index('date')
                 self.target_value_index = list(df[columns].columns).index('das283bsr_score')
+            
         #TODO have only one tensor and mapping to train, valid test (instead of 3 different ?)
         return
     

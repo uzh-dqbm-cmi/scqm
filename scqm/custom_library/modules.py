@@ -61,7 +61,7 @@ class PredModule(nn.Module):
         self.input_layer = nn.Linear(input_size, hidden_size)
         self.linears = nn.ModuleList([nn.Linear(hidden_size, hidden_size) for i in range(1, num_hidden)])
         self.dropout = nn.Dropout(p=p)
-        self.out = nn.Linear(hidden_size, 1)
+        self.out = nn.Linear(hidden_size, 3)
     def forward(self, x):
         x = F.relu(self.input_layer(x))
         x = self.dropout(x)

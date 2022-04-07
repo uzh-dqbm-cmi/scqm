@@ -6,8 +6,45 @@ from os import listdir
 from os.path import isfile, join
 import re
 from datetime import datetime
+import pickle
 
 #TODO in preprocessing medication_drug_classification is sometimes missing but we know it
+
+
+def load_dfs_all_data(subset = None):
+    # load all tables
+    data_path = '/opt/data/01_raw_scqm_all/SCQM_data_tables_all_data_reduced.pickle'
+    with open(data_path, 'rb') as handle:
+        df_dict = pickle.load(handle)
+    
+    # rename dfs to match names in previous dataset
+    name_mapping = {'p': 'patients', 'v': 'visits', 'm': 'medications', 'hi': 'healthissues', 'mny': 'modifiednewyorkxrayscore', 'rau': 'ratingenscore',
+    'soa': 'sonaras', 'sor': 'sonarra', 'as': 'asas','bf': 'basfi', 'bd': 'basdai', 'd': 'dlqi', 'eq': 'euroquol', 'h': 'haq', 'ps': 'psada', 'ra': 'radai5',
+    'sf': 'sf_12', 'se': 'socioeco'}
+    for key in list(df_dict.keys()):
+        df_dict[name_mapping[key]] = df_dict.pop(key)
+    for key in df_dict:
+        df_dict[key] = df_dict[key].rename(columns=lambda x: re.sub('^[^.]*', '', x)[1:])
+
+    for index, table in df_dict.items():
+        print(f'name {index} shape {table.shape}')
+        if df_dict[index].filter(regex=('patient_id')).shape[1] == 1:
+            # for consistency
+            df_dict[index] = df_dict[index].rename(columns=lambda x: re.sub('.*patient_id', 'patient_id', x))
+        else:
+            print(f'table {index} has not ids for patients')
+        if 'uid_num' or 'patient_id' in table.columns:
+            pass
+        else:
+            print('PROBLEM')
+    if subset is not None:
+        # keep only a certain percentage of the whole data
+        patients_to_keep = np.random.choice(df_dict['patients']['patient_id'].unique(), size=int(
+            subset * len(df_dict['patients']['patient_id'].unique())), replace=False)
+        for key in df_dict:
+            df_dict[key] = df_dict[key][df_dict[key].patient_id.isin(patients_to_keep)]
+
+    return df_dict
 def load_dfs():
     # load all tables
     data_path = '/opt/data/01_raw'
@@ -34,7 +71,29 @@ def load_dfs():
 
     return df_dict
 
-
+def clean_dates(df_dict):
+    df_dict_processed = df_dict.copy()
+    #some specific outlier preprocessing :
+    df_dict_processed['patients']['date_of_birth'][df_dict_processed['patients']['date_of_birth'] == '1063-05'] = '1963-05'
+    df_dict_processed['visits']['date_of_birth'][df_dict_processed['visits']
+                                                ['date_of_birth'] == '1063-05'] = '1963-05'
+    df_dict_processed['visits']['osteodensitometrie_date'][df_dict_processed['visits']
+                                                        ['osteodensitometrie_date'] == '2913-03-01'] = '2013-03-01'
+    df_dict_processed['visits']['osteodensitometrie_date'] = df_dict_processed['visits']['osteodensitometrie_date'].apply(
+        lambda x: '2013-' + x.split('-')[1] + '-' + x.split('-')[2] if x is not None and x.split('-')[0] == '2301' else x)
+    df_dict_processed['visits']['hospital_rehab_stay_due_to_arthritis_date'][df_dict_processed['visits']
+                                                                            ['hospital_rehab_stay_due_to_arthritis_date'] == '3013-11-01'] = '2013-11-01'
+    df_dict_processed['patients']['mnyc_date_positive'] = df_dict_processed['patients']['mnyc_date_positive'].apply(
+        lambda x: x.split('|')[0] if x is not None else x)
+    df_dict_processed['visits']['mnyc_date_positive'] = df_dict_processed['visits']['mnyc_date_positive'].apply(
+        lambda x: x.split('|')[0] if x is not None else x)
+    df_dict_processed['medications']['medication_start_date'][df_dict_processed['medications']
+                                                            ['medication_start_date'] == '3021-03-15'] = '2021-03-15'
+    df_dict_processed['medications']['stored_start_date'][df_dict_processed['medications']
+                                                        ['stored_start_date'] == '3021-03-15'] = '2021-03-15'
+    df_dict_processed['healthissues']['health_issue_date'][df_dict_processed['healthissues']
+                                                        ['health_issue_date'] == '20'] = None
+    return df_dict_processed
 def preprocessing(df_dict, nan_prop=1):
     df_dict_processed = df_dict.copy()
     #drop the two patients in patients that have no 
@@ -43,6 +102,11 @@ def preprocessing(df_dict, nan_prop=1):
         # thresh : require that many non na values to keep the column
         df_dict_processed[index] = df_dict_processed[index].dropna(axis=1, thresh=int(len(table) * (1-nan_prop)+1))
         #print(f'kept {df_dict_processed[index].shape[1]} columns out of {df_dict[index].shape[1]}')
+    #some specific outlier preprocessing :
+    df_dict_processed = clean_dates(df_dict_processed)
+    #other specific preprocessing
+    df_dict_processed['visits']['crp'] = pd.to_numeric(df_dict_processed['visits']['crp'].apply(
+        lambda x: x.split('< ')[1] if (x is not None and len(x.split('< ')) > 1) else x))
     # convert string dates to datetime and replace "unknown" by np.nan
     for index, table in df_dict_processed.items():
         date_columns = table.filter(regex=("date")).columns
@@ -55,10 +119,10 @@ def preprocessing(df_dict, nan_prop=1):
             df_dict_processed[index] = elem.rename(columns={name[0]: 'date'})
     # manually change date names in ratingenscore, healthissues and modifiednewyorkxrayscore
     df_dict_processed['ratingenscore'] = df_dict_processed['ratingenscore'].rename(
-        columns={'u.imaging_score_scoring_date': 'date'})
+        columns={'imaging_score_scoring_date': 'date'})
     # for healthissues, '.health_issue_date' is 90% missing, use recording time when it is missing ?
     df_dict_processed['modifiednewyorkxrayscore'] = df_dict_processed['modifiednewyorkxrayscore'].rename(
-        columns={'y.imaging_score_scoring_date': 'date'})
+        columns={'imaging_score_scoring_date': 'date'})
     # drop columns with unique values
     for index, table in df_dict_processed.items():
         for col in table.columns:
@@ -67,7 +131,7 @@ def preprocessing(df_dict, nan_prop=1):
     # radai5 df has some missing visit ids drop these rows for now (#TODO not forget to change)
     df_dict_processed['radai5'] = df_dict_processed['radai5'].dropna(subset=['uid_num'])
     # socioeco specific preprocessing
-    df_dict_processed['socioeco']['.smoker'] = df_dict_processed['socioeco']['.smoker'].replace({'never_been_smoking':'i_have_never_smoked',
+    df_dict_processed['socioeco']['smoker'] = df_dict_processed['socioeco']['smoker'].replace({'never_been_smoking':'i_have_never_smoked',
     'smoking_currently' : 'i_am_currently_smoking', 'a_former_smoker': 'i_am_a_former_smoker_for_more_than_a_year'})
     # medications specific preprocessing
     # sometimes written bsDMARD or brDMARD for the same thing
@@ -83,6 +147,13 @@ def preprocessing(df_dict, nan_prop=1):
     return df_dict_processed
 
 
+def das28_increase(df):
+    # 0 if stable (i.e. delta das28 <= 1.2, 1 if increase else 2 if decrease)
+    df["das28_increase"] = [np.nan if index == 0 else 0 if abs(df['das283bsr_score'].iloc[index - 1] - df['das283bsr_score'].iloc[index]) <= 1.2
+                            else 1 if df['das283bsr_score'].iloc[index - 1]
+                            < df['das283bsr_score'].iloc[index] else 2 for index in range(len(df))]
+    return df
+
 def extract_adanet_features(df_dict, transform_meds = True, das28=True, only_meds=False, joint_df = False):
     general_df = df_dict['patients'][['patient_id', 'date_of_birth', 'gender', 'anti_ccp', 'ra_crit_rheumatoid_factor',
                                       'date_first_symptoms', 'date_diagnosis']]
@@ -90,9 +161,9 @@ def extract_adanet_features(df_dict, transform_meds = True, das28=True, only_med
                                     'medication_start_date', 'medication_end_date']]
     visits_df = df_dict['visits'][['patient_id', 'uid_num', 'date', 'weight_kg', 'das283bsr_score', 'n_swollen_joints', 'n_painfull_joints', 'bsr',
                                    'n_painfull_joints_28', 'height_cm', 'crp']]
-    socioeco_df = df_dict['socioeco'][['patient_id','uid_num', 'date', '.smoker']]
-    radai_df = df_dict['radai5'][['patient_id','uid_num', 'date', '.pain_level_today_radai', '.morning_stiffness_duration_radai',
-                                  '.activity_of_rheumatic_disease_today_radai']]
+    socioeco_df = df_dict['socioeco'][['patient_id','uid_num', 'date', 'smoker']]
+    radai_df = df_dict['radai5'][['patient_id','uid_num', 'date', 'pain_level_today_radai', 'morning_stiffness_duration_radai',
+                                  'activity_of_rheumatic_disease_today_radai']]
     haq_df = df_dict['haq'][['patient_id', 'uid_num', 'date', 'haq_score']]
     # keep only some specific medications and change the label of remaining to "other"
     drugs_to_keep = ['methotrexate', 'prednisone', 'rituximab', 'adalimumab', 'sulfasalazine', 'leflunomide', 'etanercept', 'infliximab']
@@ -112,10 +183,7 @@ def extract_adanet_features(df_dict, transform_meds = True, das28=True, only_med
             f'Keeping {len(general_df[general_df.patient_id.isin(patients)])} patients out of {len(general_df.patient_id.unique())}')
         # column saying if das28 at next visit increased (1) or decreased/remained stable 0
         visits_df['das28_increase'] = np.nan
-        for patient in patients:
-            visits_df.loc[visits_df.patient_id == patient, 'das28_increase'] = [np.nan if index == 0 else 1 if visits_df[visits_df.patient_id == patient]['das283bsr_score'].iloc[index - 1]
-                                           < visits_df[visits_df.patient_id == patient]['das283bsr_score'].iloc[index] else 0 for index in range(len(visits_df[visits_df.patient_id == patient]))]
-
+        visits_df = visits_df.groupby('patient_id').apply(das28_increase)
         general_df = general_df[general_df.patient_id.isin(patients)]
         med_df = med_df[med_df.patient_id.isin(patients)]
         socioeco_df = socioeco_df[socioeco_df.patient_id.isin(patients)]
@@ -165,7 +233,7 @@ def extract_adanet_features(df_dict, transform_meds = True, das28=True, only_med
 
 def find_drug_categories_and_names(df):
     """replace missing drug names and categories in df medications"""
-
+    #TODO complete for new data
     # Reassmbly of the medication
     # Create a drug to category dictionary to impute any missing category values
     drugs_per_cat = df.groupby(by='medication_drug_classification')['medication_drug'].apply(list)
