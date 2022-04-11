@@ -88,7 +88,8 @@ class Adaptivenet(Model):
                     combined = torch.zeros(size=(seq.sum(), self.size_embedding), device = self.device)
                     for index, event in enumerate(dataset.event_names):
                         mask = getattr(batch, event + '_masks')
-                        combined[mask[patient][v]] = encoder_outputs[event][indices[index]:indices[index]+ seq[index]].flatten()
+                        combined[torch.broadcast_to(mask[patient][v], (len(mask[patient][v]), self.size_embedding))
+                                 ] = encoder_outputs[event][indices[index]:indices[index] + seq[index]].flatten()
                     sequence.append(combined)
                     target_values[index_target] = dataset.targets_df_scaled_tensor_train[batch.indices_targets][indices[visit_index] +
                                                                                                                 seq[visit_index], dataset.target_value_index]

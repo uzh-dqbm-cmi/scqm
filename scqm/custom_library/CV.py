@@ -10,6 +10,7 @@ import csv
 import random
 import time
 import torch
+import pickle
 
 from utils import set_seeds
 
@@ -39,11 +40,11 @@ class CVWrapper:
         raise NotImplementedError
 
 class CVAdaptivenet(CVWrapper):
-    def perform_cv(self, fold, n_epochs = 400, file='/cluster/home/ctrottet/code/scqm_cv_results/', search='random', num_combi=2):
+    def perform_cv(self, fold, n_epochs = 400, file='/cluster/home/ctrottet/code/scqm_cv_results/', search='random', num_combi=5):
         filename = file + time.strftime("%Y%m%d-%H%M") + '_fold_' + str(fold) + '.csv'
         with open(filename, 'w') as f:
             header = self.parameter_names + ['epochs', 'loss', 'loss_valid',
-                    'accuracy', 'accuracy_valid']
+                    'f1', 'f1_valid']
             writer = csv.writer(f)
             writer.writerow(header)
             combinations = list(itertools.product(*self.parameters.values()))
@@ -66,29 +67,29 @@ class CVAdaptivenet(CVWrapper):
                 print(f'{ind} combination out of {len(combinations)}')
                 print(
                     f'size_embedding {size_embedding}, num_layers_enc {num_layers_enc}, hidden_enc {hidden_enc}, size_history {size_history}, num_layers {num_layers}, num_layers_pred {num_layers_pred}, hidden_pred {hidden_pred}, dropout {p}, lr {lr}')
-                model_specifics = {'size_embedding': size_embedding, 'num_layers_enc': num_layers_enc, 'hidden_enc': hidden_enc, 'size_history': size_history, 'num_layers': num_layers, 'num_layers_pred': num_layers_pred, 'hidden_pred': hidden_pred,
+                model_specifics = {'num_targets':3,'size_embedding': size_embedding, 'num_layers_enc': num_layers_enc, 'hidden_enc': hidden_enc, 'size_history': size_history, 'num_layers': num_layers, 'num_layers_pred': num_layers_pred, 'hidden_pred': hidden_pred,
                                    'event_names': ['a_visit', 'med', 'socio', 'radai', 'haq'], 'a_visit' : {'num_features': num_visit_features}, 'med' : {'num_features': num_medications_features},
                 'socio': {'num_features': num_socio_features}, 'radai': {'num_features': num_radai_features}, 'haq': {'num_features': num_haq_features}, 'num_general_features': num_general_features, 'dropout': p, 'batch_first': batch_first, 'device': device, 'task': task}
                 model = Adaptivenet(model_specifics, device)
                 self.dataset.min_num_visits = 2
                 trainer = AdaptivenetTrainer(model, self.dataset, n_epochs, batch_size=32, lr=lr, balance_classes=bal, use_early_stopping = True)
-                accuracy, accuracy_valid = trainer.train_model(model, self.partition, debug_patient=False)
+                f1, f1_valid = trainer.train_model(model, self.partition, debug_patient=False)
                 writer.writerow(np.array([size_embedding, num_layers_enc, hidden_enc, size_history,
-                                num_layers, num_layers_pred, hidden_pred, lr, p, bal, trainer.current_epoch, trainer.loss.item(), trainer.loss_valid.item(), accuracy, accuracy_valid]))
+                                num_layers, num_layers_pred, hidden_pred, lr, p, bal, trainer.current_epoch, trainer.loss.item(), trainer.loss_valid.item(), f1, f1_valid]))
 
 
 if __name__ == '__main__':
 
-    df_dict = load_dfs_all_data()
-    df_dict = preprocessing(df_dict)
-    patients_df, medications_df, visits_df, targets_df, socioeco_df, radai_df, haq_df, _ = extract_adanet_features(
-        df_dict, only_meds=True, das28=True)
-    df_dict_anet = {'a_visit': visits_df, 'patients': patients_df, 'med': medications_df, 'targets': targets_df,
-                    'socio': socioeco_df, 'radai': radai_df, 'haq': haq_df}
-    dataset = Dataset(df_dict_anet, df_dict_anet['patients']['patient_id'].unique(
-    ), 'das28_increase', ['a_visit', 'med', 'socio', 'radai', 'haq'])
-    # keep only patients with more than two visits
-    dataset.drop([id_ for id_, patient in dataset.patients.items() if len(patient.visit_ids) <= 2])
+    # df_dict = load_dfs_all_data()
+    # df_dict = preprocessing(df_dict)
+    # patients_df, medications_df, visits_df, targets_df, socioeco_df, radai_df, haq_df, _ = extract_adanet_features(
+    #     df_dict, only_meds=True, das28=True)
+    # df_dict_anet = {'a_visit': visits_df, 'patients': patients_df, 'med': medications_df, 'targets': targets_df,
+    #                 'socio': socioeco_df, 'radai': radai_df, 'haq': haq_df}
+    # dataset = Dataset(df_dict_anet, df_dict_anet['patients']['patient_id'].unique(
+    # ), 'das28_increase', ['a_visit', 'med', 'socio', 'radai', 'haq'])
+    with open('/opt/data/processed/saved_dataset.pickle', 'rb') as handle:
+        dataset = pickle.load(handle)
     print(f'Dropping patients with less than 3 visits, keeping {len(dataset)}')
     # prepare for training
     dataset.transform_to_numeric_adanet()
@@ -96,17 +97,17 @@ if __name__ == '__main__':
     cv = CVAdaptivenet(dataset, k=5)
     parameters = {
     "SIZE_EMBEDDING" : np.array([3, 5, 10]),
-    "NUM_LAYERS_ENC" : np.array([1, 2, 5, 10, 15]),
-    "HIDDEN_ENC" : np.array([50, 100, 200]),
+    "NUM_LAYERS_ENC" : np.array([1, 5, 10, 15]),
+    "HIDDEN_ENC" : np.array([50, 100]),
     "SIZE_HISTORY" : np.array([5, 10]),
-    "NUM_LAYERS" : np.array([1, 2, 5, 10]),
-    "NUM_LAYERS_PRED" : np.array([1, 2, 5, 10]),
-    "HIDDEN_PRED" : np.array([50, 100, 200]),
-    "LR" : np.array([1e-3]),
-    "P" : np.array([0.2, 0.3, 0.5]),
-    "BALANCE_CLASSES" : np.array([False])}
+    "NUM_LAYERS" : np.array([1, 5, 10]),
+    "NUM_LAYERS_PRED" : np.array([1, 5, 10]),
+    "HIDDEN_PRED" : np.array([50, 100,]),
+    "LR" : np.array([1e-2, 1e-3]),
+    "P" : np.array([0.1, 0.3]),
+    "BALANCE_CLASSES" : np.array([False, True])}
     cv.set_grid(parameters)
     fold = int(sys.argv[1])
     print(f'fold {fold}')
-    cv.perform_cv(fold=fold, n_epochs=1)
+    cv.perform_cv(fold=fold, n_epochs=400)
 

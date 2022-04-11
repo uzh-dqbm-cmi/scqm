@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import torch
 from tqdm import tqdm
+from utils import Masks
 
 class DataObject:
     def __init__(self, df_dict, patient_id):
@@ -202,17 +203,25 @@ class Medication(Event):
 
 #mapping and get_item
 class Dataset:
-    def __init__(self, df_dict, ids, target_name, event_names):
+    def __init__(self, device, df_dict, ids, target_name, event_names, min_num_visits):
         self.initial_df_dict = df_dict
         self.patient_ids = list(ids)
         self.target_name = target_name
         self.event_names = event_names
+        self.min_num_visits = min_num_visits
+        self.device = device
         self.instantiate_patients()
         self.df_names = []
         for name in df_dict.keys():
             name_df = str(name) + '_df'
             setattr(self, name_df, df_dict[name][df_dict[name]['patient_id'].isin(ids)])
             self.df_names.append(name_df)
+        return
+    def get_masks(self):
+        print(f'Getting masks....')
+        self.mapping_for_masks = {patient : index for index, patient in enumerate(self.patient_ids)}
+        self.masks = Masks(self.device, self.patient_ids)
+        self.masks.get_masks(self, debug_patient=None)
         return
     
     def instantiate_patients(self):
@@ -235,6 +244,7 @@ class Dataset:
     def move_to_device(self, device):
         for tensor_name in self.tensor_names:
             setattr(self, tensor_name, getattr(self, tensor_name).to(device))
+        
         return
     
     def split_data(self, prop_valid= 0.1, prop_test = 0.1):
@@ -308,6 +318,9 @@ class Dataset:
         #(x-min)/(max-min)
         # attribute to keep track of all tensor names¨
         self.tensor_names = []
+        self.tensor_indices_mapping_train = {index : {name : [] for name in self.df_names} for index in self.train_ids}
+        self.tensor_indices_mapping_valid = {index: {name: [] for name in self.df_names} for index in self.valid_ids}
+        self.tensor_indices_mapping_test = {index: {name: [] for name in self.df_names} for index in self.test_ids}
         for name in self.df_names:
             df = getattr(self, name + '_proc')
 
@@ -354,7 +367,14 @@ class Dataset:
                 len(df.loc[df.patient_id.isin(self.valid_ids), 'tensor_indices_valid']))]
             df.loc[df.patient_id.isin(self.test_ids), 'tensor_indices_test'] = [index for index in range(
                 len(df.loc[df.patient_id.isin(self.test_ids), 'tensor_indices_test']))]
-
+            # indices mapping in tensors
+            for index in self.train_ids:
+                self.tensor_indices_mapping_train[index][name] = df[df.patient_id == index]['tensor_indices_train'].values
+            for index in self.test_ids:
+                self.tensor_indices_mapping_test[index][name] = df[df.patient_id ==
+                                                                    index]['tensor_indices_test'].values
+            for index in self.valid_ids:
+                self.tensor_indices_mapping_valid[index][name] = df[df.patient_id == index]['tensor_indices_valid'].values
             # To retrieve scaled values directly from patients
             tensor_name = name + '_tensor'
             for patient in self.train_ids :

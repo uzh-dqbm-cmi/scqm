@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
+import torch.nn.functional as F
 import pandas as pd
 import math
 import random
@@ -137,6 +138,8 @@ class MulticlassMetrics(Metrics):
             self.predicted_probas = predicted_probas if predicted_probas else predictions
     def get_metrics(self):
         self.macro_f1 = 0
+        self.fpr = np.empty(len(self.possible_classes))
+        self.tpr = np.empty(len(self.possible_classes))
         for class_ in self.possible_classes:
             TP = len([elem for index, elem in enumerate(self.predictions)
                      if elem == class_ and elem == self.true_values[index]])
@@ -144,6 +147,8 @@ class MulticlassMetrics(Metrics):
                         if elem == class_ and elem != self.true_values[index]])
             FN = len([elem for index, elem in enumerate(self.predictions)
                       if elem != class_ and class_ == self.true_values[index]])
+            TN = len([elem for index, elem in enumerate(self.predictions)
+                      if elem != class_ and class_ != self.true_values[index]])
             if TP + FN != len([elem for elem in self.true_values if elem == class_]):
                 raise(ArithmeticError('number of positives dont match'))
             if TP + FP == 0:
@@ -160,9 +165,31 @@ class MulticlassMetrics(Metrics):
             else:
                 F1 = 2*(precision*recall)/(precision + recall)
             self.macro_f1 += F1
+            self.fpr[class_] = FP/(FP+TN)
+            self.tpr[class_] = TP/(TP+FN)
         self.macro_f1 = self.macro_f1/len(self.possible_classes)        
         return
-
+    def get_auroc(self):
+        true_values_one_hot = F.one_hot(self.true_values)
+        plt.figure()
+        plt.plot([0, 1], [0, 1], color="navy", lw=lw, linestyle="--")
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel("False Positive Rate")
+        plt.ylabel("True Positive Rate")
+        plt.title("ROC")
+        plt.legend(loc="lower right")
+        for class_ in self.possible_classes:
+            fpr, tpr, thresholds = roc_curve(true_values_one_hot[:,class_], self.predicted_probas[:, class_], pos_label=1)
+            #auc = roc_auc_score(self.true_values, self.predicted_probas)
+            lw = 2
+            plt.plot(
+                fpr,
+                tpr,
+                lw=lw,
+                label=f"ROC curve class {class_}",
+            )
+        plt.show()
        
 
 
@@ -236,4 +263,69 @@ def analyze_results(dataset, results_df, task = 'regression'):
         print(f'sensitivity : {(conf_matrix.loc[1, 1])/(conf_matrix.loc[1,1] + conf_matrix.loc[0, 1])}')
         print(f'specificity : {conf_matrix.loc[0, 0]/(conf_matrix.loc[0, 0] + conf_matrix.loc[1,0])}')
     return
+
+
+class Masks:
+    def __init__(self, device, indices):
+        self.device = device
+        self.indices = indices
+
+    def get_masks(self, dataset, debug_patient):
+        """_summary_
+
+        Args:
+            dataset (_type_): _description_
+            subset (_type_): _description_
+            min_num_visits (_type_): min number of initial visits to retrieve the information from
+        e.g. if min_num_visits = 2, for each patient we start retrieving all information
+        up to the 2nd visit, i.e. medications before 2nd visit and info about 1st visit
+        (in other words, min_num_visits is the first target visit). For each visit v >= min_num_visits, we store for each patient the number of visits and medication events
+        up to v
+
+        Returns:
+            _type_: _description_
+        """
+        # get max number of visits for a patient in subset
+        self.num_visits = [len(dataset.patients[index].visits) for index in self.indices]
+        max_num_visits = max(self.num_visits)
+        seq_lengths = torch.zeros(size=(max_num_visits - dataset.min_num_visits + 1,
+                                        len(self.indices), len(dataset.event_names)), dtype=torch.long, device=self.device)
+        # to store for each patient for each visit the visit/medication mask up to that visit. This mask allows
+        # us to then easily combine the visit and medication events in the right order. True is for visit events and False for medications.
+        # E.g. if a patient has the timeline [m1, m2, v1, m3, m4, v2, m5, v3] the corresponding masks up to each of the 3 visits would be
+        # [[False, False], [False, False, True, False, False], [False, False, True, False, False, True, False]] and the sequence lengths
+        # for visits/medication count up to each visit [[0, 2], [1, 4], [2, 5]]
+        masks_dict = {event: [[] for i in range(len(self.indices))] for event in dataset.event_names}
+
+        for i, patient in enumerate(self.indices):
+            for visit in range(0, len(dataset.patients[patient].visits) - dataset.min_num_visits + 1):
+                # get timeline up to visit (not included)
+                seq_lengths[visit, i, :], _, cropped_timeline_mask, visual = dataset.patients[patient].get_cropped_timeline(
+                    visit + dataset.min_num_visits)
+                for event in dataset.event_names:
+                    # masks_dict[event][i].append(torch.broadcast_to(torch.tensor([[True if tuple_[0] == event else False] for tuple_ in cropped_timeline_mask]),
+                    #                                               (len(cropped_timeline_mask), model.size_embedding)))
+                    masks_dict[event][i].append(torch.tensor([[True if tuple_[0] == event else False] for tuple_ in cropped_timeline_mask]),
+                                                )
+
+                if debug_patient and patient == debug_patient:
+                    print(
+                        f'visit {visit} cropped timeline mask {visual} visit mask {masks_dict["a_visit"][i]} medication mask {masks_dict["med"][i]}')
+
+        # tensor of shape batch_size x max_num_visits with True in position (p, v) if patient p has at least v visits
+        # and False else. we use this mask later to select the patients up to each visit.
+        self.available_visit_mask = torch.tensor([[True if index <= len(dataset.patients[patient].visits)
+                                                  else False for index in range(dataset.min_num_visits, max_num_visits + 1)] for patient in self.indices], device=self.device)
+
+        # stores for each patient in batch the total number of visits and medications
+        # it is used later to index correctly the visits and medications dataframes
+        # total num visits and meds
+
+        self.total_num = torch.tensor([[getattr(dataset.patients[patient], 'num_' + event + '_events')
+                                      for event in dataset.event_names] for patient in self.indices], device=self.device)
+        self.seq_lengths = seq_lengths
+        for event in dataset.event_names:
+            setattr(self, event + '_masks', masks_dict[event])
+        return
+
 
