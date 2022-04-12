@@ -142,37 +142,44 @@ class Adaptivenet(Model):
         return loss / num_targets, metrics
 
     def apply(self, dataset, patient_id):
-        # method to directly apply the model to a single patient
 
-        o_v, o_m = self.VEncoder(dataset[patient_id].visits_df_tensor), self.MEncoder(
-            dataset[patient_id].medications_df_tensor)
+
+        # method to directly apply the model to a single patient
+        patient_mask_index = dataset.mapping_for_masks[patient_id]
+        encoder_outputs = {}
+        for event in dataset.event_names:
+            encoder_outputs[event] = self.encoders[event](getattr(dataset[patient_id], event + '_df_tensor'))
 
         predictions = torch.empty(size=(len(dataset[patient_id].visits) -
-                                  dataset.min_num_visits + 1, 1), device=self.device)
-        for visit in range(dataset.min_num_visits, len(dataset[patient_id].visits) + 1):
-            # create combined ordered list of visit/medication events up to v
-            num_visits, num_meds, _, cropped_timeline_mask, _ = dataset[patient_id].get_cropped_timeline(
-                visit)
-            mask = torch.broadcast_to(torch.tensor([[tuple_[0]] for tuple_ in cropped_timeline_mask]),
-                                      (len(cropped_timeline_mask), self.VEncoder.size_embedding))
-            combined = torch.zeros_like(torch.cat([o_v[:num_visits],
-                                                   o_m[:num_meds]]))
+                                        dataset.min_num_visits + 1, self.num_targets), device=self.device)
+        seq_lengths = dataset.masks.seq_lengths[:, patient_mask_index, :]
 
-            combined[mask] = o_v[:num_visits].flatten()
-            combined[~mask] = o_m[:num_meds].flatten()
-            time_to_target = torch.tensor([[dataset[patient_id].targets_df_tensor[visit - 1, 0]]])
+        available_visit_mask = dataset.masks.available_visit_mask[patient_mask_index]
+        max_num_visits = dataset.masks.num_visits[patient_mask_index]
+        total_num = dataset.masks.total_num[patient_mask_index]
+        for visit in range(0, max_num_visits - dataset.min_num_visits + 1):
+            # create combined ordered list of visit/medication/events up to v
+            combined = torch.zeros(size=(seq_lengths[visit].sum(), self.size_embedding), device=self.device)
+            for index, event in enumerate(dataset.event_names):
+                mask = getattr(dataset.masks, event + '_masks')[patient_mask_index]
+                combined[torch.broadcast_to(mask[visit], (len(mask[visit]), self.size_embedding))
+                        ] = encoder_outputs[event][:seq_lengths[visit][index]].flatten()
+            time_to_target = torch.tensor([[dataset[patient_id].targets_df_tensor[visit - 1, 0]]], device=self.device)
             # apply lstm
             padded_sequence = torch.nn.utils.rnn.pad_sequence([combined], batch_first=self.batch_first)
-            pack_padded = torch.nn.utils.rnn.pack_padded_sequence(padded_sequence, batch_first=self.batch_first, lengths=torch.tensor([
-                                                                  num_visits + num_meds], dtype=torch.int64), enforce_sorted=False)
+            lengths = seq_lengths[visit].sum()[available_visit_mask[visit]].cpu()
+            pack_padded = torch.nn.utils.rnn.pack_padded_sequence(
+                padded_sequence, batch_first=self.batch_first, lengths=lengths, enforce_sorted=False)
             output, (hn, cn) = self.LModule(pack_padded)
             history = hn[-1]
             # concat computed patient history with general information
             pred_input = torch.cat(
-                (dataset[patient_id].patients_df_tensor, history, time_to_target), dim=1)
+                (dataset[patient_id].patients_df_tensor.to(self.device), history, time_to_target), dim=1)
             # apply prediction module
             predictions[visit - dataset.min_num_visits] = self.PModule(pred_input)
 
-        predicted_categories = [1 if elem >= 0.5 else 0 for elem in predictions]
+        predicted_categories = torch.tensor([torch.argmax(elem) for elem in predictions], device=self.device)
 
         return predictions, predicted_categories
+
+

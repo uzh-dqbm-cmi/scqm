@@ -211,12 +211,13 @@ class Dataset:
         self.min_num_visits = min_num_visits
         self.device = device
         self.instantiate_patients()
-        self.df_names = []
-        for name in df_dict.keys():
-            name_df = str(name) + '_df'
-            setattr(self, name_df, df_dict[name][df_dict[name]['patient_id'].isin(ids)])
-            self.df_names.append(name_df)
+        # self.df_names = []
+        # for name in df_dict.keys():
+        #     name_df = str(name) + '_df'
+        #     setattr(self, name_df, df_dict[name][df_dict[name]['patient_id'].isin(ids)])
+        #     self.df_names.append(name_df)
         return
+
     def get_masks(self):
         print(f'Getting masks....')
         self.mapping_for_masks = {patient : index for index, patient in enumerate(self.patient_ids)}
@@ -233,6 +234,14 @@ class Dataset:
         for id in ids:
             del self.patients[id]
             self.patient_ids.remove(id)
+        return
+    
+    def create_dfs(self):
+        self.df_names = []
+        for name in self.initial_df_dict.keys():
+            name_df = str(name) + '_df'
+            setattr(self, name_df, self.initial_df_dict[name][self.initial_df_dict[name]['patient_id'].isin(self.patient_ids)])
+            self.df_names.append(name_df)
         return
 
     def __len__(self):

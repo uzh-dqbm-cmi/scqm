@@ -108,7 +108,7 @@ class AdaptivenetTrainer(Trainer):
             print(
                 f'Debug patient {debug_patient} \nall targets \n{self.dataset.targets_df_proc[self.dataset.targets_df_proc.patient_id == debug_patient][["das283bsr_score", self.dataset.target_name]]}')
 
-        metrics = MulticlassMetrics(device=model.device, possible_classes=torch.tensor([0, 1, 2], device=model.device))
+        metrics = MulticlassMetrics(device=model.device, possible_classes=torch.tensor([0, 1, 2], device = model.device))
 
         batch = Batch2(model.device, partition.partitions_train[partition.current_fold],
                       partition.partitions_train[partition.current_fold])
@@ -160,106 +160,6 @@ class AdaptivenetTrainer(Trainer):
                  1), self.accuracy_per_epoch[:self.current_epoch])
         plt.plot(range(0, len(self.accuracy_per_epoch[:self.current_epoch]), 1),
                  self.accuracy_per_epoch_valid[:self.current_epoch])
-        return
-
-
-class Batch:
-    def __init__(self, device, all_indices, available_indices, current_indices=None):
-        self.device = device
-        self.all_indices = all_indices
-        self.available_indices = available_indices
-        self.current_indices = current_indices
-
-    def get_batch(self, dataset, batch_size=None, debug_patient=None):
-        """ First, selects a batch of patients from the available indices for this epoch and the corresponding tensor (visits/medications/
-        patient) slices. Then for each visit v, for each patient of the batch, create a mask to combine the visits/medication events coming before v in the right order. 
-
-        """
-        # during training, only select subset of available indices
-        if batch_size:
-            # batch size
-            size = min(len(self.available_indices), batch_size)
-            # batch and corresponding tensor indices
-            self.current_indices = np.random.choice(self.available_indices, size=size, replace=False)
-            #print(f'len available indices {len(self.available_indices)}')
-
-        # get corresponding indices in tensors
-        indices_dict = {name : [] for name in dataset.event_names}
-        indices_dict['patients'] = []
-        indices_dict['targets'] = []
-
-        for elem in self.current_indices:
-            for name in indices_dict:
-                df = getattr(dataset, name + '_df_proc')
-                indices_dict[name].extend(df[df.patient_id ==
-                                            elem]['tensor_indices_train'].values)
-
-        for name in indices_dict:
-            setattr(self, 'indices_'+name, np.array(indices_dict[name]))
-
-        # for debugging
-        if debug_patient and debug_patient in self.current_indices:
-            self.debug_index = list(self.current_indices).index(debug_patient)
-            print(f'index in batch {self.debug_index}')
-        else:
-            self.debug_index = None
-        if (self.indices_a_visit != self.indices_targets).any():
-            raise ValueError('index mismatch between visits and targets')
-
-        return
-
-    def get_masks(self, dataset, debug_patient):
-        """_summary_
-
-        Args:
-            dataset (_type_): _description_
-            subset (_type_): _description_
-            min_num_visits (_type_): min number of initial visits to retrieve the information from
-        e.g. if min_num_visits = 2, for each patient we start retrieving all information
-        up to the 2nd visit, i.e. medications before 2nd visit and info about 1st visit
-        (in other words, min_num_visits is the first target visit). For each visit v >= min_num_visits, we store for each patient the number of visits and medication events
-        up to v
-
-        Returns:
-            _type_: _description_
-        """
-        # get max number of visits for a patient in subset
-        self.max_num_visits = max([len(dataset.patients[index].visits) for index in self.current_indices])
-        seq_lengths = torch.zeros(size=(self.max_num_visits - dataset.min_num_visits + 1,
-                                        len(self.current_indices), len(dataset.event_names)), dtype=torch.long, device=self.device)
-        # to store for each patient for each visit the visit/medication mask up to that visit. This mask allows
-        # us to then easily combine the visit and medication events in the right order. True is for visit events and False for medications.
-        # E.g. if a patient has the timeline [m1, m2, v1, m3, m4, v2, m5, v3] the corresponding masks up to each of the 3 visits would be
-        # [[False, False], [False, False, True, False, False], [False, False, True, False, False, True, False]] and the sequence lengths
-        # for visits/medication count up to each visit [[0, 2], [1, 4], [2, 5]]
-        masks_dict = {event: [[] for i in range(len(self.current_indices))] for event in dataset.event_names}
-
-        for i, patient in enumerate(self.current_indices):
-            for visit in range(0, len(dataset.patients[patient].visits) - dataset.min_num_visits + 1):
-                # get timeline up to visit (not included)
-                seq_lengths[visit, i, :] , _, cropped_timeline_mask, visual = dataset.patients[patient].get_cropped_timeline(visit + dataset.min_num_visits)
-                for event in dataset.event_names :
-                    # masks_dict[event][i].append(torch.broadcast_to(torch.tensor([[True if tuple_[0] == event else False] for tuple_ in cropped_timeline_mask]),
-                    #                                               (len(cropped_timeline_mask), model.size_embedding)))
-                    masks_dict[event][i].append(torch.tensor([[True if tuple_[0] == event else False] for tuple_ in cropped_timeline_mask]),
-                                                                   )
-
-                if debug_patient and patient == debug_patient:
-                    print(f'visit {visit} cropped timeline mask {visual} visit mask {masks_dict["a_visit"][i]} medication mask {masks_dict["med"][i]}')
-
-        # tensor of shape batch_size x max_num_visits with True in position (p, v) if patient p has at least v visits
-        # and False else. we use this mask later to select the patients up to each visit.
-        self.available_visit_mask = torch.tensor([[True if index <= len(dataset.patients[patient].visits)
-                                                  else False for index in range(dataset.min_num_visits, self.max_num_visits + 1)] for patient in self.current_indices], device = self.device)
-
-        # stores for each patient in batch the total number of visits and medications
-        # it is used later to index correctly the visits and medications dataframes
-        # total num visits and meds
-
-        self.total_num = torch.tensor([[getattr(dataset.patients[patient], 'num_'+event+'_events') for event in dataset.event_names] for patient in self.current_indices], device =self.device)
-        self.seq_lengths = seq_lengths
-        for event in dataset.event_names:
-            setattr(self, event + '_masks', masks_dict[event])
         return
 
 
@@ -333,3 +233,106 @@ class Batch2:
                     f'visit {visit} cropped timeline mask {visual} visit mask {dataset.masks.a_visit_masks[index][visit]} medication mask {dataset.masks.med_masks[index][visit]}')
     
         return
+
+
+# class Batch:
+#     def __init__(self, device, all_indices, available_indices, current_indices=None):
+#         self.device = device
+#         self.all_indices = all_indices
+#         self.available_indices = available_indices
+#         self.current_indices = current_indices
+
+#     def get_batch(self, dataset, batch_size=None, debug_patient=None):
+#         """ First, selects a batch of patients from the available indices for this epoch and the corresponding tensor (visits/medications/
+#         patient) slices. Then for each visit v, for each patient of the batch, create a mask to combine the visits/medication events coming before v in the right order. 
+
+#         """
+#         # during training, only select subset of available indices
+#         if batch_size:
+#             # batch size
+#             size = min(len(self.available_indices), batch_size)
+#             # batch and corresponding tensor indices
+#             self.current_indices = np.random.choice(self.available_indices, size=size, replace=False)
+#             #print(f'len available indices {len(self.available_indices)}')
+
+#         # get corresponding indices in tensors
+#         indices_dict = {name: [] for name in dataset.event_names}
+#         indices_dict['patients'] = []
+#         indices_dict['targets'] = []
+
+#         for elem in self.current_indices:
+#             for name in indices_dict:
+#                 df = getattr(dataset, name + '_df_proc')
+#                 indices_dict[name].extend(df[df.patient_id ==
+#                                              elem]['tensor_indices_train'].values)
+
+#         for name in indices_dict:
+#             setattr(self, 'indices_' + name, np.array(indices_dict[name]))
+
+#         # for debugging
+#         if debug_patient and debug_patient in self.current_indices:
+#             self.debug_index = list(self.current_indices).index(debug_patient)
+#             print(f'index in batch {self.debug_index}')
+#         else:
+#             self.debug_index = None
+#         if (self.indices_a_visit != self.indices_targets).any():
+#             raise ValueError('index mismatch between visits and targets')
+
+#         return
+
+#     def get_masks(self, dataset, debug_patient):
+#         """_summary_
+
+#         Args:
+#             dataset (_type_): _description_
+#             subset (_type_): _description_
+#             min_num_visits (_type_): min number of initial visits to retrieve the information from
+#         e.g. if min_num_visits = 2, for each patient we start retrieving all information
+#         up to the 2nd visit, i.e. medications before 2nd visit and info about 1st visit
+#         (in other words, min_num_visits is the first target visit). For each visit v >= min_num_visits, we store for each patient the number of visits and medication events
+#         up to v
+
+#         Returns:
+#             _type_: _description_
+#         """
+#         # get max number of visits for a patient in subset
+#         self.max_num_visits = max([len(dataset.patients[index].visits) for index in self.current_indices])
+#         seq_lengths = torch.zeros(size=(self.max_num_visits - dataset.min_num_visits + 1,
+#                                         len(self.current_indices), len(dataset.event_names)), dtype=torch.long, device=self.device)
+#         # to store for each patient for each visit the visit/medication mask up to that visit. This mask allows
+#         # us to then easily combine the visit and medication events in the right order. True is for visit events and False for medications.
+#         # E.g. if a patient has the timeline [m1, m2, v1, m3, m4, v2, m5, v3] the corresponding masks up to each of the 3 visits would be
+#         # [[False, False], [False, False, True, False, False], [False, False, True, False, False, True, False]] and the sequence lengths
+#         # for visits/medication count up to each visit [[0, 2], [1, 4], [2, 5]]
+#         masks_dict = {event: [[] for i in range(len(self.current_indices))] for event in dataset.event_names}
+
+#         for i, patient in enumerate(self.current_indices):
+#             for visit in range(0, len(dataset.patients[patient].visits) - dataset.min_num_visits + 1):
+#                 # get timeline up to visit (not included)
+#                 seq_lengths[visit, i, :], _, cropped_timeline_mask, visual = dataset.patients[patient].get_cropped_timeline(
+#                     visit + dataset.min_num_visits)
+#                 for event in dataset.event_names:
+#                     # masks_dict[event][i].append(torch.broadcast_to(torch.tensor([[True if tuple_[0] == event else False] for tuple_ in cropped_timeline_mask]),
+#                     #                                               (len(cropped_timeline_mask), model.size_embedding)))
+#                     masks_dict[event][i].append(torch.tensor([[True if tuple_[0] == event else False] for tuple_ in cropped_timeline_mask]),
+#                                                 )
+
+#                 if debug_patient and patient == debug_patient:
+#                     print(
+#                         f'visit {visit} cropped timeline mask {visual} visit mask {masks_dict["a_visit"][i]} medication mask {masks_dict["med"][i]}')
+
+#         # tensor of shape batch_size x max_num_visits with True in position (p, v) if patient p has at least v visits
+#         # and False else. we use this mask later to select the patients up to each visit.
+#         self.available_visit_mask = torch.tensor([[True if index <= len(dataset.patients[patient].visits)
+#                                                   else False for index in range(dataset.min_num_visits, self.max_num_visits + 1)] for patient in self.current_indices], device=self.device)
+
+#         # stores for each patient in batch the total number of visits and medications
+#         # it is used later to index correctly the visits and medications dataframes
+#         # total num visits and meds
+
+#         self.total_num = torch.tensor([[getattr(dataset.patients[patient], 'num_' + event + '_events')
+#                                       for event in dataset.event_names] for patient in self.current_indices], device=self.device)
+#         self.seq_lengths = seq_lengths
+#         for event in dataset.event_names:
+#             setattr(self, event + '_masks', masks_dict[event])
+#         return

@@ -40,7 +40,7 @@ class CVWrapper:
         raise NotImplementedError
 
 class CVAdaptivenet(CVWrapper):
-    def perform_cv(self, fold, n_epochs = 400, file='/cluster/home/ctrottet/code/scqm_cv_results/', search='random', num_combi=5):
+    def perform_cv(self, fold, n_epochs = 400, file='/cluster/home/ctrottet/code/scqm_cv_results/', search='random', num_combi=1):
         filename = file + time.strftime("%Y%m%d-%H%M") + '_fold_' + str(fold) + '.csv'
         with open(filename, 'w') as f:
             header = self.parameter_names + ['epochs', 'loss', 'loss_valid',
@@ -72,7 +72,7 @@ class CVAdaptivenet(CVWrapper):
                 'socio': {'num_features': num_socio_features}, 'radai': {'num_features': num_radai_features}, 'haq': {'num_features': num_haq_features}, 'num_general_features': num_general_features, 'dropout': p, 'batch_first': batch_first, 'device': device, 'task': task}
                 model = Adaptivenet(model_specifics, device)
                 self.dataset.min_num_visits = 2
-                trainer = AdaptivenetTrainer(model, self.dataset, n_epochs, batch_size=32, lr=lr, balance_classes=bal, use_early_stopping = True)
+                trainer = AdaptivenetTrainer(model, self.dataset, n_epochs, batch_size=int(len(dataset)/15), lr=lr, balance_classes=bal, use_early_stopping = True)
                 f1, f1_valid = trainer.train_model(model, self.partition, debug_patient=False)
                 writer.writerow(np.array([size_embedding, num_layers_enc, hidden_enc, size_history,
                                 num_layers, num_layers_pred, hidden_pred, lr, p, bal, trainer.current_epoch, trainer.loss.item(), trainer.loss_valid.item(), f1, f1_valid]))
@@ -90,8 +90,10 @@ if __name__ == '__main__':
     # ), 'das28_increase', ['a_visit', 'med', 'socio', 'radai', 'haq'])
     with open('/opt/data/processed/saved_dataset.pickle', 'rb') as handle:
         dataset = pickle.load(handle)
-    print(f'Dropping patients with less than 3 visits, keeping {len(dataset)}')
+    patients_to_drop = np.random.choice(dataset.patient_ids, size=int(len(dataset)/2), replace=False)
+    dataset.drop(patients_to_drop)
     # prepare for training
+    dataset.create_dfs()
     dataset.transform_to_numeric_adanet()
 
     cv = CVAdaptivenet(dataset, k=5)
@@ -109,5 +111,5 @@ if __name__ == '__main__':
     cv.set_grid(parameters)
     fold = int(sys.argv[1])
     print(f'fold {fold}')
-    cv.perform_cv(fold=fold, n_epochs=400)
+    cv.perform_cv(fold=fold, n_epochs=1)
 
