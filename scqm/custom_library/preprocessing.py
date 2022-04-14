@@ -94,42 +94,64 @@ def clean_dates(df_dict):
     df_dict_processed['healthissues']['health_issue_date'][df_dict_processed['healthissues']
                                                         ['health_issue_date'] == '20'] = None
     return df_dict_processed
+def cleaning(df_dict):
+    for col in ['crp', 'reference_area_crp_up_to']:
+        df_dict['visits'][col] = pd.to_numeric(df_dict['visits'][col].apply(
+            lambda x: x.split('< ')[1] if (x is not None and len(x.split('< ')) > 1) else x))
+    df_dict['medications']['medication_dose'] = df_dict['medications']['medication_dose'].replace('1/32', np.nan)
+    df_dict['medications']['medication_drug'] = df_dict['medications']['medication_drug'].replace({'Methoterxat': 'methotrexate'})
+    return df_dict
+
+def map_category(df, column):
+    mapping = {key : value for value, key in enumerate(sorted(df[column].dropna().unique()))}
+    new_column = df[column].replace(mapping)
+    return new_column, mapping
+#TODO check why we cant apply preprocessing twicedd
 def preprocessing(df_dict, nan_prop=1):
     df_dict_processed = df_dict.copy()
-    #drop the two patients in patients that have no 
-    # drop columns with nan proportion equal or more than nan_prop
-    for index, table in df_dict_processed.items():
-        # thresh : require that many non na values to keep the column
-        df_dict_processed[index] = df_dict_processed[index].dropna(axis=1, thresh=int(len(table) * (1-nan_prop)+1))
-        #print(f'kept {df_dict_processed[index].shape[1]} columns out of {df_dict[index].shape[1]}')
+
     #some specific outlier preprocessing :
     df_dict_processed = clean_dates(df_dict_processed)
     #other specific preprocessing
-    df_dict_processed['visits']['crp'] = pd.to_numeric(df_dict_processed['visits']['crp'].apply(
-        lambda x: x.split('< ')[1] if (x is not None and len(x.split('< ')) > 1) else x))
+    df_dict_processed = cleaning(df_dict_processed)
     # convert string dates to datetime and replace "unknown" by np.nan
     for index, table in df_dict_processed.items():
         date_columns = table.filter(regex=("date")).columns
         df_dict_processed[index][date_columns] = table[date_columns].apply(pd.to_datetime)
         df_dict_processed[index] = df_dict_processed[index].replace('unknown', np.nan)
+    df_dict_processed['medications']['last_medication_change'] = pd.to_datetime(
+        df_dict_processed['medications']['last_medication_change'])
     # unify date column name
     for index, elem in df_dict_processed.items():
         name = list(elem.filter(regex="visit_date").columns)
         if len(name) == 1:
             df_dict_processed[index] = elem.rename(columns={name[0]: 'date'})
-    # manually change date names in ratingenscore, healthissues and modifiednewyorkxrayscore
+    # manually change date names in other dfs
     df_dict_processed['ratingenscore'] = df_dict_processed['ratingenscore'].rename(
         columns={'imaging_score_scoring_date': 'date'})
-    # for healthissues, '.health_issue_date' is 90% missing, use recording time when it is missing ?
+    # for healthissues, 'health_issue_date' is 90% missing --> use recording time when it is missing 
+    df_dict_processed['healthissues'].loc[df_dict_processed['healthissues'].health_issue_date.isna(
+    ), 'health_issue_date'] = df_dict_processed['healthissues'][df_dict_processed['healthissues'].health_issue_date.isna()].recording_time.values
+    df_dict_processed['healthissues'] = df_dict_processed['healthissues'].rename(columns = {
+        'health_issue_date': 'date'})
     df_dict_processed['modifiednewyorkxrayscore'] = df_dict_processed['modifiednewyorkxrayscore'].rename(
         columns={'imaging_score_scoring_date': 'date'})
+    # for basdai visit_date is missing in 50% of cases --> replace by recording time
+    df_dict_processed['basdai'].loc[df_dict_processed['basdai'].date.isna(
+    ), 'date'] = df_dict_processed['basdai'][df_dict_processed['basdai'].date.isna()].recording_time.values
+    # for psada visit_date is missing in 50% of cases --> replace by recording time
+    df_dict_processed['psada'].loc[df_dict_processed['psada'].date.isna(
+    ), 'date'] = df_dict_processed['psada'][df_dict_processed['psada'].date.isna()].recording_time.values
+    # for radai5 visit_date is missing in 30% of cases --> replace by recording time
+    df_dict_processed['radai5'].loc[df_dict_processed['radai5'].date.isna(
+    ), 'date'] = df_dict_processed['radai5'][df_dict_processed['radai5'].date.isna()].recording_time.values
     # drop columns with unique values
     for index, table in df_dict_processed.items():
         for col in table.columns:
             if table[col].nunique() == 1:
                 df_dict_processed[index] = df_dict_processed[index].drop(col, axis=1)
     # radai5 df has some missing visit ids drop these rows for now (#TODO not forget to change)
-    df_dict_processed['radai5'] = df_dict_processed['radai5'].dropna(subset=['uid_num'])
+    #df_dict_processed['radai5'] = df_dict_processed['radai5'].dropna(subset=['uid_num'])
     # socioeco specific preprocessing
     df_dict_processed['socioeco']['smoker'] = df_dict_processed['socioeco']['smoker'].replace({'never_been_smoking':'i_have_never_smoked',
     'smoking_currently' : 'i_am_currently_smoking', 'a_former_smoker': 'i_am_a_former_smoker_for_more_than_a_year'})
@@ -142,7 +164,16 @@ def preprocessing(df_dict, nan_prop=1):
     df_dict_processed['medications']['med_id'] = ['med_' + str(i) for i in range(len(df_dict_processed['medications']))]
 
     df_dict_processed['medications'] = find_drug_categories_and_names(df_dict_processed['medications'])
-    # unify the different visit_date columns and rename to date
+    # drop useless columns
+    useless_columns = ['recording_time', 'last_change', 'workflow_state', 'institution', 'type_of_visit',
+                       'consultant_doctor', 'authored', 'when_first_employment_after_finishing_education']
+    for key in df_dict_processed:
+        df_dict_processed[key] = df_dict_processed[key].drop(columns=useless_columns, errors='ignore')
+    # drop columns with nan proportion equal or more than nan_prop
+    for index, table in df_dict_processed.items():
+        # thresh : require that many non na values to keep the column
+        df_dict_processed[index] = df_dict_processed[index].dropna(axis=1, thresh=int(len(table) * (1 - nan_prop) + 1))
+        #print(f'kept {df_dict_processed[index].shape[1]} columns out of {df_dict[index].shape[1]}')
 
     return df_dict_processed
 
@@ -230,6 +261,89 @@ def extract_adanet_features(df_dict, transform_meds = True, das28=True, only_med
     else: 
         joint_df = []
     return general_df, med_df, visits_df, targets_df, socioeco_df, radai_df, haq_df, joint_df
+
+
+def get_dummies(df):
+    columns = [col for col in df.columns if df[col].dtype == 'object' and df[col].nunique() < 10]
+    df_dummies = pd.get_dummies(df, columns=columns)
+    return df_dummies
+
+def extract_other_features(df_dict, transform_meds=True, das28=True, only_meds=False):
+    df_dict_processed = preprocessing(df_dict, nan_prop=0.65)
+    for key in df_dict.keys():
+        df_dict_processed[key] = get_dummies(df_dict_processed[key])
+    for col in ['medication_drug', 'medication_generic_drug']:
+            #TODO think about whether to keep both medication_drug and medication_generic_drug
+        df_dict_processed['medications'][col], _ = map_category(
+            df_dict_processed['medications'], col)
+    for col in ['health_issue_category_1', 'health_issue_category_2']:
+        df_dict_processed['healthissues'][col], _ = map_category(df_dict_processed['healthissues'], col)
+    for col in ['cartilage_body_entire_metacarp__al_joint_of_little_finger_right', 'cartilage_body_entire_metacarp__eal_joint_of_index_finger_right',
+                'cartilage_body_entire_metacarp__eal_joint_of_little_finger_left', 'cartilage_body_entire_metacarp__geal_joint_of_index_finger_left']:
+        df_dict_processed['sonarra'][col], _ = map_category(df_dict_processed['sonarra'], col)
+    # for other_df in [socioeco_df, radai_df, haq_df]:
+    #     visits_df = visits_df.merge(other_df, how='outer', on='uid_num')
+    if das28:
+        #keep only visits with available das28 score
+        print(
+            f'Dropping {df_dict_processed["visits"]["das283bsr_score"].isna().sum()} out of {len(df_dict_processed["visits"])} visits because das28 is unavailable')
+        df_dict_processed["visits"] = df_dict_processed["visits"].dropna(subset=['das283bsr_score'])
+        # add column for classification
+        df_dict_processed["visits"]['das28_category'] = [
+            0 if value <= 2.6 else 1 for value in df_dict_processed["visits"]['das283bsr_score']]
+        #keep only subset of patients appearing in visits_id
+        patients = df_dict_processed["visits"]['patient_id'].unique()
+        print(
+            f'Keeping {len(df_dict_processed["patients"][df_dict_processed["patients"].patient_id.isin(patients)])} patients out of {len(df_dict_processed["patients"].patient_id.unique())}')
+        # column saying if das28 at next visit increased (1) or decreased/remained stable 0
+        df_dict_processed["visits"]['das28_increase'] = np.nan
+        df_dict_processed["visits"] = df_dict_processed["visits"].groupby('patient_id').apply(das28_increase)
+        for key in df_dict_processed.keys():
+            df_dict_processed[key] = df_dict_processed[key][df_dict_processed[key].patient_id.isin(patients)]
+
+
+    if only_meds:
+        patients = df_dict_processed['medications']['patient_id'].unique()
+        print(
+            f'keeping only patients with medical info, keeping {len(patients)} out of {len(df_dict_processed["patients"].patient_id.unique())}')
+        for key in df_dict_processed.keys():
+            df_dict_processed[key] = df_dict_processed[key][df_dict_processed[key].patient_id.isin(patients)]
+
+    #sort dfs
+    for key in df_dict_processed.keys():
+        if key == 'patients':
+            df_dict_processed[key].sort_values(['patient_id'], inplace = True)
+        elif key == 'medications':
+            df_dict_processed[key].sort_values(['patient_id', 'medication_start_date', 'medication_end_date'], inplace = True)
+        else:
+            df_dict_processed[key].sort_values(['patient_id', 'date'], inplace=True)
+
+    targets_df = df_dict_processed["visits"][['patient_id', 'date',
+                                              'uid_num', 'das283bsr_score', 'das28_category', 'das28_increase']]
+
+    if transform_meds:
+        # add new column to med_df indicating for each event if it is a start or end of medication (0 false, 1 true) and replace med_start and med_end
+        # by unique column (date). If start date is not available, drop the row. If start and end are available duplicate the row (with different date and is_start dates)
+        df_dict_processed['medications'] = df_dict_processed['medications'].dropna(subset=['medication_start_date'])
+        df_dict_processed['medications'] = df_dict_processed['medications'].rename(
+            {'medication_start_date': 'date'}, axis=1)
+        df_dict_processed['medications']['is_start'] = 1
+        tmp = df_dict_processed['medications'][df_dict_processed['medications'].medication_end_date.notna()].copy()
+        tmp['date'] = tmp['medication_end_date']
+        tmp['is_start'] = 0
+        df_dict_processed['medications'] = pd.concat(
+            [df_dict_processed['medications'], tmp]).drop(columns=['medication_end_date'])
+        df_dict_processed['medications'].sort_values(['patient_id', 'date'], inplace=True)
+
+    #for coherence
+    df_dict_processed['a_visit'] = df_dict_processed.pop('visits')
+    df_dict_processed['med'] = df_dict_processed.pop('medications')
+    events = ['a_visit', 'med', 'healthissues', 'modifiednewyorkxrayscore', 'ratingenscore', 'sonaras',
+            'sonarra', 'asas', 'basfi', 'basdai', 'dlqi', 'euroquol', 'haq', 'psada', 'radai5', 'sf_12', 'socioeco']
+    df_dict_processed['targets'] = targets_df
+    
+    return df_dict_processed, events
+
 
 def find_drug_categories_and_names(df):
     """replace missing drug names and categories in df medications"""

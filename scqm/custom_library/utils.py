@@ -18,17 +18,33 @@ class Results:
     def __init__(self, dataset, model):
         self.dataset = dataset
         self.model = model
+
     def evaluate_model(self, patient_ids):
         results_df = pd.DataFrame()
         for patient in patient_ids:
-            target_values = self.dataset[patient].targets_df[self.dataset.target_name][self.dataset.min_num_visits - 1:]
-            target_categories = self.dataset[patient].targets_df[self.dataset.target_name][self.dataset.min_num_visits - 1:]
-            predictions, predicted_categories = self.model.apply(self.dataset, patient)
-            results_df = results_df.append(pd.DataFrame({'patient_id': patient, 'targets' : target_values, 'target_categories':target_categories, 'predicted_categories': predicted_categories}))
+            target_values = self.dataset[patient].targets_df['das283bsr_score'][self.dataset.min_num_visits - 1:].values
+            target_categories = self.dataset[patient].targets_df['das28_increase'][self.dataset.min_num_visits - 1:].values
+            value_at_previous = self.dataset[patient].targets_df['das283bsr_score'][self.dataset.min_num_visits - 2:-1].values
+            predictions = self.model.apply(self.dataset, patient)
+            results_df = results_df.append(pd.DataFrame({'patient_id': patient, 'targets' : target_values, 'target_categories':target_categories, 'predictions': predictions.flatten().cpu(), 'naive_base':value_at_previous}))
         # self, device, possible_classes, predictions=None, true_values=None, predicted_probas=None
-        metrics = MulticlassMetrics(self.model.device, torch.tensor([0, 1, 2]), results_df['predicted_categories'],
-                             results_df['target_categories'])
-        return results_df, metrics
+        if self.model.task == 'classification':
+            metrics = MulticlassMetrics(torch.device('cpu'), torch.tensor([0, 1, 2]), results_df['predictions'],
+                                results_df['target_categories'])
+            metrics_naive = None
+        else :
+            #rescale
+            results_df['predictions'] = results_df['predictions'] * \
+                (self.dataset.a_visit_df_scaling_values[1]['das283bsr_score'] -
+                    self.dataset.a_visit_df_scaling_values[0]['das283bsr_score']) + self.dataset.a_visit_df_scaling_values[0]['das283bsr_score']
+            metrics = Metrics(torch.device('cpu'), results_df['predictions'],
+                                        results_df['targets'])
+            metrics_naive = Metrics(torch.device('cpu'), results_df['naive_base'], results_df['targets'])
+        return results_df, metrics, metrics_naive
+
+def get_naive_baseline_regression(df):
+    df['naive_base'] = [np.nan if index == 0 else df['targets'].iloc[index - 1] for index in range(len(df))]
+    return df
 
 
 class Metrics:
@@ -56,8 +72,12 @@ class Metrics:
         self.true_values = torch.cat([self.true_values, new_true_values])
         return
 
-    def mse(self):
-        return 1 / len(self) * torch.sum((self.predictions - self.true_values)**2)
+    def get_metrics(self, print_metric = False):
+        #mse 
+        self.returned_metric = 1 / len(self) * torch.sum((self.predictions - self.true_values)**2)
+        if print_metric:
+            print(f'mse : {self.returned_metric}')
+        return
 
 class BinaryMetrics(Metrics):
     def __init__(self, device, predictions = None, true_values=None, predicted_probas = None):
@@ -121,9 +141,11 @@ class MulticlassMetrics(Metrics):
 
     def get_metrics(self, print_metrics=False):
         #TODO also get separate f1 for each class
-        self.macro_f1 = 0
+        # macro f1
+        self.returned_metric = 0
         self.fpr = np.empty(len(self.possible_classes))
         self.tpr = np.empty(len(self.possible_classes))
+        self.all_metrics = []
         for class_ in self.possible_classes:
             TP = len([elem for index, elem in enumerate(self.predictions)
                      if elem == class_ and elem == self.true_values[index]])
@@ -148,12 +170,13 @@ class MulticlassMetrics(Metrics):
                 F1 =0
             else:
                 F1 = 2*(precision*recall)/(precision + recall)
-            self.macro_f1 += F1
+            self.all_metrics.append(F1)
+            self.returned_metric += F1
             self.fpr[class_] = FP/(FP+TN)
             self.tpr[class_] = TP/(TP+FN)
-        self.macro_f1 = self.macro_f1/len(self.possible_classes) 
+        self.returned_metric = self.returned_metric / len(self.possible_classes)
         if print_metrics:
-            print(f'macro f1 {self.macro_f1}')       
+            print(f'macro f1 {self.returned_metric} all {self.all_metrics}')
         return
     def get_auroc(self):
         true_values_one_hot = F.one_hot(self.true_values)

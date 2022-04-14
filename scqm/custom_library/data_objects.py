@@ -58,7 +58,10 @@ class Patient(DataObject):
             setattr(self, 'num_'+name+'_events', len(df))
             for index in df.index:
                 #TODO change maybe uid_num and put generic event id
-                other_events.append(Event(name, df.loc[index, 'uid_num'], df.loc[index, 'date']))
+                if 'uid_num' in df.columns:
+                    other_events.append(Event(name, df.loc[index, 'uid_num'], df.loc[index, 'date']))
+                else :
+                    other_events.append(Event(name, date = df.loc[index, 'date']))
         return other_events
 
     def get_timeline(self):
@@ -136,7 +139,7 @@ class Patient(DataObject):
             return num_of_each_event, cropped_timeline, cropped_timeline_mask, cropped_timeline_visual
   
 class Event:
-    def __init__(self, name, id, date =None):
+    def __init__(self, name, id='no_id', date=None):
         self.name = name
         self.id = id
         self.date = date
@@ -203,10 +206,10 @@ class Medication(Event):
 
 #mapping and get_item
 class Dataset:
-    def __init__(self, device, df_dict, ids, target_name, event_names, min_num_visits):
+    def __init__(self, device, df_dict, ids, target_category_name, event_names, min_num_visits):
         self.initial_df_dict = df_dict
         self.patient_ids = list(ids)
-        self.target_name = target_name
+        self.target_category_name = target_category_name
         self.event_names = event_names
         self.min_num_visits = min_num_visits
         self.device = device
@@ -221,12 +224,16 @@ class Dataset:
     def get_masks(self):
         print(f'Getting masks....')
         self.mapping_for_masks = {patient : index for index, patient in enumerate(self.patient_ids)}
+        self.reverse_mapping_for_masks = {value : key for key, value in self.mapping_for_masks.items()}
         self.masks = Masks(self.device, self.patient_ids)
         self.masks.get_masks(self, debug_patient=None)
+        self.stratifier = {num_visit: [self.reverse_mapping_for_masks[patient_index] for patient_index in range(len(
+            self.masks.num_visits)) if self.masks.num_visits[patient_index] == num_visit] for num_visit in range(1, max(self.masks.num_visits)+1)}
         return
     
     def instantiate_patients(self):
         self.patients = {id_: Patient(self.initial_df_dict, id_, self.event_names) for id_ in tqdm(self.patient_ids)}
+        
         return 
 
     def drop(self, ids):
@@ -256,40 +263,39 @@ class Dataset:
         
         return
     
-    def split_data(self, prop_valid= 0.1, prop_test = 0.1):
-        test_size = int(len(self)*prop_test)
-        valid_size = int(len(self)*prop_valid)
-        train_size = len(self) - valid_size - test_size
-        train_ids = np.random.choice(self.patient_ids, size=train_size, replace=False)
-        # order
-        self.train_ids = np.array([id_ for id_ in self.patient_ids if id_ in train_ids])
-        available_ids = [id_ for id_ in self.patient_ids if id_ not in self.train_ids]
-        valid_ids = np.random.choice(available_ids, size = valid_size, replace=False)
-        self.valid_ids = np.array([id_ for id_ in self.patient_ids if id_ in valid_ids])
-        self.test_ids = np.array([id_ for id_ in available_ids if id_ not in self.valid_ids])
-        return
-    
-    def transform_to_numeric(self):
-        # change string categorical features and datetime objects
-        feature_mapping = {}
-        for name in self.df_names:
-            feature_mapping[name] = {}
-            df = getattr(self, name)
-            df_processed = df.copy()
-            string_cols_to_process = list(df.select_dtypes(include=[object]).columns)
-            string_cols_to_process.remove('patient_id')
-            date_cols_to_process = list(df.select_dtypes(include = ['M8[ns]']).columns)
-            for col in string_cols_to_process:
-                unique_values = df[col].dropna().unique()
-                mapping = {elem : index for index, elem in enumerate(unique_values)}
-                df_processed[col] = df_processed[col].replace(mapping)
-                feature_mapping[name][col] = mapping
-            for date_col in date_cols_to_process:
-                # convert into days between 01.01.2022 and date
-                df_processed[date_col] = (pd.to_datetime("01/01/2022")-df_processed[date_col]).dt.days
-            setattr(self, name + '_proc', df_processed)
-        print(f'{feature_mapping}')
-        self.categorical_feature_mapping = feature_mapping
+    def split_data(self, prop_valid= 0.1, prop_test = 0.1, stratify = True):
+        #stratify on number of visits
+        if stratify :
+            self.train_ids = []
+            self.valid_ids = []
+            self.test_ids = []
+            for num_visits in range(1, max(self.masks.num_visits) + 1):
+                available_ids = self.stratifier[num_visits]
+                length = len(available_ids)
+                test_size = int(length * prop_test)
+                valid_size = int(length * prop_valid)
+                train_size = length - valid_size - test_size
+                train_i = np.random.choice(available_ids, size=train_size, replace=False)
+                self.train_ids.extend(train_i)
+                available_ids = [id_ for id_ in available_ids if id_ not in train_i]
+                valid_i = np.random.choice(available_ids, size=valid_size, replace=False)
+                self.valid_ids.extend(valid_i)
+                self.test_ids.extend([id_ for id_ in available_ids if id_ not in valid_i])
+            self.train_ids = np.array(self.train_ids)
+            self.valid_ids = np.array(self.valid_ids)
+            self.test_ids = np.array(self.test_ids)
+        else:
+            test_size = int(len(self)*prop_test)
+            valid_size = int(len(self)*prop_valid)
+            train_size = len(self) - valid_size - test_size
+            train_ids = np.random.choice(self.patient_ids, size=train_size, replace=False)
+            # order
+            self.train_ids = np.array([id_ for id_ in self.patient_ids if id_ in train_ids])
+            available_ids = [id_ for id_ in self.patient_ids if id_ not in self.train_ids]
+            valid_ids = np.random.choice(available_ids, size = valid_size, replace=False)
+            self.valid_ids = np.array([id_ for id_ in self.patient_ids if id_ in valid_ids])
+            self.test_ids = np.array([id_ for id_ in available_ids if id_ not in self.valid_ids])
+        return   
     
     def transform_to_numeric_adanet(self):
         for name in self.df_names:
@@ -303,11 +309,11 @@ class Dataset:
         # specific one hot encoding
         # self.a_visit_df_proc = pd.get_dummies(self.a_visit_df_proc, columns=[
         #                                      '.smoker', '.morning_stiffness_duration_radai'], drop_first=True)
-        self.socio_df_proc = pd.get_dummies(self.socio_df_proc, columns = ['smoker'], drop_first=True)
-        self.radai_df_proc = pd.get_dummies(self.radai_df_proc, columns=['morning_stiffness_duration_radai'], drop_first=True)
+        self.socio_df_proc = pd.get_dummies(self.socio_df_proc, columns = ['smoker'])
+        self.radai_df_proc = pd.get_dummies(self.radai_df_proc, columns=['morning_stiffness_duration_radai'])
         self.med_df_proc = pd.get_dummies(self.med_df_proc, columns=['medication_generic_drug', 'medication_drug_classification',
-                                                                                   ], drop_first=True)
-        self.patients_df_proc = pd.get_dummies(self.patients_df_proc, columns = ['gender', 'anti_ccp', 'ra_crit_rheumatoid_factor'], drop_first=True)
+                                                                                   ])
+        self.patients_df_proc = pd.get_dummies(self.patients_df_proc, columns = ['gender', 'anti_ccp', 'ra_crit_rheumatoid_factor'])
         # transform to numeric
         columns_to_exclude = ['patient_id', 'uid_num', 'med_id']
         for name in self.df_names:
@@ -318,12 +324,31 @@ class Dataset:
         #TODO add condition here
         if hasattr(self, 'joint_df_proc'):
             self.joint_df_proc = pd.get_dummies(self.joint_df_proc, columns=[
-                'smoker', 'morning_stiffness_duration_radai', 'medication_generic_drug', 'medication_drug_classification'], drop_first=True)
+                'smoker', 'morning_stiffness_duration_radai', 'medication_generic_drug', 'medication_drug_classification'])
+        return
+    
+    def transform_to_numeric(self):
+        for name in self.df_names:
+            df = getattr(self, name)
+            df_processed = df.copy()
+            date_cols_to_process = list(df.select_dtypes(include=['M8[ns]']).columns)
+            for date_col in date_cols_to_process:
+                # convert into days between 01.01.2022 and date
+                df_processed[date_col] = (pd.to_datetime("01/01/2022") - df_processed[date_col]).dt.days
+            setattr(self, name + '_proc', df_processed)
+        # specific one hot encoding
+        # transform to numeric
+        columns_to_exclude = ['patient_id', 'uid_num', 'med_id']
+        for name in self.df_names:
+            df = getattr(self, name + '_proc')
+            columns = [col for col in df.columns if col not in columns_to_exclude]
+            df[columns] = df[columns].apply(pd.to_numeric, axis=1)
+            setattr(self, name + '_proc', df)
         return
     
 
     
-    def scale_and_tensor(self, nan_dummies =True):
+    def scale_and_tensor(self,nan_dummies =True):
         #(x-min)/(max-min)
         # attribute to keep track of all tensor names¨
         self.tensor_names = []
@@ -340,9 +365,9 @@ class Dataset:
             max_train_values = df[df.patient_id.isin(self.train_ids)][columns].max()
             # to not scale classification targets
             
-            if self.target_name in min_train_values.index:
-                min_train_values[self.target_name] = 0
-                max_train_values[self.target_name] = 1
+            if self.target_category_name in min_train_values.index:
+                min_train_values[self.target_category_name] = 0
+                max_train_values[self.target_category_name] = 1
             # store scaling values
             setattr(self, str(name) + '_scaling_values', (min_train_values, max_train_values))
             # scale everything
@@ -399,7 +424,7 @@ class Dataset:
                 self[patient].add_info(tensor_name, value)
             # store column number of target and time to target visit
             if name == 'targets_df':
-                self.target_index = list(df[columns].columns).index(self.target_name)
+                self.target_index = list(df[columns].columns).index(self.target_category_name)
                 self.time_index = list(df[columns].columns).index('date')
                 self.target_value_index = list(df[columns].columns).index('das283bsr_score')
             
