@@ -3,6 +3,7 @@ import numpy as np
 from utils import MulticlassMetrics, Metrics
 import matplotlib.pyplot as plt
 import pandas as pd
+import gc
 
 class Trainer:
     def __init__(self, model, dataset, n_epochs, batch_size, lr, use_early_stopping):
@@ -114,6 +115,7 @@ class AdaptivenetTrainer(Trainer):
         batch = Batch(model.device, partition.partitions_train[partition.current_fold],
                       partition.partitions_train[partition.current_fold])
         while (self.current_epoch < self.n_epochs) and self.early_stopping == False:
+            gc.collect()
             model.train()
             # get batch, corresponding tensor slices and masks to combine the visits/medication events and to select the
             # patients with a given number of visits
@@ -152,11 +154,11 @@ class AdaptivenetTrainer(Trainer):
                     #     f'epoch : {self.current_epoch} loss {self.loss} loss_valid {self.loss_valid} f1 {f1} f1_valid {f1_val}')
                     # re-initialize metrics for new epoch
                     print(f'epoch : {self.current_epoch} loss {self.loss} loss_valid {self.loss_valid}')
-                    if model.task == 'classification':
-                        metrics = MulticlassMetrics(
-                            device=model.device, possible_classes=torch.tensor([0, 1, 2], device=model.device))
-                    else:
-                        metrics = Metrics(device=model.device)
+                    # if model.task == 'classification':
+                    #     metrics = MulticlassMetrics(
+                    #         device=model.device, possible_classes=torch.tensor([0, 1, 2], device=model.device))
+                    # else:
+                    #     metrics = Metrics(device=model.device)
                     if self.use_early_stopping:
                         self.check_early_stopping()
         return

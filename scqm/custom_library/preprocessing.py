@@ -150,8 +150,6 @@ def preprocessing(df_dict, nan_prop=1):
         for col in table.columns:
             if table[col].nunique() == 1:
                 df_dict_processed[index] = df_dict_processed[index].drop(col, axis=1)
-    # radai5 df has some missing visit ids drop these rows for now (#TODO not forget to change)
-    #df_dict_processed['radai5'] = df_dict_processed['radai5'].dropna(subset=['uid_num'])
     # socioeco specific preprocessing
     df_dict_processed['socioeco']['smoker'] = df_dict_processed['socioeco']['smoker'].replace({'never_been_smoking':'i_have_never_smoked',
     'smoking_currently' : 'i_am_currently_smoking', 'a_former_smoker': 'i_am_a_former_smoker_for_more_than_a_year'})

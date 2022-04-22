@@ -64,24 +64,29 @@ class Patient(DataObject):
                     other_events.append(Event(name, date = df.loc[index, 'date']))
         return other_events
 
+
     def get_timeline(self):
         #get sorted dates of events
-        visit_event_list = [(self.visit_dates[index], 'a_visit', self.visit_ids[index]) for index in range(len(self.visit_dates))]
-        med_sart_list = [(self.med_intervals[index][0], 'med', self.med_ids[index]) for index in range(len(self.med_intervals))]
-        med_end_list = [(self.med_intervals[index][1], 'med', self.med_ids[index]) for index in range(len(self.med_intervals))]
+        visit_event_list = [(self.visit_dates[index], 'a_visit', self.visit_ids[index])
+                            for index in range(len(self.visit_dates))]
+        med_sart_list = [(self.med_intervals[index][0], 'med', self.med_ids[index])
+                        for index in range(len(self.med_intervals))]
+        med_end_list = [(self.med_intervals[index][1], 'med', self.med_ids[index])
+                        for index in range(len(self.med_intervals))]
         other_events = [(event.date, event.name, event.id) for event in self.other_events]
         all_events = visit_event_list + med_sart_list + med_end_list + other_events
         # the 'a', 'b', 'c' flags before visit and meds are there to ensure that if they occur at the same date, the visit comes before
-        all_events.sort()
         #remove NaT events
         all_events = [event for event in all_events if not pd.isnull(event[0])]
+        all_events.sort()
         #get sorted ids of events, format : True --> visit, False --> medication along with id
         #e.g. [(True, visit_id), (False, med_id), ...]
         self.timeline_mask = [(event[1], event[2])
-                              for event in all_events]
+                            for event in all_events]
         self.timeline_visual = ['v' if event[1] == 'a_visit' else 'm' if event[1] == 'med' else event[1]
                                 for event in all_events]
         self.mask = [[event[0]] for event in self.timeline_mask]
+
         return all_events
     
     def time_between_events(self, event='visit'):
@@ -295,7 +300,7 @@ class Dataset:
             valid_ids = np.random.choice(available_ids, size = valid_size, replace=False)
             self.valid_ids = np.array([id_ for id_ in self.patient_ids if id_ in valid_ids])
             self.test_ids = np.array([id_ for id_ in available_ids if id_ not in self.valid_ids])
-        return   
+        return self.train_ids, self.valid_ids, self.test_ids
     
     def transform_to_numeric_adanet(self):
         for name in self.df_names:

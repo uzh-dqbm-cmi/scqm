@@ -26,7 +26,6 @@ class Adaptivenet(Model):
         self.encoders = {name: Encoder(model_specifics[name]['num_features'], model_specifics['size_embedding'], model_specifics['num_layers_enc'],
                                        model_specifics['hidden_enc'], model_specifics['dropout']).to(device) for name in model_specifics['event_names']}
 
-
         self.LModule = LSTMModule(model_specifics['size_embedding'], model_specifics['device'],
                                   model_specifics['batch_first'], model_specifics['size_history'], model_specifics['num_layers']).to(device)
         # + 1 for time to prediction
@@ -157,6 +156,7 @@ class Adaptivenet(Model):
             available_visit_mask = dataset.masks.available_visit_mask[patient_mask_index]
             max_num_visits = dataset.masks.num_visits[patient_mask_index]
             total_num = dataset.masks.total_num[patient_mask_index]
+            all_history = torch.empty(size=(max_num_visits - dataset.min_num_visits + 1, self.LModule.hidden_size), device=self.device)
             for visit in range(0, max_num_visits - dataset.min_num_visits + 1):
                 # create combined ordered list of visit/medication/events up to v
                 combined = torch.zeros(size=(seq_lengths[visit].sum(), self.size_embedding), device=self.device)
@@ -172,6 +172,7 @@ class Adaptivenet(Model):
                     padded_sequence, batch_first=self.batch_first, lengths=lengths, enforce_sorted=False)
                 output, (hn, cn) = self.LModule(pack_padded)
                 history = hn[-1]
+                all_history[visit,:] = history
                 # concat computed patient history with general information
                 pred_input = torch.cat(
                     (dataset[patient_id].patients_df_tensor.to(self.device), history, time_to_target), dim=1)
@@ -180,6 +181,5 @@ class Adaptivenet(Model):
             if self.task == 'classification':
                 predictions = torch.tensor([torch.argmax(elem) for elem in predictions], device=self.device)
 
-        return predictions
-
+        return predictions, all_history
 
