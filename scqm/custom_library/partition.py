@@ -21,18 +21,6 @@ class DataPartition:
         self.partitions_train = {train_fold: np.array(
             [id_ for id_ in self.permuted_ids if id_ not in self.partitions_test[train_fold]]) for train_fold in range(self.k)}
 
-    # def get_tensor(self, df='visits_df', subset='train', fold=0):
-    #     # e.g. dataset.visits_df_scaled_tensor_train[dataset.visits_df_proc[dataset.visits_df_proc.patient_id.isin(partition.partitions[0])].tensor_indices_train.values]
-    #     tensor_name = df + '_scaled_tensor_train'
-    #     tensor = getattr(self.dataset, tensor_name)
-    #     processed_df = getattr(self.dataset, df + '_proc')
-    #     if subset == 'test':
-    #         tensor_slice = tensor[processed_df[processed_df.patient_id.isin(
-    #             self.partitions_test[fold])].tensor_indices_train.values]
-    #     else:
-    #         tensor_slice = tensor[processed_df[processed_df.patient_id.isin(
-    #             self.partitions_train[fold])].tensor_indices_train.values]
-    #     return tensor_slice
 
     def set_current_fold(self, k):
         self.current_fold = k

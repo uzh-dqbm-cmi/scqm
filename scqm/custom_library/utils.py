@@ -27,34 +27,49 @@ def set_seeds(seed=0):
     np.random.seed(seed)
     return
         
+
 class Results:
     #TODO implement naive baseline
-    def __init__(self, dataset, model):
+    def __init__(self, dataset, model, trainer):
         self.dataset = dataset
         self.model = model
+        self.trainer = trainer
 
     def evaluate_model(self, patient_ids):
         results_df = pd.DataFrame()
         for patient in patient_ids:
-            target_values = self.dataset[patient].targets_df['das283bsr_score'][self.dataset.min_num_visits - 1:].values
-            target_categories = self.dataset[patient].targets_df['das28_increase'][self.dataset.min_num_visits - 1:].values
+            # target_values = self.dataset[patient].targets_df['das283bsr_score'][self.dataset.min_num_visits - 1:].values
+            # target_categories = self.dataset[patient].targets_df['das28_increase'][self.dataset.min_num_visits - 1:].values
             value_at_previous = self.dataset[patient].targets_df['das283bsr_score'][self.dataset.min_num_visits - 2:-1].values
-            predictions, _ = self.model.apply(self.dataset, patient)
-            results_df = results_df.append(pd.DataFrame({'patient_id': patient, 'targets' : target_values, 'target_categories':target_categories, 'predictions': predictions.flatten().cpu(), 'naive_base':value_at_previous}))
+
+            predictions, all_history, target_values, time_to_targets, target_categories = self.model.apply(
+                self.dataset, patient)
+          
+            results_df = results_df.append(pd.DataFrame({'patient_id': patient, 'targets': target_values.flatten().cpu(),
+                                           'target_categories': target_categories.flatten().cpu(), 'predictions': predictions.flatten().cpu()}))
         # self, device, possible_classes, predictions=None, true_values=None, predicted_probas=None
         if self.model.task == 'classification':
             metrics = MulticlassMetrics(torch.device('cpu'), torch.tensor([0, 1, 2]), results_df['predictions'],
-                                results_df['target_categories'])
+                                        results_df['target_categories'])
             metrics_naive = None
-        else :
+            # naive : class p with probability preponderence of class p
+            naive_predictions = np.random.choice([0, 1, 2], size=len(
+                results_df['target_categories']), replace=True, p=np.array((1 / self.trainer.weights).cpu()))
+            # metrics_naive = MulticlassMetrics(torch.device('cpu'), torch.tensor([0, 1, 2]), pd.Series(naive_predictions),
+            #                                   results_df['target_categories'])
+
+        else:
             #rescale
             results_df['predictions'] = results_df['predictions'] * \
                 (self.dataset.a_visit_df_scaling_values[1]['das283bsr_score'] -
                     self.dataset.a_visit_df_scaling_values[0]['das283bsr_score']) + self.dataset.a_visit_df_scaling_values[0]['das283bsr_score']
+            results_df['targets'] = results_df['targets'] * \
+                (self.dataset.a_visit_df_scaling_values[1]['das283bsr_score'] -
+                 self.dataset.a_visit_df_scaling_values[0]['das283bsr_score']) + self.dataset.a_visit_df_scaling_values[0]['das283bsr_score']
             metrics = Metrics(torch.device('cpu'), results_df['predictions'],
-                                        results_df['targets'])
-            metrics_naive = Metrics(torch.device('cpu'), results_df['naive_base'], results_df['targets'])
-        return results_df, metrics, metrics_naive
+                              results_df['targets'])
+            # metrics_naive = Metrics(torch.device('cpu'), results_df['naive_base'], results_df['targets'])
+        return results_df, metrics
 
 def get_naive_baseline_regression(df):
     df['naive_base'] = [np.nan if index == 0 else df['targets'].iloc[index - 1] for index in range(len(df))]
@@ -220,7 +235,7 @@ class Masks:
         self.device = device
         self.indices = indices
 
-    def get_masks(self, dataset, debug_patient):
+    def get_masks(self, dataset, debug_patient, min_time_since_last_event=30, max_time_since_last_event=450):
         """_summary_
 
         Args:
@@ -236,6 +251,8 @@ class Masks:
             _type_: _description_
         """
         # get max number of visits for a patient in subset
+        self.min_time_since_last_event = min_time_since_last_event
+        self.max_time_since_last_event = max_time_since_last_event
         self.num_visits = [len(dataset.patients[index].visits) for index in self.indices]
         max_num_visits = max(self.num_visits)
         seq_lengths = torch.zeros(size=(max_num_visits - dataset.min_num_visits + 1,
@@ -246,12 +263,14 @@ class Masks:
         # [[False, False], [False, False, True, False, False], [False, False, True, False, False, True, False]] and the sequence lengths
         # for visits/medication count up to each visit [[0, 2], [1, 4], [2, 5]]
         masks_dict = {event: [[] for i in range(len(self.indices))] for event in dataset.event_names}
-
+        self.available_visit_mask = torch.full(
+            size=(len(self.indices), max_num_visits - dataset.min_num_visits + 1), fill_value=False, device=self.device)
         for i, patient in enumerate(self.indices):
             for visit in range(0, len(dataset.patients[patient].visits) - dataset.min_num_visits + 1):
                 # get timeline up to visit (not included)
-                seq_lengths[visit, i, :], _, cropped_timeline_mask, visual = dataset.patients[patient].get_cropped_timeline(
-                    visit + dataset.min_num_visits)
+                seq_lengths[visit, i, :], cropped_timeline, cropped_timeline_mask, visual,to_predict = dataset.patients[patient].get_cropped_timeline(
+                    visit + dataset.min_num_visits, min_time_since_last_event=min_time_since_last_event, max_time_since_last_event=max_time_since_last_event)
+                self.available_visit_mask[i, visit] = to_predict
                 for event in dataset.event_names:
                     # masks_dict[event][i].append(torch.broadcast_to(torch.tensor([[True if tuple_[0] == event else False] for tuple_ in cropped_timeline_mask]),
                     #                                               (len(cropped_timeline_mask), model.size_embedding)))
@@ -264,9 +283,9 @@ class Masks:
 
         # tensor of shape batch_size x max_num_visits with True in position (p, v) if patient p has at least v visits
         # and False else. we use this mask later to select the patients up to each visit.
-        self.available_visit_mask = torch.tensor([[True if index <= len(dataset.patients[patient].visits)
-                                                  else False for index in range(dataset.min_num_visits, max_num_visits + 1)] for patient in self.indices], device=self.device)
-
+        # self.available_visit_mask = torch.tensor([[True if index <= len(dataset.patients[patient].visits)
+        #                                           else False for index in range(dataset.min_num_visits, max_num_visits + 1)] for patient in self.indices], device=self.device)
+        
         # stores for each patient in batch the total number of visits and medications
         # it is used later to index correctly the visits and medications dataframes
         # total num visits and meds
@@ -274,8 +293,19 @@ class Masks:
         self.total_num = torch.tensor([[getattr(dataset.patients[patient], 'num_' + event + '_events')
                                       for event in dataset.event_names] for patient in self.indices], device=self.device)
         self.seq_lengths = seq_lengths
+
         for event in dataset.event_names:
             setattr(self, event + '_masks', masks_dict[event])
-        return
+
+        # just for prints
+        lengths = torch.zeros(len(dataset.event_names), device=self.device)
+        number_hist = np.count_nonzero(np.array(self.available_visit_mask.cpu()))
+        for visit in range(seq_lengths.shape[0]):
+            for event in range(seq_lengths.shape[2]):
+                lengths[event] += seq_lengths[visit, self.available_visit_mask[:, visit], event].sum()
+        print(f'total num of histories {number_hist}')
+        for event in range(seq_lengths.shape[2]):
+            print(f'average number of events {dataset.event_names[event]} {(lengths[event])/number_hist}')
+        return 
 
 

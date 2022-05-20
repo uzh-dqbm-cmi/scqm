@@ -7,12 +7,13 @@ from os.path import isfile, join
 import re
 from datetime import datetime
 import pickle
+import copy
 
 #TODO in preprocessing medication_drug_classification is sometimes missing but we know it
 
 
 def load_dfs_all_data(subset = None):
-    # load all tables
+    """ load all tables """
     data_path = '/opt/data/01_raw_scqm_all/SCQM_data_tables_all_data_reduced.pickle'
     with open(data_path, 'rb') as handle:
         df_dict = pickle.load(handle)
@@ -27,7 +28,6 @@ def load_dfs_all_data(subset = None):
         df_dict[key] = df_dict[key].rename(columns=lambda x: re.sub('^[^.]*', '', x)[1:])
 
     for index, table in df_dict.items():
-        print(f'name {index} shape {table.shape}')
         if df_dict[index].filter(regex=('patient_id')).shape[1] == 1:
             # for consistency
             df_dict[index] = df_dict[index].rename(columns=lambda x: re.sub('.*patient_id', 'patient_id', x))
@@ -38,14 +38,18 @@ def load_dfs_all_data(subset = None):
         else:
             print('PROBLEM')
     if subset is not None:
-        # keep only a certain percentage of the whole data
-        patients_to_keep = np.random.choice(df_dict['patients']['patient_id'].unique(), size=int(
-            subset * len(df_dict['patients']['patient_id'].unique())), replace=False)
+        # keep only a subset
+        patients_to_keep = subset
         for key in df_dict:
             df_dict[key] = df_dict[key][df_dict[key].patient_id.isin(patients_to_keep)]
+    for index, table in df_dict.items():
+        print(f'name {index} shape {table.shape}')
 
     return df_dict
+
+
 def load_dfs():
+
     # load all tables
     data_path = '/opt/data/01_raw'
     tables = [f for f in listdir(data_path)]
@@ -107,8 +111,8 @@ def map_category(df, column):
     new_column = df[column].replace(mapping)
     return new_column, mapping
 #TODO check why we cant apply preprocessing twicedd
-def preprocessing(df_dict, nan_prop=1):
-    df_dict_processed = df_dict.copy()
+def preprocessing(df_dict):
+    df_dict_processed = copy.deepcopy(df_dict)
 
     #some specific outlier preprocessing :
     df_dict_processed = clean_dates(df_dict_processed)
@@ -126,6 +130,12 @@ def preprocessing(df_dict, nan_prop=1):
         name = list(elem.filter(regex="visit_date").columns)
         if len(name) == 1:
             df_dict_processed[index] = elem.rename(columns={name[0]: 'date'})
+    # some inconsistency in medication and haq dates
+    df_dict_processed['medications'].loc[df_dict_processed['medications']['medication_start_date'] <
+                               np.datetime64('1950-01-01'), 'medication_start_date'] += np.timedelta64(100, 'Y')
+    df_dict_processed['medications'].loc[df_dict_processed['medications']['stored_start_date'] <
+                            np.datetime64('1950-01-01'), 'stored_start_date'] += np.timedelta64(100, 'Y')
+    df_dict_processed['haq'] = df_dict_processed['haq'][df_dict_processed['haq']['date'] > np.datetime64('1951-01-01')]
     # manually change date names in other dfs
     df_dict_processed['ratingenscore'] = df_dict_processed['ratingenscore'].rename(
         columns={'imaging_score_scoring_date': 'date'})
@@ -147,9 +157,9 @@ def preprocessing(df_dict, nan_prop=1):
     ), 'date'] = df_dict_processed['radai5'][df_dict_processed['radai5'].date.isna()].recording_time.values
     # drop columns with unique values
     for index, table in df_dict_processed.items():
-        for col in table.columns:
-            if table[col].nunique() == 1:
-                df_dict_processed[index] = df_dict_processed[index].drop(col, axis=1)
+        cols_to_drop=list(df_dict_processed[index].nunique()[df_dict_processed[index].nunique() == 1].index)
+        print(f'{index} dropping {len(cols_to_drop)} because unique value')
+        df_dict_processed[index] = df_dict_processed[index].drop(cols_to_drop, axis=1)
     # socioeco specific preprocessing
     df_dict_processed['socioeco']['smoker'] = df_dict_processed['socioeco']['smoker'].replace({'never_been_smoking':'i_have_never_smoked',
     'smoking_currently' : 'i_am_currently_smoking', 'a_former_smoker': 'i_am_a_former_smoker_for_more_than_a_year'})
@@ -167,11 +177,6 @@ def preprocessing(df_dict, nan_prop=1):
                        'consultant_doctor', 'authored', 'when_first_employment_after_finishing_education']
     for key in df_dict_processed:
         df_dict_processed[key] = df_dict_processed[key].drop(columns=useless_columns, errors='ignore')
-    # drop columns with nan proportion equal or more than nan_prop
-    for index, table in df_dict_processed.items():
-        # thresh : require that many non na values to keep the column
-        df_dict_processed[index] = df_dict_processed[index].dropna(axis=1, thresh=int(len(table) * (1 - nan_prop) + 1))
-        #print(f'kept {df_dict_processed[index].shape[1]} columns out of {df_dict[index].shape[1]}')
 
     return df_dict_processed
 
@@ -263,22 +268,36 @@ def extract_adanet_features(df_dict, transform_meds = True, das28=True, only_med
 
 def get_dummies(df):
     columns = [col for col in df.columns if df[col].dtype == 'object' and df[col].nunique() < 10]
-    df_dummies = pd.get_dummies(df, columns=columns)
+    df_dummies = pd.get_dummies(df, columns=columns, dummy_na=True, drop_first=True, prefix_sep='_dummy_')
+    # to put nan values back in columns instead of having a dedicated column
+    nan_df = df_dummies.loc[:, df_dummies.columns.str.endswith("_nan")]
+
+    for col_nan in nan_df.columns:
+        col_id = col_nan.split('_dummy_')[0]
+        targets = df_dummies.columns[df_dummies.columns.str.startswith(col_id + '_dummy_')]
+        index = df_dummies[df_dummies[col_nan] == 1].index
+        df_dummies.loc[index, targets] = np.nan
+    df_dummies.drop(df_dummies.columns[df_dummies.columns.str.endswith('_nan')], axis=1, inplace=True)
+
     return df_dummies
 
-def extract_other_features(df_dict, transform_meds=True, das28=True, only_meds=False):
-    df_dict_processed = preprocessing(df_dict, nan_prop=0.65)
-    for key in df_dict.keys():
-        df_dict_processed[key] = get_dummies(df_dict_processed[key])
-    for col in ['medication_drug', 'medication_generic_drug']:
-            #TODO think about whether to keep both medication_drug and medication_generic_drug
-        df_dict_processed['medications'][col], _ = map_category(
-            df_dict_processed['medications'], col)
-    for col in ['health_issue_category_1', 'health_issue_category_2']:
-        df_dict_processed['healthissues'][col], _ = map_category(df_dict_processed['healthissues'], col)
-    for col in ['cartilage_body_entire_metacarp__al_joint_of_little_finger_right', 'cartilage_body_entire_metacarp__eal_joint_of_index_finger_right',
-                'cartilage_body_entire_metacarp__eal_joint_of_little_finger_left', 'cartilage_body_entire_metacarp__geal_joint_of_index_finger_left']:
-        df_dict_processed['sonarra'][col], _ = map_category(df_dict_processed['sonarra'], col)
+
+def extract_other_features(df_dict, transform_meds=True, das28=True, only_meds=False, nan_prop=1, events_to_keep=None):
+    df_dict_processed = copy.deepcopy(df_dict)
+    df_dict_processed = preprocessing(df_dict_processed) #
+    #mappings = {'medications': {}, 'healthissues': {}, 'sonarra': {}}
+    # for key in df_dict_processed.keys():
+    #     df_dict_processed[key] = get_dummies(df_dict_processed[key])
+
+    # for col in ['medication_drug', 'medication_generic_drug']:
+    #         #TODO think about whether to keep both medication_drug and medication_generic_drug
+    #     df_dict_processed['medications'][col], mappings['medications'][col] = map_category(
+    #         df_dict_processed['medications'], col)
+    # for col in ['health_issue_category_1', 'health_issue_category_2']:
+    #     df_dict_processed['healthissues'][col], mappings['healthissues'][col] = map_category(df_dict_processed['healthissues'], col)
+    # for col in ['cartilage_body_entire_metacarp__al_joint_of_little_finger_right', 'cartilage_body_entire_metacarp__eal_joint_of_index_finger_right',
+    #             'cartilage_body_entire_metacarp__eal_joint_of_little_finger_left', 'cartilage_body_entire_metacarp__geal_joint_of_index_finger_left']:
+    #     df_dict_processed['sonarra'][col], mappings['sonarra'][col] = map_category(df_dict_processed['sonarra'], col)
     # for other_df in [socioeco_df, radai_df, haq_df]:
     #     visits_df = visits_df.merge(other_df, how='outer', on='uid_num')
     if das28:
@@ -332,16 +351,41 @@ def extract_other_features(df_dict, transform_meds=True, das28=True, only_meds=F
         df_dict_processed['medications'] = pd.concat(
             [df_dict_processed['medications'], tmp]).drop(columns=['medication_end_date'])
         df_dict_processed['medications'].sort_values(['patient_id', 'date'], inplace=True)
-
+        
+    # drop columns with nan proportion equal or more than nan_prop and columns with too low variance
+    for index, table in df_dict_processed.items():
+        #thresh : require that many non na values to keep the column
+        tmp = df_dict_processed[index].dropna(axis=1, thresh=int(len(table) * (1 - nan_prop) + 1))
+        print(f'{index} dropping {df_dict_processed[index].shape[1]-tmp.shape[1]} because more than {nan_prop*100} % missing values')
+        df_dict_processed[index] = tmp
+        df_dict_processed[index] = drop_low_var(df_dict_processed, index)
+    
+    
     #for coherence
     df_dict_processed['a_visit'] = df_dict_processed.pop('visits')
     df_dict_processed['med'] = df_dict_processed.pop('medications')
-    events = ['a_visit', 'med', 'healthissues', 'modifiednewyorkxrayscore', 'ratingenscore', 'sonaras',
+    all_events = ['a_visit', 'med', 'healthissues', 'modifiednewyorkxrayscore', 'ratingenscore', 'sonaras',
             'sonarra', 'asas', 'basfi', 'basdai', 'dlqi', 'euroquol', 'haq', 'psada', 'radai5', 'sf_12', 'socioeco']
+    if events_to_keep is None:
+        events = ['a_visit', 'med', 'healthissues', 'ratingenscore', 
+                'sonarra', 'euroquol', 'haq', 'radai5', 'sf_12', 'socioeco']
+    else:
+        events = events_to_keep
+    for key in set(all_events).difference(events):
+        df_dict_processed.pop(key, None)
     df_dict_processed['targets'] = targets_df
     
     return df_dict_processed, events
 
+
+def drop_low_var(df_dict, event, thresh=0.05):
+    to_consider = [col for col in df_dict[event].columns if df_dict[event][col].dtype not in ['<M8[ns]', 'O']]
+    normalized = (df_dict[event][to_consider] - df_dict[event][to_consider].min()) / \
+        (df_dict[event][to_consider].max() - df_dict[event][to_consider].min())
+    std = normalized.std()
+    to_drop = [col for col in normalized.columns if (std[col] <= thresh) or np.isnan(std[col])]
+    print(f'dropping {len(to_drop)} columns because of too low variance')
+    return df_dict[event].drop(columns=to_drop)
 
 def find_drug_categories_and_names(df):
     """replace missing drug names and categories in df medications"""
