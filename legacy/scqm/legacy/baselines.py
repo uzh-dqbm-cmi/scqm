@@ -1,7 +1,10 @@
+#TODO rewrite all of this
+
+
 from scqm.custom_library.utils import create_results_df
-from scqm.custom_library.preprocessing import *
-from scqm.custom_library.data_objects import *
-from scqm.custom_library.modules import MLP
+from scqm.custom_library.preprocessing.preprocessing import *
+from scqm.custom_library.data_objects.data_objects import *
+from scqm.custom_library.models.modules.modules import MLP
 
 import matplotlib.pyplot as plt
 

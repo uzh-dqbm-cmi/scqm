@@ -1,17 +1,4 @@
-from models import Adaptivenet
-from training import AdaptivenetTrainer
-from partition import DataPartition
-from preprocessing import (
-    load_dfs,
-    load_dfs_all_data,
-    preprocessing,
-    extract_adanet_features,
-)
-from data_objects import Dataset
 import itertools
-import numpy as np
-import sys
-import csv
 import random
 import time
 import os
@@ -19,35 +6,11 @@ import torch
 import pickle
 import gc
 
-from utils import set_seeds
+from scqm.custom_library.cv.cv import CV
+from scqm.custom_library.models.adaptive_net import Adaptivenet
+from scqm.custom_library.trainers.adaptive_net import AdaptivenetTrainer
 
-
-# TODO early stopping as parameter
-# TODO shell script for cv
-# TODO cleaner preprocessing
-# TODO testing module
-# TODO modularise baseline
-# TODO stratifier
-# TODO decoders in AE style
-# TODO optimize metrics computation (ie something to easily just log losses)
-
-
-class CVWrapper:
-    def __init__(self, dataset, k):
-        set_seeds(0)
-        self.dataset = dataset
-        self.k = k
-        self.partition = DataPartition(self.dataset, k=self.k)
-
-    def set_grid(self, parameters: dict):
-        self.parameter_names = list(parameters.keys())
-        self.parameters = parameters
-
-    def perform_cv(self):
-        raise NotImplementedError
-
-
-class CVAdaptivenet(CVWrapper):
+class CVAdaptivenet(CV):
     def perform_cv(self, fold, n_epochs=400, search="random", num_combi=1):
         combinations = list(itertools.product(*self.parameters.values()))
         self.partition.set_current_fold(fold)
@@ -142,54 +105,3 @@ class CVAdaptivenet(CVWrapper):
                 pickle.dump(model_specifics, f)
             with open(path + "/trainer.pkl", "wb") as f:
                 pickle.dump(trainer, f)
-
-
-if __name__ == "__main__":
-
-    model = str(sys.argv[1])
-    reload = str(sys.argv[3])
-    if reload == "True":
-        if model == "adanet":
-            with open("/opt/data/processed/saved_cv_ada.pickle", "rb") as handle:
-                cv = pickle.load(handle)
-        else:
-            with open("/opt/data/processed/saved_cv.pickle", "rb") as handle:
-                cv = pickle.load(handle)
-    else:
-        if model == "adanet":
-            with open("/opt/data/processed/saved_dataset.pickle", "rb") as handle:
-                dataset = pickle.load(handle)
-        else:
-            with open(
-                "/opt/data/processed/saved_dataset_more_features.pickle", "rb"
-            ) as handle:
-                dataset = pickle.load(handle)
-        # prepare for training
-        dataset.create_dfs()
-        if model == "adanet":
-            dataset.transform_to_numeric_adanet()
-            cv = CVAdaptivenet(dataset, k=5)
-            with open("/opt/data/processed/saved_cv_ada.pickle", "wb") as f:
-                pickle.dump(cv, f)
-        else:
-            dataset.transform_to_numeric()
-            cv = CVAdaptivenet(dataset, k=5)
-            with open("/opt/data/processed/saved_cv.pickle", "wb") as f:
-                pickle.dump(cv, f)
-
-    parameters = {
-        "SIZE_EMBEDDING": np.array([3, 5]),
-        "NUM_LAYERS_ENC": np.array([2, 4]),
-        "HIDDEN_ENC": np.array([100]),
-        "SIZE_HISTORY": np.array([10, 20]),
-        "NUM_LAYERS": np.array([2]),
-        "NUM_LAYERS_PRED": np.array([2]),
-        "HIDDEN_PRED": np.array([100]),
-        "LR": np.array([1e-2]),
-        "P": np.array([0.1, 0.2]),
-        "BALANCE_CLASSES": np.array([True]),
-    }
-    cv.set_grid(parameters)
-    fold = int(sys.argv[2])
-    print(f"fold {fold}")
-    cv.perform_cv(fold=fold, search="random", n_epochs=50, num_combi=6)

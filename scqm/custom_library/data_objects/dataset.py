@@ -1,261 +1,14 @@
-import datetime
 import numpy as np
 import pandas as pd
 import torch
-from tqdm import tqdm
-from scqm.custom_library.preprocessing import get_dummies, map_category
-from scqm.custom_library.utils import Masks
 import pickle
 
+from tqdm import tqdm
 
-class DataObject:
-    def __init__(self, df_dict, patient_id):
-        for name in df_dict.keys():
-            setattr(
-                self,
-                str(name) + "_df",
-                df_dict[name][df_dict[name]["patient_id"] == patient_id],
-            )
-        return
-
-    def add_info(self, name, value):
-        setattr(self, name, value)
-        return
-
-
-class Patient(DataObject):
-    # TODO be coherent with sorting (also other dfs)
-    def __init__(self, df_dict, patient_id, event_names):
-        super().__init__(df_dict, patient_id)
-        self.id = patient_id
-        self.visits = self.get_visits()
-        self.medications = self.get_medications()
-        self.event_names = event_names
-        self.other_events = self.get_other_events()
-        self.timeline = self.get_timeline()
-        self.visits_to_predict = self.visits
-        return
-
-    def get_visits(self):
-        self.visits_df = self.a_visit_df.sort_values(by="date", axis=0)
-        self.visit_ids = self.visits_df["uid_num"].values
-        self.visit_dates = self.visits_df["date"].values
-        self.num_a_visit_events = len(self.visit_ids)
-        visits = []
-        for id_, date in zip(self.visit_ids, self.visit_dates):
-            visits.append(Visit(self, id_, date))
-        return visits
-
-    def get_medications(self):
-        self.medications_df = self.med_df.sort_values(by="date", axis=0)
-        self.med_ids = self.medications_df["med_id"].unique()
-        # total number of medication events counting all the available start and end dates
-        self.num_med_events = len(self.medications_df["med_id"])
-        self.med_intervals = []
-        meds = []
-        for id_ in self.med_ids:
-            m = Medication(self, id_)
-            meds.append(m)
-            self.med_intervals.append(m.interval)
-        return meds
-
-    def get_other_events(self):
-        other_events = []
-        events = [name for name in self.event_names if name not in ["a_visit", "med"]]
-        for name in events:
-            df = getattr(self, name + "_df")
-            setattr(self, "num_" + name + "_events", len(df))
-            for index in df.index:
-                # TODO change maybe uid_num and put generic event id
-                if "uid_num" in df.columns:
-                    other_events.append(
-                        Event(name, df.loc[index, "uid_num"], df.loc[index, "date"])
-                    )
-                else:
-                    other_events.append(Event(name, date=df.loc[index, "date"]))
-        return other_events
-
-    def get_timeline(self):
-        # get sorted dates of events
-        visit_event_list = [
-            (self.visit_dates[index], "a_visit", self.visit_ids[index])
-            for index in range(len(self.visit_dates))
-        ]
-        med_sart_list = [
-            (self.med_intervals[index][0], "med_s", self.med_ids[index])
-            for index in range(len(self.med_intervals))
-        ]
-        med_end_list = [
-            (self.med_intervals[index][1], "med_e", self.med_ids[index])
-            for index in range(len(self.med_intervals))
-        ]
-        other_events = [
-            (event.date, event.name, event.id) for event in self.other_events
-        ]
-        all_events = visit_event_list + med_sart_list + med_end_list + other_events
-        # the 'a', 'b', 'c' flags before visit and meds are there to ensure that if they occur at the same date, the visit comes before
-        # remove NaT events
-        all_events = [event for event in all_events if not pd.isnull(event[0])]
-        all_events.sort()
-        # get sorted ids of events, format : True --> visit, False --> medication along with id
-        # e.g. [(True, visit_id), (False, med_id), ...]
-        self.timeline_mask = [
-            (event[1], event[2])
-            if event[1] not in ["med_s", "med_e"]
-            else ("med", event[2])
-            for event in all_events
-        ]
-
-        self.timeline_visual = [
-            "v"
-            if event[1] == "a_visit"
-            else "m_s"
-            if event[1] == "med_s"
-            else "m_e"
-            if event[1] == "m_e"
-            else event[1]
-            for event in all_events
-        ]
-        self.mask = [[event[0]] for event in self.timeline_mask]
-
-        return all_events
-
-    def get_cropped_timeline(
-        self, n=1, min_time_since_last_event=0, max_time_since_last_event=600
-    ):
-        if n > len(self.visits):
-            raise ValueError("n bigger than number of visits")
-        # get all events up to n-th visit
-        else:
-            cropped_timeline = []
-            num_of_each_event = torch.zeros(size=(len(self.event_names),))
-            index_of_visit = self.event_names.index("a_visit")
-            index = 0
-            # date of n-th visit
-            date_nth_visit = pd.Timestamp(self.visits[n - 1].date)
-            # while number of visits < n and while ? other part is redundant no ?
-            while (
-                num_of_each_event[index_of_visit] < n
-                and index < len(self.timeline)
-                and (date_nth_visit - self.timeline[index][0]).days
-                > min_time_since_last_event
-            ):
-                event = self.timeline[index]
-                cropped_timeline.append(event)
-                if event[1] in ["med_s", "med_e"]:
-                    index_of_event = self.event_names.index("med")
-                else:
-                    index_of_event = self.event_names.index(event[1])
-                num_of_each_event[index_of_event] += 1
-                index += 1
-            time_to_next = (date_nth_visit - self.timeline[index - 1][0]).days
-            #         #remove last visit
-            #         cropped_timeline = cropped_timeline[:-1]
-            #         num_of_each_event[index_of_visit] -= 1
-            # cropped_timeline_mask = [(event[1], event[2])
-            #                          for event in cropped_timeline]
-            cropped_timeline_mask = [
-                (event[1], event[2])
-                if event[1] not in ["med_s", "med_e"]
-                else ("med", event[2])
-                for event in cropped_timeline
-            ]
-            cropped_timeline_visual = [
-                "v"
-                if event[1] == "a_visit"
-                else "m_s"
-                if event[1] == "med_s"
-                else "m_e"
-                if event[1] == "med_e"
-                else "e"
-                for event in cropped_timeline
-            ]
-            to_predict = True if len(cropped_timeline) > 0 else False
-            if to_predict and (
-                (date_nth_visit - cropped_timeline[-1][0]).days
-                > max_time_since_last_event
-            ):
-                to_predict = False
-            return (
-                num_of_each_event,
-                cropped_timeline,
-                cropped_timeline_mask,
-                cropped_timeline_visual,
-                to_predict,
-            )
-
-
-class Event:
-    def __init__(self, name, id="no_id", date=None):
-        self.name = name
-        self.id = id
-        self.date = date
-
-
-class Visit(Event):
-    def __init__(self, patient_class, visit_id, date, target="das283bsr_score"):
-        super().__init__("a_visit", visit_id)
-        self.patient = patient_class
-        self.date = date
-        self.data = self.patient.visits_df[
-            self.patient.visits_df["uid_num"] == visit_id
-        ]
-        if target:
-            self.target = self.data[target]
-        self.med_start = []
-        self.med_during = []
-        self.med_end = []
-        return
-
-
-class Medication(Event):
-    def __init__(self, patient_class, med_id):
-        super().__init__("med", med_id)
-        self.patient = patient_class
-        self.data = self.patient.medications_df[
-            self.patient.medications_df["med_id"] == self.id
-        ]
-        # start and end available
-        if len(self.data) == 2:
-            self.start_date = self.data[self.data["is_start"] == 1]["date"].item()
-            self.end_date = self.data[self.data["is_start"] == 0]["date"].item()
-        # only start available
-        else:
-            self.start_date = self.data["date"].item()
-            self.end_date = pd.NaT
-        self.interval = [self.start_date, self.end_date]
-        # self.get_related_visits()
-        # TODO implement flags for missing data
-        self.flag = None
-        return
-
-    def get_related_visits(self, tol=0):
-        self.visit_start = []
-        self.visit_end = []
-        self.visit_during = []
-        for visit in self.patient.visits:
-            # self.is_in_interval(visit)
-            self.is_close_to_interval(visit, tol)
-        return
-
-    def is_close_to_interval(self, visit_class, tol):
-
-        tol = datetime.timedelta(days=tol)
-        if self.interval[0] - tol <= visit_class.date <= self.interval[0]:
-            self.visit_start.append(visit_class.id)
-            # TODO change this dependency
-            visit_class.med_start.append(self.id)
-        elif self.interval[1] - tol <= visit_class.date <= self.interval[1]:
-            self.visit_end.append(visit_class.id)
-            visit_class.med_end.append(self.id)
-        elif self.interval[0] < visit_class.date < self.interval[1] - tol:
-            self.visit_during.append(visit_class.id)
-            visit_class.med_during.append(self.id)
-        # all of the above conditions are False if at least one of the dates is NaT
-        return
-
-
-# mapping and get_item
+from scqm.custom_library.data_objects.patient import Patient
+from scqm.custom_library.data_objects.masks import Masks
+from scqm.custom_library.preprocessing.utils import map_category, get_dummies
+from scqm.custom_library.global_vars import *
 
 
 class Dataset:
@@ -427,7 +180,7 @@ class Dataset:
             for date_col in date_cols_to_process:
                 # convert into days between 01.01.2022 and date
                 df_processed[date_col] = (
-                    pd.to_datetime("01/05/2022") - df_processed[date_col]
+                    pd.to_datetime(REFERENCE_DATE) - df_processed[date_col]
                 ).dt.days
             setattr(self, name + "_proc", df_processed)
         # specific one hot encoding
@@ -480,7 +233,7 @@ class Dataset:
                 # convert into days between 05.01.2022 and date
                 # TODO change and import global variable instead
                 df_processed[date_col] = (
-                    pd.to_datetime("01/05/2022") - df_processed[date_col]
+                    pd.to_datetime(REFERENCE_DATE) - df_processed[date_col]
                 ).dt.days
 
             # one hot encoding
@@ -701,7 +454,6 @@ class Dataset:
 
         # TODO have only one tensor and mapping to train, valid test (instead of 3 different ?)
         return
-
     def visit_count(self):
         # number of available visits per patient
         max_number_visits = max([len(pat.visits) for _, pat in self.patients.items()])

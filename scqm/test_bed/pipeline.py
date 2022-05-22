@@ -3,8 +3,9 @@ import sys
 
 sys.path.append("../scqm")
 
-from scqm.custom_library.models import Adaptivenet, Othernet2
-from scqm.custom_library.training import AdaptivenetTrainer
+from scqm.custom_library.models.adaptive_net import Adaptivenet
+from scqm.custom_library.models.other_net import OthernetOptimized
+from scqm.custom_library.trainers.adaptive_net import AdaptivenetTrainer
 from scqm.test_bed.fake_scqm import get_df_dict
 
 import copy
@@ -13,9 +14,9 @@ import torch
 
 # setting path
 
-from scqm.custom_library.preprocessing import extract_adanet_features
-from scqm.custom_library.data_objects import Dataset
-from scqm.custom_library.partition import DataPartition
+from scqm.custom_library.preprocessing.select_features import extract_adanet_features
+from scqm.custom_library.data_objects.dataset import Dataset
+from scqm.custom_library.partition.partition import DataPartition
 
 if __name__ == "__main__":
     # create fake data
@@ -111,7 +112,7 @@ if __name__ == "__main__":
     model_specifics["size_embedding"] = max(
         [model_specifics[key]["size_out"] for key in num_feature_dict]
     )
-    model = Othernet2(model_specifics, device)
+    model = OthernetOptimized(model_specifics, device)
     trainer = AdaptivenetTrainer(
         model,
         dataset,
@@ -122,6 +123,6 @@ if __name__ == "__main__":
         use_early_stopping=False,
     )
     # train
-    trainer.train_model(model, partition, debug_patient=True)
+    trainer.train_model(model, partition, debug_patient=False)
 
     print("End of script")

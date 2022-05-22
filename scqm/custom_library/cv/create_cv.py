@@ -1,18 +1,20 @@
-from partition import DataPartition
-from preprocessing import (
+import numpy as np
+
+import torch
+import pickle
+
+
+from scqm.custom_library.preprocessing.preprocessing import (
     extract_other_features,
     load_dfs_all_data,
     preprocessing,
     extract_adanet_features,
 )
-from data_objects import Dataset
-from CV import CVAdaptivenet
-from utils import Results, set_seeds
-import numpy as np
-import random
-import torch
-import pickle
-import gc
+from scqm.custom_library.data_objects.dataset import Dataset
+from scqm.custom_library.cv.adaptive_net import CVAdaptivenet
+
+from scqm.custom_library.utils import set_seeds
+
 
 
 if __name__ == "__main__":
