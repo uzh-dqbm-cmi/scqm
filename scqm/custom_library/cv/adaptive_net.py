@@ -10,6 +10,7 @@ from scqm.custom_library.cv.cv import CV
 from scqm.custom_library.models.adaptive_net import Adaptivenet
 from scqm.custom_library.trainers.adaptive_net import AdaptivenetTrainer
 
+
 class CVAdaptivenet(CV):
     def perform_cv(self, fold, n_epochs=400, search="random", num_combi=1):
         combinations = list(itertools.product(*self.parameters.values()))

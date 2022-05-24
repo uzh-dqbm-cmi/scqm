@@ -454,6 +454,7 @@ class Dataset:
 
         # TODO have only one tensor and mapping to train, valid test (instead of 3 different ?)
         return
+
     def visit_count(self):
         # number of available visits per patient
         max_number_visits = max([len(pat.visits) for _, pat in self.patients.items()])

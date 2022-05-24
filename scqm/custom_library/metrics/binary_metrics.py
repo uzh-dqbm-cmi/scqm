@@ -5,6 +5,7 @@ from sklearn.metrics import roc_curve, roc_auc_score
 import matplotlib.pyplot as plt
 from scqm.custom_library.metrics.metrics import Metrics
 
+
 class BinaryMetrics(Metrics):
     def __init__(
         self, device, predictions=None, true_values=None, predicted_probas=None

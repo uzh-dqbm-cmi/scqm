@@ -1,6 +1,7 @@
 import torch
 import pandas as pd
 
+
 class Metrics:
     def __init__(self, device, predictions=None, true_values=None):
         if predictions is None:

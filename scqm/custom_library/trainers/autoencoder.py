@@ -5,6 +5,7 @@ import gc
 from scqm.custom_library.trainers.trainer import Trainer
 from scqm.custom_library.trainers.batch.batch import Batch
 
+
 class AutoEncoderTrainer(Trainer):
     def __init__(self, model, dataset, n_epochs, batch_size, lr, use_early_stopping):
         super().__init__(model, dataset, n_epochs, batch_size, lr, use_early_stopping)

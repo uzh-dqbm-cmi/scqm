@@ -170,10 +170,15 @@ if __name__ == "__main__":
     ]
     columns_haq = ["patient_id", "date", "haq"]
 
-    patient_df = get_patient_df()
+    patient_df = get_patient_df(100)
     haq_df = get_haq_df(patient_df)
     visit_df = get_visit_df(patient_df)
     med_df = get_med_df(patient_df)
 
+    save = True
+    if save :
+        patient_df.to_csv('scqm/test_bed/dummy_data/patients.csv', index = False)
+        haq_df.to_csv('scqm/test_bed/dummy_data/haq.csv', index = False)
+        visit_df.to_csv('scqm/test_bed/dummy_data/visits.csv', index = False)
+        med_df.to_csv('scqm/test_bed/dummy_data/medications.csv', index = False)
     print("End of file")
-

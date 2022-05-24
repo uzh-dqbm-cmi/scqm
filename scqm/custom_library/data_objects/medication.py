@@ -2,6 +2,7 @@ from scqm.custom_library.data_objects.event import Event
 import datetime
 import pandas as pd
 
+
 class Medication(Event):
     def __init__(self, patient_class, med_id):
         super().__init__("med", med_id)

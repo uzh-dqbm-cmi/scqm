@@ -65,7 +65,7 @@ if __name__ == "__main__":
         input = hn[-1]
     mask = torch.ones(n_data, max(lengths), input_size)
     for index, elem in enumerate(sequence):
-        mask[index, lengths[index]:] = 0
+        mask[index, lengths[index] :] = 0
 
     pred_module = PredModule(hidden_size, 1)
     out = pred_module(input)

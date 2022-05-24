@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 
+
 def map_category(df, column):
     mapping = {
         key: value for value, key in enumerate(sorted(df[column].dropna().unique()))
@@ -25,6 +26,7 @@ def das28_increase(df):
         for index in range(len(df))
     ]
     return df
+
 
 def get_dummies(df):
     columns = [
@@ -52,5 +54,3 @@ def get_dummies(df):
     )
 
     return df_dummies
-
-

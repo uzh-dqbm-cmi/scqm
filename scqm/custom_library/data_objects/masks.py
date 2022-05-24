@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 
+
 class Masks:
     def __init__(self, device, indices):
         self.device = device

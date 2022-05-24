@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class Batch:
     def __init__(self, device, all_indices, available_indices, current_indices=None):
         self.device = device

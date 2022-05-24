@@ -16,7 +16,6 @@ from scqm.custom_library.cv.adaptive_net import CVAdaptivenet
 from scqm.custom_library.utils import set_seeds
 
 
-
 if __name__ == "__main__":
     model = "other"
     df_dict = load_dfs_all_data()

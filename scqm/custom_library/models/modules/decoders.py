@@ -2,10 +2,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 
+
 class EventDecoder(nn.Module):
     """
     Mapps the embedding to initial features
     """
+
     def __init__(self, input_size, output_size, num_hidden=2, hidden_size=10):
         super(EventDecoder, self).__init__()
         self.input_size = input_size
@@ -27,6 +29,7 @@ class EventDecoderFixed(nn.Module):
     """
     Decoder with hidden sizes with deterministic decreasing number of neurons
     """
+
     def __init__(self, input_size, output_size, num_hidden=3):
         super(EventDecoderFixed, self).__init__()
         self.input_size = input_size

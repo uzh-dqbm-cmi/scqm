@@ -5,6 +5,7 @@ from scqm.custom_library.models.modules.encoders import PaddedEventEncoder
 from scqm.custom_library.models.modules.lstms import LstmAllHistory
 from scqm.custom_library.models.modules.predictions import PredModule
 
+
 class AdaptivenetWithAttention(Model):
     def __init__(self, config, device, modules=None):
         super().__init__(config, device)
@@ -156,7 +157,7 @@ class AdaptivenetWithAttention(Model):
                                 (len(mask[patient][v]), self.size_embedding),
                             )
                         ] = encoder_outputs[event][
-                            indices[index]: indices[index] + seq[index]
+                            indices[index] : indices[index] + seq[index]
                         ].flatten()
                     sequence.append(combined)
                     target_values[

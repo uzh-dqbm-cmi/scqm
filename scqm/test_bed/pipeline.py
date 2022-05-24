@@ -124,5 +124,9 @@ if __name__ == "__main__":
     )
     # train
     trainer.train_model(model, partition, debug_patient=False)
+    save = True
+    if save: 
+        for name in dataset.df_names:
+            getattr(dataset, name).to_csv('scqm/test_bed/dummy_data/' + name + '.csv', index=False)
 
     print("End of script")

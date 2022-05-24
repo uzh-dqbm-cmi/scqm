@@ -3,6 +3,7 @@ import pickle
 import numpy as np
 
 from scqm.custom_library.cv.adaptive_net import CVAdaptivenet
+
 if __name__ == "__main__":
 
     model = str(sys.argv[1])

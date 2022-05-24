@@ -6,6 +6,7 @@ from scqm.custom_library.models.modules.decoders import PaddedDecoderFixed
 from scqm.custom_library.models.modules.lstms import LstmAllHistory
 from scqm.custom_library.models.modules.predictions import PredModule
 
+
 class AutoEncoder(Model):
     def __init__(self, model_specifics, device):
         super().__init__(device)

@@ -1,5 +1,6 @@
 from scqm.custom_library.data_objects.event import Event
 
+
 class Visit(Event):
     def __init__(self, patient_class, visit_id, date, target="das283bsr_score"):
         super().__init__("a_visit", visit_id)

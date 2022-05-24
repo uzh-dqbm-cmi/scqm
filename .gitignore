@@ -12,6 +12,7 @@ conf/**/*credentials*
 # ignore everything in the following folders
 notebooks/
 data/
+scqm/test_bed/dummy_data/
 
 # except their sub-folders
 !data/**/

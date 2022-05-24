@@ -7,7 +7,9 @@ import io
 import copy
 
 from scqm.custom_library.models.adaptive_net import Adaptivenet
-from scqm.custom_library.models.adaptive_net_with_attention import AdaptivenetWithAttention
+from scqm.custom_library.models.adaptive_net_with_attention import (
+    AdaptivenetWithAttention,
+)
 from scqm.custom_library.trainers.adaptive_net import AdaptivenetTrainer
 from scqm.custom_library.partition.partition import DataPartition
 from scqm.custom_library.preprocessing.preprocessing import (

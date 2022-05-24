@@ -7,6 +7,7 @@ from scqm.custom_library.models.modules.encoders import EventEncoder
 from scqm.custom_library.models.modules.lstms import LstmEventSpecific
 from scqm.custom_library.models.modules.predictions import PredModule
 
+
 class Othernet(Model):
     def __init__(self, config, device):
         super().__init__(config, device)
@@ -163,7 +164,7 @@ class Othernet(Model):
                         if seq[index] > 0:
                             combined[event][patient, : seq[index], :] = encoder_outputs[
                                 event
-                            ][indices[index]: indices[index] + seq[index]]
+                            ][indices[index] : indices[index] + seq[index]]
                         else:
                             continue
                     target_values[
@@ -201,7 +202,7 @@ class Othernet(Model):
                         batch.available_visit_mask[:, v],
                         self.combined_history_size[1][
                             index
-                        ]: self.combined_history_size[1][index + 1],
+                        ] : self.combined_history_size[1][index + 1],
                     ] = self.lstm_modules[event](
                         combined[event][batch.available_visit_mask[:, v]]
                     )[
@@ -322,7 +323,7 @@ class Othernet(Model):
                             0,
                             self.combined_history_size[1][
                                 index
-                            ]: self.combined_history_size[1][index + 1],
+                            ] : self.combined_history_size[1][index + 1],
                         ] = self.lstm_modules[event](combined[event])[1][0][-1]
                 # concat computed patient history with general information
                 general_info = self.p_encoder(
@@ -561,7 +562,7 @@ class OthernetOptimized(Model):
                         batch.available_visit_mask[:, v],
                         self.combined_history_size[1][
                             index
-                        ]: self.combined_history_size[1][index + 1],
+                        ] : self.combined_history_size[1][index + 1],
                     ] = self.lstm_modules[event](
                         combined[event][batch.available_visit_mask[:, v]]
                     )[
@@ -594,7 +595,7 @@ class OthernetOptimized(Model):
                 print(f"prediction {out[debug_index_target]}")
 
         if num_targets == 0:
-            print(f'num_targets is 0')
+            print(f"num_targets is 0")
             compute_grad = False
             return compute_grad
 
@@ -688,7 +689,7 @@ class OthernetOptimized(Model):
                             0,
                             self.combined_history_size[1][
                                 index
-                            ]: self.combined_history_size[1][index + 1],
+                            ] : self.combined_history_size[1][index + 1],
                         ] = self.lstm_modules[event](combined[event])[1][0][-1]
                 # concat computed patient history with general information
                 general_info = self.p_encoder(

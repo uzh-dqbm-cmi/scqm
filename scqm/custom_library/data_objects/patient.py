@@ -5,6 +5,7 @@ from scqm.custom_library.data_objects.event import Event
 import torch
 import pandas as pd
 
+
 class Patient(DataObject):
     # TODO be coherent with sorting (also other dfs)
     def __init__(self, df_dict, patient_id, event_names):

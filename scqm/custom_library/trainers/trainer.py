@@ -3,6 +3,7 @@ import timeit
 import matplotlib.pyplot as plt
 import numpy as np
 
+
 class Trainer:
     # TODO change dependencies, pass e.g. n_epochs as param to train
     def __init__(self, model, dataset, n_epochs, batch_size, lr, use_early_stopping):
@@ -33,10 +34,10 @@ class Trainer:
             self.current_epoch > 35
             and (
                 self.loss_per_epoch_valid[
-                    self.current_epoch - 1 - 20: self.current_epoch - 1
+                    self.current_epoch - 1 - 20 : self.current_epoch - 1
                 ]
                 / self.loss_per_epoch_valid[
-                    self.current_epoch - 1 - 30: self.current_epoch - 1 - 10
+                    self.current_epoch - 1 - 30 : self.current_epoch - 1 - 10
                 ]
             ).mean()
             > 1

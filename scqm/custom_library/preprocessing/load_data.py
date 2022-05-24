@@ -3,6 +3,7 @@ import re
 import os
 import pandas as pd
 
+
 def load_dfs_all_data(subset=None):
     """load all tables"""
     data_path = "/opt/data/01_raw_scqm_all/SCQM_data_tables_all_data_reduced.pickle"
