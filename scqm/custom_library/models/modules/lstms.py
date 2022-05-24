@@ -65,15 +65,33 @@ class LstmEventSpecific(nn.Module):
             batch_first=batch_first,
         )
 
+    # def forward(self, x):
+    #     # x is PackedSequence object
+    #     # Initialize hidden state with zeros
+    #     h0 = torch.zeros(
+    #         self.num_layers, len(x), self.hidden_size, device=self.device
+    #     ).requires_grad_()
+    #     # Initialize cell state
+    #     c0 = torch.zeros(
+    #         self.num_layers, len(x), self.hidden_size, device=self.device
+    #     ).requires_grad_()
+    #     lstm_out, (hn, cn) = self.lstm(x, (h0, c0))
+    #     return lstm_out, (hn, cn)
     def forward(self, x):
         # x is PackedSequence object
         # Initialize hidden state with zeros
         h0 = torch.zeros(
-            self.num_layers, len(x), self.hidden_size, device=self.device
+            self.num_layers,
+            max(x.batch_sizes).item(),
+            self.hidden_size,
+            device=self.device,
         ).requires_grad_()
         # Initialize cell state
         c0 = torch.zeros(
-            self.num_layers, len(x), self.hidden_size, device=self.device
+            self.num_layers,
+            max(x.batch_sizes).item(),
+            self.hidden_size,
+            device=self.device,
         ).requires_grad_()
         lstm_out, (hn, cn) = self.lstm(x, (h0, c0))
         return lstm_out, (hn, cn)

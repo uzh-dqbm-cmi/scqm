@@ -7,6 +7,7 @@ import io
 
 class CPU_Unpickler(pickle.Unpickler):
     """Unpickles files saved using cpu or gpu"""
+
     def find_class(self, module, name):
         if module == "torch.storage" and name == "_load_from_bytes":
             return lambda b: torch.load(io.BytesIO(b), map_location="cpu")

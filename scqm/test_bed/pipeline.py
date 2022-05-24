@@ -5,6 +5,9 @@ sys.path.append("../scqm")
 
 from scqm.custom_library.models.adaptive_net import Adaptivenet
 from scqm.custom_library.models.other_net import OthernetOptimized
+from scqm.custom_library.models.other_net_with_attention import (
+    OthernetOptimizedWithAttention,
+)
 from scqm.custom_library.trainers.adaptive_net import AdaptivenetTrainer
 from scqm.test_bed.fake_scqm import get_df_dict
 
@@ -20,7 +23,7 @@ from scqm.custom_library.partition.partition import DataPartition
 
 if __name__ == "__main__":
     # create fake data
-    df_dict = get_df_dict()
+    df_dict = get_df_dict(num_patients=100)
     real_data = False
     df_dict_processed = copy.deepcopy(df_dict)
     for index, table in df_dict_processed.items():
@@ -124,9 +127,11 @@ if __name__ == "__main__":
     )
     # train
     trainer.train_model(model, partition, debug_patient=False)
-    save = True
-    if save: 
+    save = False
+    if save:
         for name in dataset.df_names:
-            getattr(dataset, name).to_csv('scqm/test_bed/dummy_data/' + name + '.csv', index=False)
+            getattr(dataset, name).to_csv(
+                "scqm/test_bed/dummy_data/" + name + ".csv", index=False
+            )
 
     print("End of script")

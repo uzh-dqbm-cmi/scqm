@@ -1,3 +1,6 @@
+import sys
+
+sys.path.append("../scqm")
 import torch
 import random
 from scqm.custom_library.models.modules.encoders import EventEncoder, PaddedEventEncoder

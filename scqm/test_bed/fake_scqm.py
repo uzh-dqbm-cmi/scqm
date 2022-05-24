@@ -176,9 +176,9 @@ if __name__ == "__main__":
     med_df = get_med_df(patient_df)
 
     save = True
-    if save :
-        patient_df.to_csv('scqm/test_bed/dummy_data/patients.csv', index = False)
-        haq_df.to_csv('scqm/test_bed/dummy_data/haq.csv', index = False)
-        visit_df.to_csv('scqm/test_bed/dummy_data/visits.csv', index = False)
-        med_df.to_csv('scqm/test_bed/dummy_data/medications.csv', index = False)
+    if save:
+        patient_df.to_csv("scqm/test_bed/dummy_data/patients.csv", index=False)
+        haq_df.to_csv("scqm/test_bed/dummy_data/haq.csv", index=False)
+        visit_df.to_csv("scqm/test_bed/dummy_data/visits.csv", index=False)
+        med_df.to_csv("scqm/test_bed/dummy_data/medications.csv", index=False)
     print("End of file")
