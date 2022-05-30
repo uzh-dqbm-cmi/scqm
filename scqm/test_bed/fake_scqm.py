@@ -6,7 +6,15 @@ import time
 import numpy as np
 
 
-def get_patient_ids(num_data):
+def get_patient_ids(num_data: int) -> list:
+    """Generate random list of patient ids
+
+    Args:
+        num_data (int): number of ids to generate
+
+    Returns:
+        list: generated patient ids
+    """
     patient_ids = []
     for p in range(num_data):
         patient_ids.extend(
@@ -15,7 +23,9 @@ def get_patient_ids(num_data):
     return patient_ids
 
 
-def str_time_prop(start, end, time_format, prop):
+def str_time_prop(
+    start: str, end: str, time_format: str = "%m/%d/%Y", prop: float = 0.5
+):
     """
     https://stackoverflow.com/questions/553303/generate-a-random-date-between-two-other-dates
 
@@ -35,7 +45,7 @@ def str_time_prop(start, end, time_format, prop):
     return time.strftime(time_format, time.localtime(ptime))
 
 
-def random_date(start="01/01/1920", end="01/01/2000", prop=None):
+def random_date(start: str = "01/01/1920", end: str = "01/01/2000", prop=None):
     """
     return date at location prop (decimal between 0 and 1) between dates start and end
     """
@@ -44,7 +54,15 @@ def random_date(start="01/01/1920", end="01/01/2000", prop=None):
     return str_time_prop(start, end, "%m/%d/%Y", prop)
 
 
-def get_patient_df(num_patients=10):
+def get_patient_df(num_patients: int = 10) -> pd.DataFrame:
+    """create random df of patient data
+
+    Args:
+        num_patients (int, optional): Number of patients. Defaults to 10.
+
+    Returns:
+        pd.DataFrame: generated df
+    """
     patient_ids = get_patient_ids(num_patients)
     gender = random.choices(["male", "female"], k=num_patients)
     date_of_birth = [random_date() for p in range(num_patients)]
@@ -61,7 +79,15 @@ def get_patient_df(num_patients=10):
     )
 
 
-def get_haq_df(patient_df):
+def get_haq_df(patient_df: pd.DataFrame) -> pd.DataFrame:
+    """Generate random haq df from patients in patient df
+
+    Args:
+        patient_df (pd.DataFrame): patient df
+
+    Returns:
+        pd.DataFrame: haq df
+    """
     ids = random.choices(patient_df["patient_id"].values, k=len(patient_df) * 2)
     haq_values = random.choices(range(10), k=len(ids))
     uid_num = random.sample(range(4000), k=len(ids))
@@ -76,7 +102,7 @@ def get_haq_df(patient_df):
     )
 
 
-def get_visit_df(patient_df):
+def get_visit_df(patient_df: pd.DataFrame) -> pd.DataFrame:
     ids = random.choices(patient_df["patient_id"].values, k=len(patient_df) * 6)
     dates = [
         random_date(
@@ -105,7 +131,7 @@ def get_visit_df(patient_df):
     )
 
 
-def get_med_df(patient_df):
+def get_med_df(patient_df: pd.DataFrame) -> pd.DataFrame:
     mapping = {
         "methotrexate": "cSDMARD",
         "etanercept": "bDMARD",
@@ -142,7 +168,7 @@ def get_med_df(patient_df):
     )
 
 
-def get_df_dict(num_patients=10):
+def get_df_dict(num_patients: int = 10) -> dict:
     patient_df = get_patient_df(num_patients)
     haq_df = get_haq_df(patient_df)
     visit_df = get_visit_df(patient_df)
