@@ -4,16 +4,27 @@ import numpy as np
 import gc
 from scqm.custom_library.trainers.trainer import Trainer
 from scqm.custom_library.trainers.batch.batch import Batch
+from scqm.custom_library.models.model import Model
+from scqm.custom_library.data_objects.dataset import Dataset
+from scqm.custom_library.partition.partition import DataPartition
 
 
 class AutoEncoderTrainer(Trainer):
-    def __init__(self, model, dataset, n_epochs, batch_size, lr, use_early_stopping):
+    def __init__(
+        self,
+        model: Model,
+        dataset: Dataset,
+        n_epochs: int,
+        batch_size: int,
+        lr: float,
+        use_early_stopping: bool,
+    ):
         super().__init__(model, dataset, n_epochs, batch_size, lr, use_early_stopping)
         self.f1_per_epoch = torch.empty(size=(n_epochs, 1))
         self.f1_per_epoch_valid = torch.empty(size=(n_epochs, 1))
         self.criterion = torch.nn.MSELoss()
 
-    def train_model(self, model, partition, debug_patient):
+    def train_model(self, model: Model, partition: DataPartition, debug_patient):
         print(f"device {model.device}")
         # dfs and tensors
         self.dataset.move_to_device(model.device)

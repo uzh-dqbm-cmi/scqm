@@ -9,14 +9,25 @@ from scqm.custom_library.metrics.metrics import Metrics
 
 
 class MulticlassMetrics(Metrics):
+    """Metrics for multiclass classification problem"""
+
     def __init__(
         self,
-        device,
+        device: str,
         possible_classes,
         predictions=None,
         true_values=None,
         predicted_probas=None,
     ):
+        """Instantiate object
+
+        Args:
+            device (str): CPU or GPU
+            possible_classes (_type_): possible classes
+            predictions (_type_, optional): array of predictions. Defaults to None.
+            true_values (_type_, optional): array of true values. Defaults to None.
+            predicted_probas (_type_, optional): array of predicted probabilities. Defaults to None.
+        """
         super().__init__(device, predictions, true_values)
         self.possible_classes = possible_classes
         if predictions is None:
@@ -32,8 +43,12 @@ class MulticlassMetrics(Metrics):
                 predicted_probas if predicted_probas else predictions
             )
 
-    def get_metrics(self, print_metrics=False):
-        # TODO also get separate f1 for each class
+    def get_metrics(self, print_metrics: str = False):
+        """Compute multiclass metrics
+
+        Args:
+            print_metrics (str, optional): Print the result. Defaults to False.
+        """
         # macro f1
         self.returned_metric = 0
         self.fpr = np.empty(len(self.possible_classes))
@@ -93,6 +108,7 @@ class MulticlassMetrics(Metrics):
         return
 
     def get_auroc(self):
+        """compute auroc"""
         true_values_one_hot = F.one_hot(self.true_values)
         plt.figure()
         plt.plot([0, 1], [0, 1], color="navy", lw=lw, linestyle="--")

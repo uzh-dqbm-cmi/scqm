@@ -8,7 +8,21 @@ class EventDecoder(nn.Module):
     Mapps the embedding to initial features
     """
 
-    def __init__(self, input_size, output_size, num_hidden=2, hidden_size=10):
+    def __init__(
+        self,
+        input_size: int,
+        output_size: int,
+        num_hidden: int = 2,
+        hidden_size: int = 10,
+    ):
+        """Instantiate module
+
+        Args:
+            input_size (int): input size
+            output_size (int): output size
+            num_hidden (int, optional): Number of hidden layers. Defaults to 2.
+            hidden_size (int, optional): size of hidden layer. Defaults to 10.
+        """
         super(EventDecoder, self).__init__()
         self.input_size = input_size
         self.output_size = output_size
@@ -30,7 +44,7 @@ class EventDecoderFixed(nn.Module):
     Decoder with hidden sizes with deterministic decreasing number of neurons
     """
 
-    def __init__(self, input_size, output_size, num_hidden=3):
+    def __init__(self, input_size: int, output_size: int, num_hidden: int = 3):
         super(EventDecoderFixed, self).__init__()
         self.input_size = input_size
         self.output_size = output_size

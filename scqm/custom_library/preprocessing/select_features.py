@@ -1,4 +1,3 @@
-import imp
 import numpy as np
 import pandas as pd
 import copy
@@ -8,13 +7,26 @@ from scqm.custom_library.preprocessing.preprocessing import preprocessing, drop_
 
 
 def extract_adanet_features(
-    df_dict,
-    transform_meds=True,
-    das28=True,
-    only_meds=False,
-    joint_df=False,
-    real_data=True,
+    df_dict: dict,
+    transform_meds: bool = True,
+    das28: bool = True,
+    only_meds: bool = False,
+    joint_df: bool = False,
+    real_data: bool = True,
 ):
+    """Extract features for adaptive net from data
+
+    Args:
+        df_dict (dict): dictionnary of raw dfs
+        transform_meds (bool, optional): whether to transform the medications. Defaults to True.
+        das28 (bool, optional): keep only visits with das28. Defaults to True.
+        only_meds (bool, optional): keep only patients with available medications. Defaults to False.
+        joint_df (bool, optional): return an aggregated dataframe. Defaults to False.
+        real_data (bool, optional): real or dummy data. Defaults to True.
+
+    Returns:
+        _type_: dataframes with selected features
+    """
     general_df = df_dict["patients"][
         [
             "patient_id",
@@ -178,30 +190,29 @@ def extract_adanet_features(
 
 
 def extract_other_features(
-    df_dict,
-    transform_meds=True,
-    das28=True,
-    only_meds=False,
-    nan_prop=1,
+    df_dict: dict,
+    transform_meds: bool = True,
+    das28: bool = True,
+    only_meds: bool = False,
+    nan_prop: float = 1,
     events_to_keep=None,
 ):
+    """Extract features from raw dfs
+
+    Args:
+        df_dict (dict): dict of raw data
+        transform_meds (bool, optional): whether to transform the medications. Defaults to True.
+        das28 (bool, optional): keep only visits with available das28. Defaults to True.
+        only_meds (bool, optional): keep only patients with available medication. Defaults to False.
+        nan_prop (float, optional): threshold to drop columns with too many nans (between 0 and 1, 1 means dropping columns with only missing values). Defaults to 1.
+        events_to_keep (_type_, optional): _description_. Defaults to None.
+
+    Returns:
+        _type_: dataframes with extracted features
+    """
     df_dict_processed = copy.deepcopy(df_dict)
     df_dict_processed = preprocessing(df_dict_processed)  #
-    # mappings = {'medications': {}, 'healthissues': {}, 'sonarra': {}}
-    # for key in df_dict_processed.keys():
-    #     df_dict_processed[key] = get_dummies(df_dict_processed[key])
 
-    # for col in ['medication_drug', 'medication_generic_drug']:
-    #         #TODO think about whether to keep both medication_drug and medication_generic_drug
-    #     df_dict_processed['medications'][col], mappings['medications'][col] = map_category(
-    #         df_dict_processed['medications'], col)
-    # for col in ['health_issue_category_1', 'health_issue_category_2']:
-    #     df_dict_processed['healthissues'][col], mappings['healthissues'][col] = map_category(df_dict_processed['healthissues'], col)
-    # for col in ['cartilage_body_entire_metacarp__al_joint_of_little_finger_right', 'cartilage_body_entire_metacarp__eal_joint_of_index_finger_right',
-    #             'cartilage_body_entire_metacarp__eal_joint_of_little_finger_left', 'cartilage_body_entire_metacarp__geal_joint_of_index_finger_left']:
-    #     df_dict_processed['sonarra'][col], mappings['sonarra'][col] = map_category(df_dict_processed['sonarra'], col)
-    # for other_df in [socioeco_df, radai_df, haq_df]:
-    #     visits_df = visits_df.merge(other_df, how='outer', on='uid_num')
     if das28:
         # keep only visits with available das28 score
         print(

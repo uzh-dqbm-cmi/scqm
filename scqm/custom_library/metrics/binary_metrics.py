@@ -7,9 +7,19 @@ from scqm.custom_library.metrics.metrics import Metrics
 
 
 class BinaryMetrics(Metrics):
+    """Metric for binary classification"""
+
     def __init__(
-        self, device, predictions=None, true_values=None, predicted_probas=None
+        self, device: str, predictions=None, true_values=None, predicted_probas=None
     ):
+        """Instantiate object
+
+        Args:
+            device (str): CPU or GPU
+            predictions (_type_, optional): prediction array. Defaults to None.
+            true_values (_type_, optional): true values array. Defaults to None.
+            predicted_probas (_type_, optional): predicted probabilities array. Defaults to None.
+        """
         super().__init__(device, predictions, true_values)
         if predictions is None:
             self.predicted_probas = torch.empty(0, device=device)
@@ -24,7 +34,15 @@ class BinaryMetrics(Metrics):
                 predicted_probas if predicted_probas else predictions
             )
 
-    def discrete_metrics(self, print_confusion=False):
+    def discrete_metrics(self, print_confusion: bool = False):
+        """Compute TN, FN, TP, FP, sensitivity, etc.
+
+        Args:
+            print_confusion (bool, optional): print confusion matrix. Defaults to False.
+
+        Raises:
+            ArithmeticError: if shape mismatch
+        """
         self.TP = len(
             [
                 elem

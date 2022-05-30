@@ -1,4 +1,4 @@
-import numpy as np
+# complete pipeline to load, preprocess, split and save data
 
 import torch
 import pickle

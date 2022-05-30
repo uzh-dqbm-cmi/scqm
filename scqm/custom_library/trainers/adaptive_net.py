@@ -5,19 +5,33 @@ import gc
 
 from scqm.custom_library.trainers.trainer import Trainer
 from scqm.custom_library.trainers.batch.batch import Batch
+from scqm.custom_library.models.model import Model
+from scqm.custom_library.data_objects.dataset import Dataset
+from scqm.custom_library.partition.partition import DataPartition
 
 
 class AdaptivenetTrainer(Trainer):
     def __init__(
         self,
-        model,
-        dataset,
-        n_epochs,
-        batch_size,
-        lr,
-        balance_classes,
-        use_early_stopping,
+        model: Model,
+        dataset: Dataset,
+        n_epochs: int,
+        batch_size: int,
+        lr: float,
+        balance_classes: bool,
+        use_early_stopping: bool,
     ):
+        """Instanciate trainer
+
+        Args:
+            model (Model): model to train
+            dataset (Dataset): dataset
+            n_epochs (int): number of epochs
+            batch_size (int): batch size
+            lr (float): _description_
+            balance_classes (bool): for classification, whether to use weight to balance target classes
+            use_early_stopping (bool): stop when validation loss is increasing
+        """
         super().__init__(model, dataset, n_epochs, batch_size, lr, use_early_stopping)
         self.balance_classes = balance_classes
         self.f1_per_epoch = torch.empty(size=(n_epochs, 1))
@@ -31,7 +45,15 @@ class AdaptivenetTrainer(Trainer):
                 reduction="sum", weight=self.weights
             )
 
-    def get_weights(self, dataset):
+    def get_weights(self, dataset: Dataset) -> torch.tensor:
+        """Compute weights to balance classes in classification task
+
+        Args:
+            dataset (Dataset): dataset
+
+        Returns:
+            torch.tensor: weights
+        """
         if self.model.num_targets == 2:
             patients_train = dataset.a_visit_df.patient_id.isin(dataset.train_ids)
             class_0 = len(
@@ -62,7 +84,7 @@ class AdaptivenetTrainer(Trainer):
             weights = 1 / weights if self.balance_classes else None
         return weights
 
-    def train_model(self, model, partition, debug_patient):
+    def train_model(self, model: Model, partition: DataPartition, debug_patient):
         print(f"device {model.device}")
         # dfs and tensors
         self.dataset.move_to_device(model.device)

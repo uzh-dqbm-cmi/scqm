@@ -7,9 +7,12 @@ from scqm.custom_library.models.modules.encoders import EventEncoder
 from scqm.custom_library.models.modules.lstms import LstmEventSpecific
 from scqm.custom_library.models.modules.predictions import PredModule
 
+from scqm.custom_library.data_objects.dataset import Dataset
+from scqm.custom_library.trainers.batch.batch import Batch
+
 
 class Othernet(Model):
-    def __init__(self, config, device):
+    def __init__(self, config: dict, device: str):
         super().__init__(config, device)
 
         self.size_embedding = config["size_embedding"]
@@ -86,7 +89,19 @@ class Othernet(Model):
         self.p_encoder.eval()
         self.PModule.eval()
 
-    def apply_and_get_loss(self, dataset, criterion, batch):
+    def apply_and_get_loss(
+        self, dataset: Dataset, criterion: torch.nn, batch: Batch
+    ) -> torch.tensor:
+        """Apply model to batch of data and get loss
+
+        Args:
+            dataset (Dataset): dataset
+            criterion (torch.nn): loss criterion for optimizer
+            batch (Batch): batch
+
+        Returns:
+            torch.tensor: total loss divided by number of targets
+        """
         loss = 0
         encoder_outputs = {}
         # apply encoders
@@ -238,7 +253,16 @@ class Othernet(Model):
 
         return loss / num_targets
 
-    def apply(self, dataset, patient_id):
+    def apply(self, dataset: Dataset, patient_id: str):
+        """apply model to a selected
+
+        Args:
+            dataset (Dataset): dataset
+            patient_id (str): patient id
+
+        Returns:
+            _type_: _description_
+        """
         with torch.no_grad():
             # method to directly apply the model to a single patient
             patient_mask_index = dataset.mapping_for_masks[patient_id]
@@ -353,7 +377,7 @@ class Othernet(Model):
 
 
 class OthernetOptimized(Model):
-    def __init__(self, config, device):
+    def __init__(self, config: dict, device: str):
         super().__init__(config, device)
         self.task = "regression"
         self.size_embedding = config["size_embedding"]
@@ -430,7 +454,7 @@ class OthernetOptimized(Model):
         self.p_encoder.eval()
         self.PModule.eval()
 
-    def apply_and_get_loss(self, dataset, criterion, batch):
+    def apply_and_get_loss(self, dataset: Dataset, criterion: torch.nn, batch: Batch):
         loss = 0
         encoder_outputs = {}
         # apply encoders
@@ -612,7 +636,7 @@ class OthernetOptimized(Model):
 
         return loss / num_targets
 
-    def apply(self, dataset, patient_id):
+    def apply(self, dataset: Dataset, patient_id: str):
         with torch.no_grad():
             # method to directly apply the model to a single patient
             patient_mask_index = dataset.mapping_for_masks[patient_id]

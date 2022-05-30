@@ -1,3 +1,4 @@
+from typing import Tuple
 import numpy as np
 import pandas as pd
 import torch
@@ -5,16 +6,29 @@ import numpy as np
 
 from scqm.custom_library.metrics.metrics import Metrics
 from scqm.custom_library.metrics.multiclass_metrics import MulticlassMetrics
+from scqm.custom_library.data_objects.dataset import Dataset
+from scqm.custom_library.models.model import Model
+from scqm.custom_library.trainers.trainer import Trainer
 
 
 class Results:
-    # TODO implement naive baseline
-    def __init__(self, dataset, model, trainer):
+    """Base class to handle model results"""
+
+    def __init__(self, dataset: Dataset, model: Model, trainer: Trainer):
+
         self.dataset = dataset
         self.model = model
         self.trainer = trainer
 
-    def evaluate_model(self, patient_ids):
+    def evaluate_model(self, patient_ids: list) -> Tuple[pd.DataFrame, Metrics]:
+        """Apply model to patients in patient_ids
+
+        Args:
+            patient_ids (list): list of patients
+
+        Returns:
+            Tuple[pd.DataFrame, Metrics]: df with computed model predictions and metrics object for predictions
+        """
         results_df = pd.DataFrame()
         for patient in patient_ids:
             # target_values = self.dataset[patient].targets_df['das283bsr_score'][self.dataset.min_num_visits - 1:].values

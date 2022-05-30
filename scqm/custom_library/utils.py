@@ -20,7 +20,12 @@ class CPU_Unpickler(pickle.Unpickler):
     #     file = CPU_Unpickler(handle).load()
 
 
-def set_seeds(seed=0) -> None:
+def set_seeds(seed: int = 0) -> None:
+    """set all relevant seeds
+
+    Args:
+        seed (int, optional): seed. Defaults to 0.
+    """
     random.seed(seed)
     torch.manual_seed(seed)
     np.random.seed(seed)

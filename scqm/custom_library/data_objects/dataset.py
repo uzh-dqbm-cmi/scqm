@@ -12,16 +12,31 @@ from scqm.custom_library.global_vars import *
 
 
 class Dataset:
+    """
+    Dataset class
+    """
+
     def __init__(
         self,
-        device,
-        df_dict,
-        ids,
-        target_category_name,
-        event_names,
-        min_num_visits,
+        device: str,
+        df_dict: dict,
+        ids: list,
+        target_category_name: str,
+        event_names: list,
+        min_num_visits: int,
         mapping=None,
     ):
+        """Instantiate object.
+
+        Args:
+            device (str): CPU or GPU
+            df_dict (dict): Dictionnary of datframes
+            ids (list): Patient ids to keep
+            target_category_name (str): Name of categorical target
+            event_names (list): Names of possible events (e.g. visit, medication)
+            min_num_visits (int): Minimum number of visits to keep patient
+            mapping (_type_, optional): Mapping used for categorical features. Defaults to None.
+        """
         self.initial_df_dict = df_dict
         self.patient_ids = list(ids)
         self.target_category_name = target_category_name
@@ -31,14 +46,19 @@ class Dataset:
         self.instantiate_patients()
         if mapping is not None:
             self.mapping = mapping
-        # self.df_names = []
-        # for name in df_dict.keys():
-        #     name_df = str(name) + '_df'
-        #     setattr(self, name_df, df_dict[name][df_dict[name]['patient_id'].isin(ids)])
-        #     self.df_names.append(name_df)
+
         return
 
-    def get_masks(self, min_time_since_last_event=30, max_time_since_last_event=450):
+    def get_masks(
+        self, min_time_since_last_event: int = 30, max_time_since_last_event: int = 450
+    ) -> None:
+        """Get the event masks for each patient.
+
+        For each event, for each element in the timeline the corresponding mask is true if the element is of type event else false.
+        Args:
+            min_time_since_last_event (int, optional): Minimum elapsed time (in days) to predicted visit to keep event. Defaults to 30.
+            max_time_since_last_event (int, optional): Maximimum elapsed time (in days) to last event to keep visit as target. Defaults to 450.
+        """
         print(f"Getting masks....")
         self.mapping_for_masks = {
             patient: index for index, patient in enumerate(self.patient_ids)
@@ -53,6 +73,7 @@ class Dataset:
             min_time_since_last_event=min_time_since_last_event,
             max_time_since_last_event=max_time_since_last_event,
         )
+        # stratifier on number of visits
         self.stratifier = {
             num_visit: [
                 self.reverse_mapping_for_masks[patient_index]
@@ -64,6 +85,9 @@ class Dataset:
         return
 
     def instantiate_patients(self):
+        """
+        Instantiate all patient objects.
+        """
         self.patients = {
             id_: Patient(self.initial_df_dict, id_, self.event_names)
             for id_ in tqdm(self.patient_ids)
@@ -71,8 +95,12 @@ class Dataset:
 
         return
 
-    def drop(self, ids):
-        # drop specific indices from dataset
+    def drop(self, ids: list):
+        """Drop specific patients from dataset
+
+        Args:
+            ids (list): List of patient ids to drop
+        """
         if not isinstance(ids, list):
             ids = list(ids)
         for id in ids:
@@ -82,7 +110,7 @@ class Dataset:
         return
 
     def inclusion_criteria(self):
-        # keep only the patients satisfying inclusion criteria
+        """Keep only the patients satisfying the inclusion criteria."""
         with open(
             "/opt/data/processed/patients_satisfying_inclusion_criteria.pickle", "rb"
         ) as handle:
@@ -96,6 +124,9 @@ class Dataset:
         return
 
     def create_dfs(self):
+        """
+        Set the dataframes containing all the patient and event information as attribute.
+        """
         self.df_names = []
         for name in self.initial_df_dict.keys():
             name_df = str(name) + "_df"
@@ -109,19 +140,49 @@ class Dataset:
             self.df_names.append(name_df)
         return
 
-    def __len__(self):
+    def __len__(self) -> int:
+        """Number of patients in dataset.
+
+        Returns:
+            int: Number of patients in dataset
+        """
         return len(self.patient_ids)
 
-    def __getitem__(self, x):
+    def __getitem__(self, x: str) -> Patient:
+        """Retrieve a given patient
+
+        Args:
+            x (str): patient id
+
+        Returns:
+            Patient: selected patient
+        """
         return self.patients[x]
 
-    def move_to_device(self, device):
+    def move_to_device(self, device: str) -> None:
+        """Move all tensors to device
+
+        Args:
+            device (str): CPU or GPU
+        """
         for tensor_name in self.tensor_names:
             setattr(self, tensor_name, getattr(self, tensor_name).to(device))
 
         return
 
-    def split_data(self, prop_valid=0.1, prop_test=0.1, stratify=True):
+    def split_data(
+        self, prop_valid: float = 0.1, prop_test: float = 0.1, stratify: bool = True
+    ):
+        """Split the data into train, valid and test sets
+
+        Args:
+            prop_valid (float, optional): Proportion of validation set. Defaults to 0.1.
+            prop_test (float, optional): Proportion of test set. Defaults to 0.1.
+            stratify (bool, optional): Stratify on number of visits. Defaults to True.
+
+        Returns:
+            _type_: Arrays of train, valid and test ids.
+        """
         # stratify on number of visits
         if stratify:
             self.train_ids = []
@@ -172,7 +233,12 @@ class Dataset:
 
         return self.train_ids, self.valid_ids, self.test_ids
 
-    def transform_to_numeric_adanet(self, real_data=True):
+    def transform_to_numeric_adanet(self, real_data: bool = True):
+        """Create processed numeric dataframes from existing (specific to dataframes used in adaptivenet)
+
+        Args:
+            real_data (bool, optional): Real or dummy data. Defaults to True.
+        """
         for name in self.df_names:
             df = getattr(self, name)
             df_processed = df.copy()
@@ -184,8 +250,6 @@ class Dataset:
                 ).dt.days
             setattr(self, name + "_proc", df_processed)
         # specific one hot encoding
-        # self.a_visit_df_proc = pd.get_dummies(self.a_visit_df_proc, columns=[
-        #                                      '.smoker', '.morning_stiffness_duration_radai'], drop_first=True)
         if real_data:
             self.socio_df_proc = pd.get_dummies(self.socio_df_proc, columns=["smoker"])
             self.radai_df_proc = pd.get_dummies(
@@ -223,6 +287,7 @@ class Dataset:
         return
 
     def transform_to_numeric(self):
+        """Create processed numeric dataframes from existing ones and set as atributes"""
         mappings = {}
         for name in self.df_names:
             mappings[name] = {}
@@ -273,9 +338,15 @@ class Dataset:
             df[columns] = df[columns].apply(pd.to_numeric, axis=1)
         return
 
-    def scale_and_tensor(self, nan_dummies=True):
+    def scale_and_tensor(self, nan_dummies: bool = True):
+        """Scale data, create and save tensors.
+
+        Uses min max scaling.
+        Args:
+            nan_dummies (bool, optional): Replace missing values by dummy (-1). Defaults to True.
+        """
         # (x-min)/(max-min)
-        # attribute to keep track of all tensor names¨
+        # attribute to keep track of all tensor names
         self.tensor_names = []
         self.tensor_indices_mapping_train = {
             index: {name: [] for name in self.df_names} for index in self.train_ids
@@ -456,6 +527,7 @@ class Dataset:
         return
 
     def visit_count(self):
+        """Count number of visits per patient"""
         # number of available visits per patient
         max_number_visits = max([len(pat.visits) for _, pat in self.patients.items()])
         self.visit_dict = {

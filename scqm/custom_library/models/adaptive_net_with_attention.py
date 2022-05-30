@@ -4,10 +4,22 @@ from scqm.custom_library.models.model import Model
 from scqm.custom_library.models.modules.encoders import PaddedEventEncoder
 from scqm.custom_library.models.modules.lstms import LstmAllHistory
 from scqm.custom_library.models.modules.predictions import PredModule
+from scqm.custom_library.data_objects.dataset import Dataset
+from scqm.custom_library.trainers.batch.batch import Batch
 
 
 class AdaptivenetWithAttention(Model):
-    def __init__(self, config, device, modules=None):
+    """
+    Adapitve net model with attention"""
+
+    def __init__(self, config: dict, device: str, modules=None):
+        """Instantiate object
+
+        Args:
+            config (dict): model parameters
+            device (str): cpu or gpu
+            modules (_type_, optional): dict of pre-trained modules. Defaults to None.
+        """
         super().__init__(config, device)
         if modules is None:
             self.pretraining = False
@@ -56,8 +68,7 @@ class AdaptivenetWithAttention(Model):
                 requires_grad=True,
             )
         # + 1 for time to prediction
-        # self.PModule = PredModule(model_specifics['size_history'] + model_specifics['num_general_features'] +
-        #                           1, model_specifics['num_targets'], model_specifics['num_layers_pred'], model_specifics['hidden_pred'], model_specifics['dropout']).to(device)
+
         self.PModule = PredModule(
             config["size_history"] + config["size_embedding"] + 1,
             config["num_targets"],
@@ -81,6 +92,7 @@ class AdaptivenetWithAttention(Model):
                 self.parameters += list(self.encoders[name].parameters())
 
     def train(self):
+        """put model in train mode"""
         for name in self.encoders:
             self.encoders[name].train()
         self.p_encoder.train()
@@ -88,14 +100,26 @@ class AdaptivenetWithAttention(Model):
         self.PModule.train()
 
     def eval(self):
-
+        """put model in evalutation mode"""
         for name in self.encoders:
             self.encoders[name].eval()
         self.p_encoder.eval()
         self.LModule.eval()
         self.PModule.eval()
 
-    def apply_and_get_loss(self, dataset, criterion, batch):
+    def apply_and_get_loss(
+        self, dataset: Dataset, criterion: torch.nn, batch: Batch
+    ) -> torch.tensor:
+        """Apply model to batch of data and get loss
+
+        Args:
+            dataset (Dataset): dataset
+            criterion (torch.nn): loss criterion for optimizer
+            batch (Batch): batch
+
+        Returns:
+            torch.tensor: total loss normalized by number of targets
+        """
         loss = 0
         encoder_outputs = {}
         # apply encoders
@@ -246,7 +270,16 @@ class AdaptivenetWithAttention(Model):
 
         return loss / num_targets
 
-    def apply(self, dataset, patient_id):
+    def apply(self, dataset: Dataset, patient_id: str):
+        """Apply model to single patient (mainly for testing)
+
+        Args:
+            dataset (Dataset): dataset
+            patient_id (str): id of patient
+
+        Returns:
+            _type_: predictions
+        """
         with torch.no_grad():
             # method to directly apply the model to a single patient
             patient_mask_index = dataset.mapping_for_masks[patient_id]

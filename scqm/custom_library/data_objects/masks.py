@@ -1,32 +1,37 @@
 import torch
 import numpy as np
+from scqm.custom_library.data_objects.dataset import Dataset
 
 
 class Masks:
-    def __init__(self, device, indices):
+    """Masks to handle patient timelines corresponding to each event"""
+
+    def __init__(self, device: str, indices: list):
+        """Instantiate
+
+        Args:
+            device (str): CPU or GPU
+            indices (list): list of patient indices
+        """
         self.device = device
         self.indices = indices
 
     def get_masks(
         self,
-        dataset,
-        debug_patient,
-        min_time_since_last_event=30,
-        max_time_since_last_event=450,
+        dataset: Dataset,
+        debug_patient: str,
+        min_time_since_last_event: int = 30,
+        max_time_since_last_event: int = 450,
     ):
-        """_summary_
+        """Create masks for each event.
+
+        Create for each event type (e.g. medication), for each patient a boolean tensor of the size of the patient timeline. The tensor is true if the event in the timeline is of the same type and False otherwise.
 
         Args:
-            dataset (_type_): _description_
-            subset (_type_): _description_
-            min_num_visits (_type_): min number of initial visits to retrieve the information from
-        e.g. if min_num_visits = 2, for each patient we start retrieving all information
-        up to the 2nd visit, i.e. medications before 2nd visit and info about 1st visit
-        (in other words, min_num_visits is the first target visit). For each visit v >= min_num_visits, we store for each patient the number of visits and medication events
-        up to v
-
-        Returns:
-            _type_: _description_
+            dataset (Dataset): dataset
+            debug_patient (str): id of patient used for debugging
+            min_time_since_last_event (int, optional): Minimum time until target visit (in days) to keep the event. Defaults to 30.
+            max_time_since_last_event (int, optional): Maximum time (in days) since last event to keep visit as target. Defaults to 450.
         """
         # get max number of visits for a patient in subset
         self.min_time_since_last_event = min_time_since_last_event

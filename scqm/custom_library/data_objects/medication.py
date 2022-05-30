@@ -1,10 +1,20 @@
 from scqm.custom_library.data_objects.event import Event
+from scqm.custom_library.data_objects.patient import Patient
+from scqm.custom_library.data_objects.patient import Visit
 import datetime
 import pandas as pd
 
 
 class Medication(Event):
-    def __init__(self, patient_class, med_id):
+    """Medication class"""
+
+    def __init__(self, patient_class: Patient, med_id: str):
+        """Instantiate object
+
+        Args:
+            patient_class (Patient): Patient taking that medication
+            med_id (str): Unique id of medication
+        """
         super().__init__("med", med_id)
         self.patient = patient_class
         self.data = self.patient.medications_df[
@@ -24,7 +34,12 @@ class Medication(Event):
         self.flag = None
         return
 
-    def get_related_visits(self, tol=0):
+    def get_related_visits(self, tol: int = 0):
+        """Retrieve visits close to medication
+
+        Args:
+            tol (int, optional): Tolerance to find close visits (in days). Defaults to 0.
+        """
         self.visit_start = []
         self.visit_end = []
         self.visit_during = []
@@ -33,8 +48,13 @@ class Medication(Event):
             self.is_close_to_interval(visit, tol)
         return
 
-    def is_close_to_interval(self, visit_class, tol):
+    def is_close_to_interval(self, visit_class: Visit, tol: int = 0):
+        """Determine if visit is close to [start, stop] interval of medication
 
+        Args:
+            visit_class (Visit): visit to consider
+            tol (int, optional): Tolerance (in days) to consider visit close to medication. Defaults to 0.
+        """
         tol = datetime.timedelta(days=tol)
         if self.interval[0] - tol <= visit_class.date <= self.interval[0]:
             self.visit_start.append(visit_class.id)

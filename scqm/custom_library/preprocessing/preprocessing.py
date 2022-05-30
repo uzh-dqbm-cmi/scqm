@@ -11,7 +11,15 @@ import copy
 # TODO in preprocessing medication_drug_classification is sometimes missing but we know it
 
 
-def clean_dates(df_dict):
+def clean_dates(df_dict: dict) -> dict:
+    """specific date cleaning
+
+    Args:
+        df_dict (dict): dictionnary of dataframes
+
+    Returns:
+        dict: cleaned dict of dataframes
+    """
     df_dict_processed = df_dict.copy()
     # some specific outlier preprocessing :
     df_dict_processed["patients"]["date_of_birth"][
@@ -52,7 +60,15 @@ def clean_dates(df_dict):
     return df_dict_processed
 
 
-def cleaning(df_dict):
+def cleaning(df_dict: dict) -> dict:
+    """some specific cleaning for inconsistencies
+
+    Args:
+        df_dict (dict): dictionnary of dataframes
+
+    Returns:
+        dict: cleaned dataframes
+    """
     for col in ["crp", "reference_area_crp_up_to"]:
         df_dict["visits"][col] = pd.to_numeric(
             df_dict["visits"][col].apply(
@@ -70,8 +86,16 @@ def cleaning(df_dict):
     return df_dict
 
 
-# TODO check why we cant apply preprocessing twicedd
-def preprocessing(df_dict, real_data=True):
+def preprocessing(df_dict: dict, real_data: bool = True) -> dict:
+    """preprocessing for dataframes
+
+    Args:
+        df_dict (dict): dict of dataframes
+        real_data (bool, optional): Real or dummy data. Defaults to True.
+
+    Returns:
+        dict: preprocessed dict of dfs
+    """
     df_dict_processed = copy.deepcopy(df_dict)
 
     # some specific outlier preprocessing :
@@ -198,7 +222,17 @@ def preprocessing(df_dict, real_data=True):
     return df_dict_processed
 
 
-def drop_low_var(df_dict, event, thresh=0.05):
+def drop_low_var(df_dict: dict, event: str, thresh: float = 0.05) -> pd.DataFrame:
+    """Drop columns with too low variance
+
+    Args:
+        df_dict (dict): dictionnary of dataframes
+        event (str): name of dataframe
+        thresh (float, optional): Threshold of variance under which a column should be dropped. Defaults to 0.05.
+
+    Returns:
+        pd.DataFrame: df_dict[event] with the dropped columns
+    """
     to_consider = [
         col
         for col in df_dict[event].columns
@@ -215,8 +249,15 @@ def drop_low_var(df_dict, event, thresh=0.05):
     return df_dict[event].drop(columns=to_drop)
 
 
-def find_drug_categories_and_names(df):
-    """replace missing drug names and categories in df medications"""
+def find_drug_categories_and_names(df: pd.DataFrame) -> pd.DataFrame:
+    """Find missing drug categories and names in df medications
+    Args:
+        df (pd.DataFrame): medication df
+
+    Returns:
+        pd.DataFrame: completed df
+    """
+
     # TODO complete for new data
     # Reassmbly of the medication
     # Create a drug to category dictionary to impute any missing category values

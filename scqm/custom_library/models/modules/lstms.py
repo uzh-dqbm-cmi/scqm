@@ -10,7 +10,12 @@ class LstmAllHistory(nn.Module):
 
     # def __init__(self, config: Dict):
     def __init__(
-        self, input_size, device="cpu", batch_first=True, hidden_size=12, num_layers=1
+        self,
+        input_size: int,
+        device: str = "cpu",
+        batch_first: bool = True,
+        hidden_size: int = 12,
+        num_layers: int = 1,
     ):
         super(LstmAllHistory, self).__init__()
         self.device = device
@@ -51,7 +56,12 @@ class LstmEventSpecific(nn.Module):
 
     # def __init__(self, config: Dict):
     def __init__(
-        self, input_size, device="cpu", batch_first=True, hidden_size=12, num_layers=1
+        self,
+        input_size: int,
+        device: str = "cpu",
+        batch_first: bool = True,
+        hidden_size: int = 12,
+        num_layers: int = 1,
     ):
         super(LstmEventSpecific, self).__init__()
         self.device = device

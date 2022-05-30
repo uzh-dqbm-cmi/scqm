@@ -1,14 +1,22 @@
 import math
 import numpy as np
+from scqm.custom_library.data_objects.dataset import Dataset
 
 
 class DataPartition:
-    def __init__(self, dataset, k):
+    def __init__(self, dataset: Dataset, k: int = 5):
+        """Instantiate data partition object and create folds
+
+        Args:
+            dataset (Dataset): dataset
+            k (int, optional): Number of folds. Defaults to 5.
+        """
         self.dataset = dataset
         self.k = k
         self.split()
 
     def split(self):
+        """create folds"""
         # TODO implement stratifier (on the targets)
         # split data into train and test (no valid)
         self.train_ids, self.valid_ids, self.test_ids = self.dataset.split_data(
@@ -35,5 +43,10 @@ class DataPartition:
             for train_fold in range(self.k)
         }
 
-    def set_current_fold(self, k):
+    def set_current_fold(self, k: int):
+        """Keep track of current fold
+
+        Args:
+            k (int): current fold
+        """
         self.current_fold = k

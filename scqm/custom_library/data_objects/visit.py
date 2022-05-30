@@ -1,8 +1,25 @@
 from scqm.custom_library.data_objects.event import Event
+from scqm.custom_library.data_objects.patient import Patient
 
 
 class Visit(Event):
-    def __init__(self, patient_class, visit_id, date, target="das283bsr_score"):
+    """Visit class"""
+
+    def __init__(
+        self,
+        patient_class: Patient,
+        visit_id: str,
+        date: str,
+        target: str = "das283bsr_score",
+    ):
+        """Instantiate a given visit object
+
+        Args:
+            patient_class (Patient): Corresponding patient object
+            visit_id (str): Unique visit identifier
+            date (str): date of visit
+            target (str, optional): Feature to be used as target. Defaults to "das283bsr_score".
+        """
         super().__init__("a_visit", visit_id)
         self.patient = patient_class
         self.date = date

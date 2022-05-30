@@ -8,7 +8,14 @@ class EventEncoder(nn.Module):
     Event encoder to fixed size embedding
     """
 
-    def __init__(self, num_features, size_out, num_hidden=2, hidden_size=10, p=0):
+    def __init__(
+        self,
+        num_features: int,
+        size_out: int,
+        num_hidden: int = 2,
+        hidden_size: int = 10,
+        p: float = 0,
+    ):
         super(EventEncoder, self).__init__()
         self.size_embedding = size_out
         self.input_layer = nn.Linear(num_features, hidden_size)
@@ -33,7 +40,13 @@ class PaddedEventEncoder(nn.Module):
     """
 
     def __init__(
-        self, num_features, size_out, size_embedding, num_hidden=2, hidden_size=10, p=0
+        self,
+        num_features: int,
+        size_out: int,
+        size_embedding: int,
+        num_hidden: int = 2,
+        hidden_size: int = 10,
+        p: float = 0,
     ):
         super(PaddedEventEncoder, self).__init__()
         self.size_embedding = size_embedding
@@ -59,7 +72,14 @@ class PaddedEncoderFixed(nn.Module):
     visit encoder
     """
 
-    def __init__(self, num_features, size_out, size_padding, num_hidden=3, p=0):
+    def __init__(
+        self,
+        num_features: int,
+        size_out: int,
+        size_padding: int,
+        num_hidden: int = 3,
+        p: float = 0,
+    ):
         super(PaddedEncoderFixed, self).__init__()
         self.size_embedding = size_padding
         self.size_out = size_out

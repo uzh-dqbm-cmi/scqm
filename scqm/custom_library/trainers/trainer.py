@@ -3,10 +3,24 @@ import timeit
 import matplotlib.pyplot as plt
 import numpy as np
 
+from scqm.custom_library.models.model import Model
+from scqm.custom_library.data_objects.dataset import Dataset
+from scqm.custom_library.trainers.batch.batch import Batch
+
 
 class Trainer:
+    """Base trainer object class"""
+
     # TODO change dependencies, pass e.g. n_epochs as param to train
-    def __init__(self, model, dataset, n_epochs, batch_size, lr, use_early_stopping):
+    def __init__(
+        self,
+        model: Model,
+        dataset: Dataset,
+        n_epochs: int,
+        batch_size: int,
+        lr: float,
+        use_early_stopping: bool,
+    ):
         self.dataset = dataset
         self.n_epochs = n_epochs
         self.model = model
@@ -29,6 +43,7 @@ class Trainer:
         #     self.criterion = torch.nn.BCEWithLogitsLoss(reduction='sum')
 
     def check_early_stopping(self):
+        """check if validation loss is increasing"""
         # TODO check that and implement something like https://github.com/Bjarten/early-stopping-pytorch/blob/master/pytorchtools.py
         if (
             self.current_epoch > 35
@@ -49,7 +64,12 @@ class Trainer:
             ]
             print("early stopping because validation loss is increasing")
 
-    def update_epoch_and_indices(self, batch):
+    def update_epoch_and_indices(self, batch: Batch):
+        """Update available indices and epoch if a pass has been made through all the data
+
+        Args:
+            batch (Batch): current batch
+        """
         # remove batch indices from available indices (since one epoch is one pass through whole data set)
         batch.available_indices = np.array(
             [x for x in batch.available_indices if x not in batch.current_indices]

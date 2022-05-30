@@ -1,17 +1,43 @@
 import numpy as np
+from pandas import array
+
+from scqm.custom_library.data_objects.dataset import Dataset
 
 
 class Batch:
-    def __init__(self, device, all_indices, available_indices, current_indices=None):
+    """Base batch class for adaptivenet"""
+
+    def __init__(
+        self,
+        device: str,
+        all_indices: array,
+        available_indices: array,
+        current_indices=None,
+    ):
+        """Instanciate obkect
+
+        Args:
+            device (str): device
+            all_indices (array): all patient indices to consider
+            available_indices (array): available indices for epoch
+            current_indices (_type_, optional): currrent batch indices. Defaults to None.
+        """
         self.device = device
         self.all_indices = all_indices
         self.available_indices = available_indices
         self.current_indices = current_indices
 
-    def get_batch(self, dataset, batch_size=None, debug_patient=None):
-        """First, selects a batch of patients from the available indices for this epoch and the corresponding tensor (visits/medications/
-        patient) slices. Then for each visit v, for each patient of the batch, create a mask to combine the visits/medication events coming before v in the right order.
+    def get_batch(self, dataset: Dataset, batch_size=None, debug_patient=None):
+        """
+        Select batch of patients from available indices
 
+        Args:
+            dataset (Dataset): dataset
+            batch_size (_type_, optional): Number of patients per batch. Defaults to None.
+            debug_patient (_type_, optional): ID of patient for debugging. Defaults to None.
+
+        Raises:
+            ValueError: if some patients in visits dont correspond to patients in targets (and vice versa)
         """
         # during training, only select subset of available indices
         if batch_size:
@@ -41,20 +67,12 @@ class Batch:
 
         return
 
-    def get_masks(self, dataset, debug_patient):
-        """_summary_
+    def get_masks(self, dataset: Dataset, debug_patient):
+        """Get event masks for patients in batch
 
         Args:
-            dataset (_type_): _description_
-            subset (_type_): _description_
-            min_num_visits (_type_): min number of initial visits to retrieve the information from
-        e.g. if min_num_visits = 2, for each patient we start retrieving all information
-        up to the 2nd visit, i.e. medications before 2nd visit and info about 1st visit
-        (in other words, min_num_visits is the first target visit). For each visit v >= min_num_visits, we store for each patient the number of visits and medication events
-        up to v
-
-        Returns:
-            _type_: _description_
+            dataset (Dataset): dataset
+            debug_patient (_type_): ID of patient for debugging
         """
 
         indices_mapping = [

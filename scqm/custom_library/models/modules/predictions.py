@@ -5,7 +5,14 @@ import torch.nn.functional as F
 class PredModule(nn.Module):
     """Module to perform final prediction"""
 
-    def __init__(self, input_size, output_size, num_hidden=2, hidden_size=10, p=0):
+    def __init__(
+        self,
+        input_size: int,
+        output_size: int,
+        num_hidden: int = 2,
+        hidden_size: int = 10,
+        p: float = 0,
+    ):
         super(PredModule, self).__init__()
         self.input_layer = nn.Linear(input_size, hidden_size)
         self.linears = nn.ModuleList(

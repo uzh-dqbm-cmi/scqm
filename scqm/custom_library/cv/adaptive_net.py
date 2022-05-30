@@ -12,7 +12,30 @@ from scqm.custom_library.trainers.adaptive_net import AdaptivenetTrainer
 
 
 class CVAdaptivenet(CV):
-    def perform_cv(self, fold, n_epochs=400, search="random", num_combi=1):
+    """
+    Cross validation specific to adaptive net and similar models.
+    """
+
+    def __init__(self, dataset, k: int):
+        """Instantiate object
+
+        Args:
+            dataset (Dataset): dataset
+            k (int): Number of folds
+        """
+        super().__init__(dataset, k)
+
+    def perform_cv(
+        self, fold: int, n_epochs: int = 400, search: str = "random", num_combi: int = 1
+    ) -> None:
+        """Perform a CV on a given fold, and save trained model.
+
+        Args:
+            fold (int): Fold on which to perform cv.
+            n_epochs (int, optional): Number of training epochs. Defaults to 400.
+            search (str, optional): Type of search; random or grid. Defaults to "random".
+            num_combi (int, optional): Number of combinations to try out if search is random. Defaults to 1.
+        """
         combinations = list(itertools.product(*self.parameters.values()))
         self.partition.set_current_fold(fold)
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

@@ -1,8 +1,19 @@
 import numpy as np
 import pandas as pd
+from typing import Tuple
 
 
-def map_category(df, column):
+def map_category(df: pd.DataFrame, column: str) -> Tuple[pd.Series, dict]:
+    """Map pandas series with categoris (as strings) to integer categories
+    (only to be used when one hot encoding is not convenient)
+
+    Args:
+        df (pd.DataFrame): initial df
+        column (str): column to convert
+
+    Returns:
+        Tuple[pd.Series, dict]: transformed series and dictionnary with mapping
+    """
     mapping = {
         key: value for value, key in enumerate(sorted(df[column].dropna().unique()))
     }
@@ -10,7 +21,16 @@ def map_category(df, column):
     return new_column, mapping
 
 
-def das28_increase(df):
+def das28_increase(df: pd.DataFrame) -> pd.DataFrame:
+    """Find increasing or decreasing das28 values with respect to previous visit.
+
+    Compute additional column with 0 if the das28 value is stable since last visit (i.e. delta das28 <= 1.2, 1 if there is an increase and 2 if there is a decrease)
+    Args:
+        df (pd.DataFrame): dataframe with das28 values
+
+    Returns:
+        pd.DataFrame: df with additional column.
+    """
     # 0 if stable (i.e. delta das28 <= 1.2, 1 if increase else 2 if decrease)
     df["das28_increase"] = [
         np.nan
@@ -28,7 +48,15 @@ def das28_increase(df):
     return df
 
 
-def get_dummies(df):
+def get_dummies(df: pd.DataFrame) -> pd.DataFrame:
+    """Change categorical columns of df to one-hot encoding
+
+    Args:
+        df (pd.DataFrame): df to convert
+
+    Returns:
+        pd.DataFrame: modified df with one-hot encoded columns
+    """
     columns = [
         col
         for col in df.columns

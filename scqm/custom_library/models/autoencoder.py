@@ -5,41 +5,51 @@ from scqm.custom_library.models.modules.encoders import PaddedEncoderFixed
 from scqm.custom_library.models.modules.decoders import PaddedDecoderFixed
 from scqm.custom_library.models.modules.lstms import LstmAllHistory
 from scqm.custom_library.models.modules.predictions import PredModule
+from scqm.custom_library.data_objects.dataset import Dataset
+from scqm.custom_library.trainers.batch.batch import Batch
 
 
 class AutoEncoder(Model):
-    def __init__(self, model_specifics, device):
+    """ " Autoencoder for feature representation learning"""
+
+    def __init__(self, config: dict, device: str):
+        """instantiate model
+
+        Args:
+            config (dict): model parameters
+            device (str): device
+        """
         super().__init__(device)
-        self.size_embedding = model_specifics["size_embedding"]
+        self.size_embedding = config["size_embedding"]
         self.encoders = {
             name: PaddedEncoderFixed(
-                model_specifics[name]["num_features"],
-                model_specifics[name]["size_out"],
-                model_specifics["size_embedding"],
-                model_specifics["num_layers_enc"],
-                model_specifics["dropout"],
+                config[name]["num_features"],
+                config[name]["size_out"],
+                config["size_embedding"],
+                config["num_layers_enc"],
+                config["dropout"],
             ).to(device)
-            for name in model_specifics["event_names"]
+            for name in config["event_names"]
         }
         self.decoders = {
             name: PaddedDecoderFixed(
-                model_specifics["size_embedding"],
-                model_specifics[name]["num_features"],
-                model_specifics["num_layers_enc"],
+                config["size_embedding"],
+                config[name]["num_features"],
+                config["num_layers_enc"],
             ).to(device)
-            for name in model_specifics["event_names"]
+            for name in config["event_names"]
         }
         self.p_encoder = PaddedDecoderFixed(
-            model_specifics["patients"]["num_features"],
-            model_specifics["patients"]["size_out"],
-            model_specifics["size_embedding"],
-            model_specifics["num_layers_enc"],
-            model_specifics["dropout"],
+            config["patients"]["num_features"],
+            config["patients"]["size_out"],
+            config["size_embedding"],
+            config["num_layers_enc"],
+            config["dropout"],
         ).to(device)
         self.p_decoder = PaddedDecoderFixed(
-            model_specifics["size_embedding"],
-            model_specifics["patients"]["num_features"],
-            model_specifics["num_layers_enc"],
+            config["size_embedding"],
+            config["patients"]["num_features"],
+            config["num_layers_enc"],
         ).to(device)
 
         self.parameters = list(self.p_encoder.parameters()) + list(
@@ -51,7 +61,7 @@ class AutoEncoder(Model):
             self.parameters += list(self.decoders[name].parameters())
 
     def train(self):
-
+        """put model in train mode"""
         for name in self.encoders:
             self.encoders[name].train()
             self.decoders[name].train()
@@ -59,13 +69,24 @@ class AutoEncoder(Model):
         self.p_decoder.train()
 
     def eval(self):
+        """put model in evaluation mode"""
         for name in self.encoders:
             self.encoders[name].eval()
             self.decoders[name].eval()
         self.p_encoder.eval()
         self.p_decoder.eval()
 
-    def apply_and_get_loss(self, dataset, criterion, batch):
+    def apply_and_get_loss(self, dataset: Dataset, criterion: torch.nn, batch: Batch):
+        """apply model to batch of data and get loss
+
+        Args:
+            dataset (Dataset): dataset
+            criterion (torch.nn): loss criterion
+            batch (Batch): batch
+
+        Returns:
+            _type_: loss
+        """
         encoder_outputs = {}
         decoder_outputs = {}
         all_losses = {}

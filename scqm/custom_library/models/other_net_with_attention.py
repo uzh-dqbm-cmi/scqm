@@ -8,8 +8,12 @@ from scqm.custom_library.models.modules.lstms import LstmEventSpecific
 from scqm.custom_library.models.modules.predictions import PredModule
 
 
+from scqm.custom_library.data_objects.dataset import Dataset
+from scqm.custom_library.trainers.batch.batch import Batch
+
+
 class OthernetOptimizedWithAttention(Model):
-    def __init__(self, config, device):
+    def __init__(self, config: dict, device: str):
         super().__init__(config, device)
         self.task = "regression"
         self.size_embedding = config["size_embedding"]
@@ -93,7 +97,7 @@ class OthernetOptimizedWithAttention(Model):
         self.p_encoder.eval()
         self.PModule.eval()
 
-    def apply_and_get_loss(self, dataset, criterion, batch):
+    def apply_and_get_loss(self, dataset: Dataset, criterion: torch.nn, batch: Batch):
         loss = 0
         encoder_outputs = {}
         # apply encoders
@@ -217,6 +221,7 @@ class OthernetOptimizedWithAttention(Model):
             )
 
             for index, event in enumerate(dataset.event_names):
+                # patients with visit to predict and available event
                 patients = torch.nonzero(batch.seq_lengths[v][:, index]).flatten()
                 patients = [
                     elem.item()
@@ -224,8 +229,6 @@ class OthernetOptimizedWithAttention(Model):
                     if batch.available_visit_mask[elem, v]
                 ]
                 if len(patients) > 0:
-                    # "preprocessing" to apply lstm
-                    # padded_sequence = torch.nn.utils.rnn.pad_sequence(combined[event][batch.available_visit_mask[:, v]], batch_first=self.batch_first)
                     # compute the lengths of the sequences for each patient with available visit v
                     lengths = batch.seq_lengths[v, patients, index].cpu()
 
@@ -278,7 +281,7 @@ class OthernetOptimizedWithAttention(Model):
 
         return loss / num_targets
 
-    def apply(self, dataset, patient_id):
+    def apply(self, dataset: Dataset, patient_id: str):
         with torch.no_grad():
             # method to directly apply the model to a single patient
             patient_mask_index = dataset.mapping_for_masks[patient_id]

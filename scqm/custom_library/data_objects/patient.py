@@ -7,8 +7,16 @@ import pandas as pd
 
 
 class Patient(DataObject):
-    # TODO be coherent with sorting (also other dfs)
-    def __init__(self, df_dict, patient_id, event_names):
+    """Patient class"""
+
+    def __init__(self, df_dict: dict, patient_id: str, event_names: list):
+        """Instantiate a given patient
+
+        Args:
+            df_dict (dict): dictionnary of available dataframes
+            patient_id (str): Unique id of patient
+            event_names (list): possible events (e.g. visit, medication, ...)
+        """
         super().__init__(df_dict, patient_id)
         self.id = patient_id
         self.visits = self.get_visits()
@@ -19,7 +27,12 @@ class Patient(DataObject):
         self.visits_to_predict = self.visits
         return
 
-    def get_visits(self):
+    def get_visits(self) -> list:
+        """Create visit objects realted to that patient
+
+        Returns:
+            list: visit objects
+        """
         self.visits_df = self.a_visit_df.sort_values(by="date", axis=0)
         self.visit_ids = self.visits_df["uid_num"].values
         self.visit_dates = self.visits_df["date"].values
@@ -29,7 +42,12 @@ class Patient(DataObject):
             visits.append(Visit(self, id_, date))
         return visits
 
-    def get_medications(self):
+    def get_medications(self) -> list:
+        """Create medication objects related to that patient
+
+        Returns:
+            list: medication objects
+        """
         self.medications_df = self.med_df.sort_values(by="date", axis=0)
         self.med_ids = self.medications_df["med_id"].unique()
         # total number of medication events counting all the available start and end dates
@@ -42,7 +60,12 @@ class Patient(DataObject):
             self.med_intervals.append(m.interval)
         return meds
 
-    def get_other_events(self):
+    def get_other_events(self) -> list:
+        """Create other events related to that patient
+
+        Returns:
+            list: event objects
+        """
         other_events = []
         events = [name for name in self.event_names if name not in ["a_visit", "med"]]
         for name in events:
@@ -58,7 +81,12 @@ class Patient(DataObject):
                     other_events.append(Event(name, date=df.loc[index, "date"]))
         return other_events
 
-    def get_timeline(self):
+    def get_timeline(self) -> list:
+        """Compute timeline of patient
+
+        Returns:
+            list: of ordered events
+        """
         # get sorted dates of events
         visit_event_list = [
             (self.visit_dates[index], "a_visit", self.visit_ids[index])
@@ -104,8 +132,24 @@ class Patient(DataObject):
         return all_events
 
     def get_cropped_timeline(
-        self, n=1, min_time_since_last_event=0, max_time_since_last_event=600
+        self,
+        n: int = 1,
+        min_time_since_last_event: int = 30,
+        max_time_since_last_event: int = 450,
     ):
+        """Get cropped timeline up to a given visit.
+
+        Args:
+            n (int, optional): Number of visits up to which to retrieve timeline. Defaults to 1.
+            min_time_since_last_event (int, optional): Minimum time (in days) to target visit to keep event. Defaults to 30.
+            max_time_since_last_event (int, optional): Maximum time (in days) since last event to keep visit as target. Defaults to 450.
+
+        Raises:
+            ValueError: _description_
+
+        Returns:
+            _type_: _description_
+        """
         if n > len(self.visits):
             raise ValueError("n bigger than number of visits")
         # get all events up to n-th visit
@@ -132,11 +176,7 @@ class Patient(DataObject):
                 num_of_each_event[index_of_event] += 1
                 index += 1
             time_to_next = (date_nth_visit - self.timeline[index - 1][0]).days
-            #         #remove last visit
-            #         cropped_timeline = cropped_timeline[:-1]
-            #         num_of_each_event[index_of_visit] -= 1
-            # cropped_timeline_mask = [(event[1], event[2])
-            #                          for event in cropped_timeline]
+
             cropped_timeline_mask = [
                 (event[1], event[2])
                 if event[1] not in ["med_s", "med_e"]

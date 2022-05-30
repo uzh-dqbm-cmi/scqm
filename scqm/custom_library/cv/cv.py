@@ -1,18 +1,32 @@
 from abc import ABC, abstractmethod
-import imp
 
 from scqm.custom_library.utils import set_seeds
 from scqm.custom_library.partition.partition import DataPartition
 
 
 class CV(ABC):
-    def __init__(self, dataset, k):
+    """
+    Base cross validation object. Create partition on data.
+    """
+
+    def __init__(self, dataset, k: int = 5) -> None:
+        """Init method. Create the partition on the data.
+
+        Args:
+            dataset (Dataset): dataset
+            k (int): Number of folds
+        """
         set_seeds(0)
         self.dataset = dataset
         self.k = k
         self.partition = DataPartition(self.dataset, k=self.k)
 
-    def set_grid(self, parameters: dict):
+    def set_grid(self, parameters: dict) -> None:
+        """Save grid parameters
+
+        Args:
+            parameters (dict): parameters
+        """
         self.parameter_names = list(parameters.keys())
         self.parameters = parameters
 
