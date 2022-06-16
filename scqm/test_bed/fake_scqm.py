@@ -102,6 +102,27 @@ def get_haq_df(patient_df: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+def get_basdai_df(patient_df: pd.DataFrame) -> pd.DataFrame:
+    """Generate random basdai df from patients in patient df
+
+    Args:
+        patient_df (pd.DataFrame): patient df
+
+    Returns:
+        pd.DataFrame: haq df
+    """
+    ids = random.choices(patient_df["patient_id"].values, k=len(patient_df) * 2)
+    basdai_values = random.choices(range(10), k=len(ids))
+    dates = [
+        random_date(
+            start=patient_df[patient_df.patient_id == patient_id].date_of_birth.item()
+        )
+        for patient_id in ids
+    ]
+    return pd.DataFrame(
+        {"patient_id": ids, "date": dates, "basdai_score": basdai_values}
+    )
+
 def get_visit_df(patient_df: pd.DataFrame) -> pd.DataFrame:
     ids = random.choices(patient_df["patient_id"].values, k=len(patient_df) * 6)
     dates = [
@@ -113,6 +134,7 @@ def get_visit_df(patient_df: pd.DataFrame) -> pd.DataFrame:
     uid_num = random.sample(range(4000), k=len(ids))
     uid_num = [str(elem) for elem in uid_num]
     das283_bsr = random.choices(range(6), k=len(ids))
+    das283_bsr = drop_values(das283_bsr, nan_prop=0.5)
     weight_kg = random.choices(range(40, 200), k=len(ids))
     return pd.DataFrame(
         {
@@ -129,7 +151,18 @@ def get_visit_df(patient_df: pd.DataFrame) -> pd.DataFrame:
             "crp": np.nan,
         }
     )
+def drop_values(list_:list, nan_prop: float) -> list:
+    """randomly replace some elements of the list with nans
 
+    Args:
+        list_ (list): initial list of values
+        nan_prop (np.float): proportion of element to be replaced
+    """
+    list_with_nan = list_.copy()
+    indices_to_drop = np.random.choice(range(len(list_)), size = int(nan_prop*len(list_)), replace = False)
+    for index in indices_to_drop:
+        list_with_nan[index] = np.nan
+    return list_with_nan
 
 def get_med_df(patient_df: pd.DataFrame) -> pd.DataFrame:
     mapping = {
@@ -173,11 +206,13 @@ def get_df_dict(num_patients: int = 10) -> dict:
     haq_df = get_haq_df(patient_df)
     visit_df = get_visit_df(patient_df)
     med_df = get_med_df(patient_df)
+    basdai_df = get_basdai_df(patient_df)
     df_dict = {
         "patients": patient_df,
         "visits": visit_df,
         "haq": haq_df,
         "medications": med_df,
+        "basdai" : basdai_df
     }
     return df_dict
 
@@ -195,11 +230,12 @@ if __name__ == "__main__":
         "drug_category",
     ]
     columns_haq = ["patient_id", "date", "haq"]
-
+    columns_basdai = ["patient_id", "date", "basdai_score"]
     patient_df = get_patient_df(100)
     haq_df = get_haq_df(patient_df)
     visit_df = get_visit_df(patient_df)
     med_df = get_med_df(patient_df)
+    basdai_df = get_basdai_df(patient_df)
 
     save = True
     if save:
@@ -207,4 +243,5 @@ if __name__ == "__main__":
         haq_df.to_csv("scqm/test_bed/dummy_data/haq.csv", index=False)
         visit_df.to_csv("scqm/test_bed/dummy_data/visits.csv", index=False)
         med_df.to_csv("scqm/test_bed/dummy_data/medications.csv", index=False)
+        basdai_df.to_csv("scqm/test_bed/dummy_data/basdai.csv", index=False)
     print("End of file")

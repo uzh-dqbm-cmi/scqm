@@ -13,7 +13,7 @@ conf/**/*credentials*
 notebooks/
 data/
 scqm/test_bed/dummy_data/
-
+scqm/test_bed/tmp.py
 # except their sub-folders
 !data/**/
 !logs/**/
