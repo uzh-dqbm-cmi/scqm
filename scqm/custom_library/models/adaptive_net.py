@@ -253,6 +253,10 @@ class Adaptivenet(Model):
             if debug_index_target != None:
                 # print(out)
                 print(f"prediction {out[debug_index_target]}")
+        if num_targets == 0:
+            print(f"num_targets is 0")
+            compute_grad = False
+            return compute_grad
 
         return loss / num_targets
 

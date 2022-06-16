@@ -7,8 +7,45 @@ import re
 from datetime import datetime
 import pickle
 import copy
+from scqm.custom_library.global_vars import REFERENCE_DATE
 
 # TODO in preprocessing medication_drug_classification is sometimes missing but we know it
+
+
+def preprocess_haq(df):
+    mapping = {
+        "without_difficulty": 0,
+        "with_little_difficulty": 1,
+        "with_great_difficulty": 2,
+        "impossible": 3,
+    }
+
+    return df.replace(to_replace=mapping)
+
+
+def preprocess_sf12(df):
+    mapping = {
+        "no_not_limited_at_all": 0,
+        "yes_limited_a_little": 1,
+        "yes_limited_a_lot": 2,
+        "never": 0,
+        "seldom": 1,
+        "sometimes": 2,
+        "quite_often": 3,
+        "most_of_the_time": 4,
+        "all_the_time": 5,
+        "excellent": 0,
+        "very_good": 1,
+        "good": 2,
+        "less_good": 3,
+        "bad": 4,
+        "not_at_all": 0,
+        "a_little_bit": 1,
+        "moderately": 2,
+        "quite_a_bit": 3,
+        "extremely": 4,
+    }
+    return df.replace(to_replace=mapping)
 
 
 def clean_dates(df_dict: dict) -> dict:
@@ -132,6 +169,14 @@ def preprocessing(df_dict: dict, real_data: bool = True) -> dict:
     df_dict_processed["haq"] = df_dict_processed["haq"][
         df_dict_processed["haq"]["date"] > np.datetime64("1951-01-01")
     ]
+    df_dict_processed["haq"] = preprocess_haq(df_dict_processed["haq"])
+    df_dict_processed["sf_12"] = preprocess_sf12(df_dict_processed["sf_12"])
+    # errors in vistits_df
+    df_dict_processed["visits"].loc[
+        df_dict_processed["visits"]["date"]
+        > datetime.strptime(REFERENCE_DATE, "%d/%m/%Y"),
+        "date",
+    ] -= np.timedelta64(1, "Y")
     # manually change date names in other dfs
     df_dict_processed["ratingenscore"] = df_dict_processed["ratingenscore"].rename(
         columns={"imaging_score_scoring_date": "date"}

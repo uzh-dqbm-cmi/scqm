@@ -10,7 +10,7 @@ from scqm.custom_library.data_objects.dataset import Dataset
 from scqm.custom_library.partition.partition import DataPartition
 
 
-class AdaptivenetTrainer(Trainer):
+class MultilossTrainer(Trainer):
     def __init__(
         self,
         model: Model,
@@ -36,14 +36,15 @@ class AdaptivenetTrainer(Trainer):
         self.balance_classes = balance_classes
         self.f1_per_epoch = torch.empty(size=(n_epochs, 1))
         self.f1_per_epoch_valid = torch.empty(size=(n_epochs, 1))
-        if model.task == "regression":
-            self.criterion = torch.nn.MSELoss(reduction="sum")
-        else:
-            self.weights = self.get_weights(self.dataset)
-            # self.criterion = torch.nn.BCEWithLogitsLoss(reduction='sum', pos_weight=self.weights)
-            self.criterion = torch.nn.CrossEntropyLoss(
-                reduction="sum", weight=self.weights
-            )
+
+        self.criterion_reg = torch.nn.MSELoss(reduction="sum")
+        self.criterion_class = torch.nn.BCEWithLogitsLoss(reduction="sum")
+
+        self.loss_per_epoch_reg = torch.empty(size=(n_epochs, 1))
+        self.loss_per_epoch_reg_valid = torch.empty(size=(n_epochs, 1))
+
+        self.loss_per_epoch_class = torch.empty(size=(n_epochs, 1))
+        self.loss_per_epoch_class_valid = torch.empty(size=(n_epochs, 1))
 
     def get_weights(self, dataset: Dataset) -> torch.tensor:
         """Compute weights to balance classes in classification task
@@ -133,29 +134,43 @@ class AdaptivenetTrainer(Trainer):
             batch.get_masks(self.dataset, debug_patient)
             self.update_epoch_and_indices(batch)
 
-            self.loss = model.apply_and_get_loss(self.dataset, self.criterion, batch)
+            self.loss_reg, self.loss_class = model.apply_and_get_loss(
+                self.dataset, self.criterion_reg, self.criterion_class, batch
+            )
 
-            if self.loss:
+            if self.loss_reg:
                 # take optimizer step once loss wrt all visits has been computed
                 self.optimizer.zero_grad()
 
-                self.loss.backward()
+                (self.loss_reg + self.loss_class).backward()
                 self.optimizer.step()
 
             # store loss and evaluate on validation data
             if len(batch.available_indices) == len(batch.all_indices):
                 with torch.no_grad():
-                    self.loss_per_epoch[self.current_epoch - 1] = self.loss
+                    self.loss_per_epoch_reg[self.current_epoch - 1] = self.loss_reg
+                    self.loss_per_epoch_class[self.current_epoch - 1] = self.loss_class
 
                     model.eval()
                     # if model.task == 'classification':
                     #     metrics_val = MulticlassMetrics(device=model.device, possible_classes=torch.tensor([0,1,2], device = model.device))
                     # else:
                     #     metrics_val = Metrics(device=model.device)
-                    self.loss_valid = model.apply_and_get_loss(
-                        self.dataset, self.criterion, batch_valid
+                    (
+                        self.loss_reg_valid,
+                        self.loss_class_valid,
+                    ) = model.apply_and_get_loss(
+                        self.dataset,
+                        self.criterion_reg,
+                        self.criterion_class,
+                        batch_valid,
                     )
-                    self.loss_per_epoch_valid[self.current_epoch - 1] = self.loss_valid
+                    self.loss_per_epoch_reg_valid[
+                        self.current_epoch - 1
+                    ] = self.loss_reg_valid
+                    self.loss_per_epoch_class_valid[
+                        self.current_epoch - 1
+                    ] = self.loss_class_valid
                     # metrics.get_metrics()
                     # f1 = metrics.returned_metric
                     # self.f1_per_epoch[self.current_epoch - 1] = f1
@@ -166,7 +181,8 @@ class AdaptivenetTrainer(Trainer):
                     #     f'epoch : {self.current_epoch} loss {self.loss} loss_valid {self.loss_valid} f1 {f1} f1_valid {f1_val}')
                     # re-initialize metrics for new epoch
                     print(
-                        f"epoch : {self.current_epoch} loss {self.loss} loss_valid {self.loss_valid}"
+                        f"epoch : {self.current_epoch} loss reg {self.loss_reg} loss_valid {self.loss_reg_valid}"
+                        f" loss class {self.loss_class} loss valid {self.loss_class_valid}"
                     )
                     # if model.task == 'classification':
                     #     metrics = MulticlassMetrics(

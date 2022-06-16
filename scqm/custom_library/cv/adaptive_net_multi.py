@@ -75,9 +75,6 @@ class CVAdaptivenet(CV):
             p,
             bal,
         ) in enumerate(combinations):
-            # # to save
-            path = "/cluster/home/ctrottet/runs/scqm/" + time.strftime("%Y%m%d-%H%M")
-            os.mkdir(path)
 
             print(f"{ind} combination out of {len(combinations)}")
             print(
@@ -124,9 +121,3 @@ class CVAdaptivenet(CV):
             # TODO re-check
             gc.collect()
             trainer.train_model(model, self.partition, debug_patient=False)
-            # for memory
-            delattr(trainer, "dataset")
-            with open(path + "/params.pkl", "wb") as f:
-                pickle.dump(model_specifics, f)
-            with open(path + "/trainer.pkl", "wb") as f:
-                pickle.dump(trainer, f)

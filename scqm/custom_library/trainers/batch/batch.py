@@ -87,6 +87,7 @@ class Batch:
                 list(getattr(dataset.masks, name)[i] for i in indices_mapping),
             )
         self.available_visit_mask = dataset.masks.available_visit_mask[indices_mapping]
+        self.target_categories = dataset.masks.target_category[indices_mapping]
         self.total_num = dataset.masks.total_num[indices_mapping]
         self.max_num_visits = max(
             list(dataset.masks.num_visits[i] for i in indices_mapping)

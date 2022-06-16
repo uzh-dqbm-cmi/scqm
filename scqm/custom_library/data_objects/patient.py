@@ -1,3 +1,4 @@
+import numpy as np
 from scqm.custom_library.data_objects.data_object import DataObject
 from scqm.custom_library.data_objects.visit import Visit
 from scqm.custom_library.data_objects.medication import Medication
@@ -24,6 +25,7 @@ class Patient(DataObject):
         self.event_names = event_names
         self.other_events = self.get_other_events()
         self.timeline = self.get_timeline()
+        # TODO remove first visit from visits to predict
         self.visits_to_predict = self.visits
         return
 
@@ -134,7 +136,7 @@ class Patient(DataObject):
     def get_cropped_timeline(
         self,
         n: int = 1,
-        min_time_since_last_event: int = 30,
+        min_time_since_last_event: int = 15,
         max_time_since_last_event: int = 450,
     ):
         """Get cropped timeline up to a given visit.
@@ -155,11 +157,15 @@ class Patient(DataObject):
         # get all events up to n-th visit
         else:
             cropped_timeline = []
-            num_of_each_event = torch.zeros(size=(len(self.event_names),))
+            num_of_each_event = torch.zeros(
+                size=(len(self.event_names),), dtype=torch.int32
+            )
             index_of_visit = self.event_names.index("a_visit")
             index = 0
             # date of n-th visit
             date_nth_visit = pd.Timestamp(self.visits[n - 1].date)
+            # id
+            uid_nth_visit = self.visits[n - 1].id
             # while number of visits < n and while ? other part is redundant no ?
             while (
                 num_of_each_event[index_of_visit] < n
@@ -194,15 +200,36 @@ class Patient(DataObject):
                 for event in cropped_timeline
             ]
             to_predict = True if len(cropped_timeline) > 0 else False
+            # if no previous visit
+            if num_of_each_event[index_of_visit] == 0:
+                to_predict = False
+
             if to_predict and (
                 (date_nth_visit - cropped_timeline[-1][0]).days
                 > max_time_since_last_event
             ):
                 to_predict = False
+            if not to_predict:
+                self.visits_to_predict = [
+                    visit
+                    for visit in self.visits_to_predict
+                    if visit.id != uid_nth_visit
+                ]
+            if to_predict:
+                value_before = self.targets_df["das283bsr_score"].iloc[
+                    num_of_each_event[index_of_visit].item() - 1
+                ]
+                value_at_visit = self.targets_df["das283bsr_score"].iloc[
+                    num_of_each_event[index_of_visit].item()
+                ]
+                increase = 0 if value_at_visit <= value_before else 1
+            else:
+                increase = np.nan
             return (
                 num_of_each_event,
                 cropped_timeline,
                 cropped_timeline_mask,
                 cropped_timeline_visual,
                 to_predict,
+                increase,
             )

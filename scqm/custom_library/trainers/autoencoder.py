@@ -63,7 +63,7 @@ class AutoEncoderTrainer(Trainer):
             partition.partitions_train[partition.current_fold],
         )
         while (self.current_epoch < self.n_epochs) and self.early_stopping == False:
-            gc.collect()
+            # gc.collect()
             model.train()
             # get batch, corresponding tensor slices and masks to combine the visits/medication events and to select the
             # patients with a given number of visits

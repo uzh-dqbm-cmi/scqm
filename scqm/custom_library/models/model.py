@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-
+# TODO in model trainings, rename indices, index, combined, combined lstm etc... its a mess
 class Model(ABC):
     """
     Base model class"""

@@ -50,7 +50,7 @@ class Dataset:
         return
 
     def get_masks(
-        self, min_time_since_last_event: int = 30, max_time_since_last_event: int = 450
+        self, min_time_since_last_event: int = 15, max_time_since_last_event: int = 450
     ) -> None:
         """Get the event masks for each patient.
 
@@ -246,7 +246,8 @@ class Dataset:
             for date_col in date_cols_to_process:
                 # convert into days between 01.01.2022 and date
                 df_processed[date_col] = (
-                    pd.to_datetime(REFERENCE_DATE) - df_processed[date_col]
+                    pd.to_datetime(REFERENCE_DATE, format="%d/%m/%Y")
+                    - df_processed[date_col]
                 ).dt.days
             setattr(self, name + "_proc", df_processed)
         # specific one hot encoding
@@ -298,14 +299,15 @@ class Dataset:
                 # convert into days between 05.01.2022 and date
                 # TODO change and import global variable instead
                 df_processed[date_col] = (
-                    pd.to_datetime(REFERENCE_DATE) - df_processed[date_col]
+                    pd.to_datetime(REFERENCE_DATE, format="%d/%m/%Y")
+                    - df_processed[date_col]
                 ).dt.days
 
             # one hot encoding
             df_processed = get_dummies(df_processed)
             # transform categories
             if name == "med_df":
-                for col in ["medication_drug", "medication_generic_drug"]:
+                for col in ["medication_drug"]:
                     if col in df_processed.columns:
                         df_processed[col], mappings["med_df"][col] = map_category(
                             df_processed, col

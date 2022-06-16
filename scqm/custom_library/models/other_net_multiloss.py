@@ -15,7 +15,7 @@ from scqm.custom_library.data_objects.dataset import Dataset
 from scqm.custom_library.trainers.batch.batch import Batch
 
 
-class OthernetWithAttention(Model):
+class OthernetMultiloss(Model):
     def __init__(self, config: dict, device: str):
         super().__init__(config, device)
         self.task = "regression"
@@ -24,11 +24,10 @@ class OthernetWithAttention(Model):
         # and the cumulative sum of the history sizes, used as indices later to store the
         # outputs of the individual lstms in a combined vector.
         self.combined_history_size = (
-            sum([config[name]["size_history"] for name in config["event_names"]]),
-            np.cumsum(
-                [0] + [config[name]["size_history"] for name in config["event_names"]]
-            ),
+            config["size_history"] * len(config["event_names"]),
+            np.cumsum([0] + [config["size_history"] for name in config["event_names"]]),
         )
+        self.history_size = config["size_history"]
         self.config = config
 
         self.encoders = {
@@ -55,18 +54,23 @@ class OthernetWithAttention(Model):
                 config[name]["size_out"],
                 config["device"],
                 config["batch_first"],
-                config[name]["size_history"],
+                config["size_history"],
                 config["num_layers"],
             ).to(device)
             for name in config["event_names"]
         }
         self.Attention = {
             name: torch.nn.Parameter(
-                torch.ones(size=(config[name]["size_history"], 1), device=self.device),
+                torch.ones(size=(config["size_history"], 1), device=self.device),
                 requires_grad=True,
             )
             for name in config["event_names"]
         }
+
+        self.GlobalAttention = torch.nn.Parameter(
+            torch.ones(size=(config["size_history"], 1), device=self.device),
+            requires_grad=True,
+        )
         # + 1 for time to prediction
         self.PModule = PredModule(
             self.combined_history_size[0] + config["patients"]["size_out"] + 1,
@@ -75,10 +79,21 @@ class OthernetWithAttention(Model):
             config["hidden_pred"],
             config["dropout"],
         ).to(device)
+        self.ClassModule = PredModule(
+            self.combined_history_size[0] + config["patients"]["size_out"] + 1,
+            1,
+            config["num_layers_pred"],
+            config["hidden_pred"],
+            config["dropout"],
+        ).to(device)
+
         self.batch_first = config["batch_first"]
 
-        self.parameters = list(self.PModule.parameters()) + list(
-            self.p_encoder.parameters()
+        self.parameters = (
+            list(self.PModule.parameters())
+            + list(self.ClassModule.parameters())
+            + list(self.p_encoder.parameters())
+            + [self.GlobalAttention]
         )
         for name in self.encoders:
             self.parameters += list(self.encoders[name].parameters())
@@ -91,6 +106,7 @@ class OthernetWithAttention(Model):
             self.lstm_modules[name].train()
         self.p_encoder.train()
         self.PModule.train()
+        self.ClassModule.train()
 
     def eval(self):
 
@@ -99,9 +115,17 @@ class OthernetWithAttention(Model):
             self.lstm_modules[name].eval()
         self.p_encoder.eval()
         self.PModule.eval()
+        self.ClassModule.eval()
 
-    def apply_and_get_loss(self, dataset: Dataset, criterion: torch.nn, batch: Batch):
-        loss = 0
+    def apply_and_get_loss(
+        self,
+        dataset: Dataset,
+        criterion_reg: torch.nn,
+        criterion_class: torch.nn,
+        batch: Batch,
+    ):
+        loss_reg = 0
+        loss_class = 0
         encoder_outputs = {}
         # apply encoders
         for event in dataset.event_names:
@@ -138,8 +162,8 @@ class OthernetWithAttention(Model):
             )
             # targets caetgories
             target_categories = torch.empty(
-                size=(torch.sum(batch.available_visit_mask[:, v] == True).item(),),
-                dtype=torch.int64,
+                size=(torch.sum(batch.available_visit_mask[:, v] == True).item(), 1),
+                dtype=torch.float64,
                 device=self.device,
             )
             # delta t
@@ -195,12 +219,16 @@ class OthernetWithAttention(Model):
                         indices[visit_index] + v + dataset.min_num_visits - 1,
                         dataset.time_index,
                     ]
-                    target_categories[
-                        index_target
-                    ] = dataset.targets_df_scaled_tensor_train[batch.indices_targets][
-                        indices[visit_index] + v + dataset.min_num_visits - 1,
-                        dataset.target_index,
+                    target_categories[index_target] = batch.target_categories[
+                        patient, v
                     ]
+                    # target_categories[
+                    #     index_target
+                    # ] = dataset.targets_df_scaled_tensor_train[batch.indices_targets][
+                    #     indices[visit_index] + v + dataset.min_num_visits - 1,
+                    #     dataset.target_index,
+                    # ]
+
                     if batch.debug_index != None and patient == batch.debug_index:
                         print(f"next target value: {target_values[index_target]}")
                         print(
@@ -247,34 +275,52 @@ class OthernetWithAttention(Model):
                             index
                         ] : self.combined_history_size[1][index + 1],
                     ] = torch.sum(unpacked_output * attention_weights, dim=1)
+            # torch.reshape(combined_lstm[batch.available_visit_mask[:, v]], shape=(len(torch.nonzero(batch.available_visit_mask[:, v])), len(dataset.event_names), self.history_size))
+            combined_lstm_input = torch.reshape(
+                combined_lstm[batch.available_visit_mask[:, v]],
+                shape=(
+                    len(torch.nonzero(batch.available_visit_mask[:, v])),
+                    len(dataset.event_names),
+                    self.history_size,
+                ),
+            )
+            global_attention_weights = torch.nn.Softmax(dim=1)(
+                torch.matmul(combined_lstm_input, self.GlobalAttention)
+            )
+            combined_lstm_input = torch.reshape(
+                global_attention_weights * combined_lstm_input,
+                shape=(
+                    len(torch.nonzero(batch.available_visit_mask[:, v])),
+                    self.combined_history_size[0],
+                ),
+            )
             general_info = patient_encoding[batch.available_visit_mask[:, v]]
-
             pred_input = torch.cat(
                 (
                     general_info,
-                    combined_lstm[batch.available_visit_mask[:, v]],
+                    combined_lstm_input,
                     time_to_targets,
                 ),
                 dim=1,
             )
 
-            # apply prediction module
-            out = self.PModule(pred_input)
-
-            targets = target_values
-            loss += criterion(out, targets)
-            num_targets += len(targets)
+            # apply regression prediction module
+            out_reg = self.PModule(pred_input)
+            out_class = self.ClassModule(pred_input)
+            loss_class += criterion_class(out_class, target_categories)
+            loss_reg += criterion_reg(out_reg, target_values)
+            num_targets += len(target_values)
 
             if debug_index_target != None:
                 # print(out)
-                print(f"prediction {out[debug_index_target]}")
+                print(f"prediction {out_reg[debug_index_target]}")
 
         if num_targets == 0:
             print(f"num_targets is 0")
             compute_grad = False
             return compute_grad
 
-        return loss / num_targets
+        return loss_reg / num_targets, loss_class / num_targets
 
     def apply(self, dataset: Dataset, patient_id: str):
         with torch.no_grad():
@@ -287,12 +333,20 @@ class OthernetWithAttention(Model):
                 )
 
             seq_lengths = dataset.masks.seq_lengths[:, patient_mask_index, :]
+            patient_target_categories = dataset.masks.target_category[
+                patient_mask_index
+            ]
             available_visit_mask = dataset.masks.available_visit_mask[
                 patient_mask_index
             ]
             predictions = torch.empty(
                 size=(torch.sum(available_visit_mask == True).item(), 1),
                 device=self.device,
+            )
+            predicted_categories = torch.empty(
+                size=(torch.sum(available_visit_mask == True).item(), 1),
+                device=self.device,
+                dtype=torch.int64,
             )
             max_num_visits = dataset.masks.num_visits[patient_mask_index]
             total_num = dataset.masks.total_num[patient_mask_index]
@@ -361,9 +415,10 @@ class OthernetWithAttention(Model):
                     .targets_df.iloc[visit + dataset.min_num_visits - 1]
                     .uid_num
                 )
-                target_categories[index_target] = dataset[patient_id].targets_df_tensor[
-                    visit + dataset.min_num_visits - 1, dataset.target_index
-                ]
+                # target_categories[index_target] = dataset[patient_id].targets_df_tensor[
+                #     visit + dataset.min_num_visits - 1, dataset.target_index
+                # ]
+                target_categories[index_target] = patient_target_categories[visit]
                 for index, event in enumerate(dataset.event_names):
                     if seq_lengths[visit][index].item() > 0:
                         lengths = seq_lengths[visit][index].reshape(1).cpu()
@@ -388,6 +443,24 @@ class OthernetWithAttention(Model):
                                 index
                             ] : self.combined_history_size[1][index + 1],
                         ] = torch.sum(unpacked_output * attention_weights, dim=1)
+                combined_lstm_input = torch.reshape(
+                    combined_lstm[0],
+                    shape=(
+                        1,
+                        len(dataset.event_names),
+                        self.history_size,
+                    ),
+                )
+                global_attention_weights = torch.nn.Softmax(dim=1)(
+                    torch.matmul(combined_lstm_input, self.GlobalAttention)
+                )
+                combined_lstm_input = torch.reshape(
+                    global_attention_weights * combined_lstm_input,
+                    shape=(
+                        1,
+                        self.combined_history_size[0],
+                    ),
+                )
                 # concat computed patient history with general information
                 general_info = self.p_encoder(
                     dataset[patient_id].patients_df_tensor.to(self.device)
@@ -395,14 +468,15 @@ class OthernetWithAttention(Model):
                 pred_input = torch.cat(
                     (
                         general_info,
-                        combined_lstm[available_visit_mask[visit]].reshape(
-                            1, combined_lstm[available_visit_mask[visit]].shape[2]
-                        ),
+                        combined_lstm_input,
                         time_to_targets[index_target],
                     ),
                     dim=1,
                 )
                 predictions[index_target] = self.PModule(pred_input)
+                predicted_categories[index_target] = torch.round(
+                    torch.sigmoid(self.ClassModule(pred_input))
+                )
                 index_target += 1
             if self.task == "classification":
                 predictions = torch.tensor(
@@ -416,4 +490,5 @@ class OthernetWithAttention(Model):
             time_to_targets,
             target_categories,
             visit_ids,
+            predicted_categories,
         )

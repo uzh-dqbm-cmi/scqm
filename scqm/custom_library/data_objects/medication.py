@@ -1,6 +1,11 @@
+from __future__ import annotations
 from scqm.custom_library.data_objects.event import Event
-from scqm.custom_library.data_objects.patient import Patient
 from scqm.custom_library.data_objects.patient import Visit
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from scqm.custom_library.data_objects.patient import Patient
 import datetime
 import pandas as pd
 

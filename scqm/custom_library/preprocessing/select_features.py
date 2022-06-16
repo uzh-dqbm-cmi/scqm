@@ -137,16 +137,26 @@ def extract_adanet_features(
     med_df.sort_values(
         ["patient_id", "medication_start_date", "medication_end_date"], inplace=True
     )
-    targets_df = visits_df[
-        [
-            "patient_id",
-            "date",
-            "uid_num",
-            "das283bsr_score",
-            "das28_category",
-            "das28_increase",
+    if das28:
+        targets_df = visits_df[
+            [
+                "patient_id",
+                "date",
+                "uid_num",
+                "das283bsr_score",
+                "das28_category",
+                "das28_increase",
+            ]
         ]
-    ]
+    else:
+        targets_df = visits_df[
+            [
+                "patient_id",
+                "date",
+                "uid_num",
+                "das283bsr_score",
+            ]
+        ]
     haq_df.sort_values(["patient_id", "date"], inplace=True)
     if real_data:
         socioeco_df.sort_values(["patient_id", "date"], inplace=True)
@@ -272,6 +282,32 @@ def extract_other_features(
             "das28_category",
             "das28_increase",
         ]
+    ]
+    # keep only subset of medications
+    meds_to_keep = [
+        "methotrexate",
+        "prednisone",
+        "adalimumab",
+        "rituximab",
+        "etanercept",
+        "leflunomide",
+        "infliximab",
+        "sulfasalazine",
+        "golimumab",
+        "hydroxychloroquine",
+        "tocilizumab",
+        "certolizumab",
+        "abatacept",
+        "tofacitinib",
+        "secukinumab",
+        "baricitinib",
+        "prednison_steroid_mr",
+        "apremilast",
+        "ustekinumab",
+    ]
+    df_dict_processed["medications"]["medication_generic_drug"] = [
+        med if med in meds_to_keep else "Other"
+        for med in df_dict_processed["medications"]["medication_generic_drug"]
     ]
 
     if transform_meds:

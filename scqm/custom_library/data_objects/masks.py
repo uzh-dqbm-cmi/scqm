@@ -1,6 +1,10 @@
+from __future__ import annotations
 import torch
 import numpy as np
-from scqm.custom_library.data_objects.dataset import Dataset
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from scqm.custom_library.data_objects.dataset import Dataset
 
 
 class Masks:
@@ -20,7 +24,7 @@ class Masks:
         self,
         dataset: Dataset,
         debug_patient: str,
-        min_time_since_last_event: int = 30,
+        min_time_since_last_event: int = 15,
         max_time_since_last_event: int = 450,
     ):
         """Create masks for each event.
@@ -63,6 +67,11 @@ class Masks:
             fill_value=False,
             device=self.device,
         )
+        self.target_category = torch.full(
+            size=(len(self.indices), max_num_visits - dataset.min_num_visits + 1),
+            fill_value=np.nan,
+            device=self.device,
+        )
         for i, patient in enumerate(self.indices):
             for visit in range(
                 0, len(dataset.patients[patient].visits) - dataset.min_num_visits + 1
@@ -74,12 +83,14 @@ class Masks:
                     cropped_timeline_mask,
                     visual,
                     to_predict,
+                    increase,
                 ) = dataset.patients[patient].get_cropped_timeline(
                     visit + dataset.min_num_visits,
                     min_time_since_last_event=min_time_since_last_event,
                     max_time_since_last_event=max_time_since_last_event,
                 )
                 self.available_visit_mask[i, visit] = to_predict
+                self.target_category[i, visit] = increase
                 for event in dataset.event_names:
                     # masks_dict[event][i].append(torch.broadcast_to(torch.tensor([[True if tuple_[0] == event else False] for tuple_ in cropped_timeline_mask]),
                     #                                               (len(cropped_timeline_mask), model.size_embedding)))

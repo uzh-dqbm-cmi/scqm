@@ -1,19 +1,26 @@
 # Execute complete timeline with fake data (generate + create dataset object + instantiate model + training)
 import sys
+import cProfile, pstats
 
 sys.path.append("../scqm")
 
 from scqm.custom_library.models.adaptive_net import Adaptivenet
-from scqm.custom_library.models.other_net import OthernetOptimized
+from scqm.custom_library.models.other_net import Othernet
 from scqm.custom_library.models.other_net_with_attention import (
-    OthernetOptimizedWithAttention,
+    OthernetWithAttention,
+)
+from scqm.custom_library.models.other_net_multiloss import OthernetMultiloss
+from scqm.custom_library.models.other_net_with_double_attention import (
+    OthernetWithDoubleAttention,
 )
 from scqm.custom_library.trainers.adaptive_net import AdaptivenetTrainer
+from scqm.custom_library.trainers.multiloss import MultilossTrainer
 from scqm.test_bed.fake_scqm import get_df_dict
 
 import copy
 import pandas as pd
 import torch
+import time
 
 # setting path
 
@@ -106,27 +113,61 @@ if __name__ == "__main__":
         "batch_first": True,
         "device": device,
     }
+    # for key in num_feature_dict:
+    #     model_specifics[key] = {
+    #         "num_features": num_feature_dict[key],
+    #         "size_out": size_out_dict[key],
+    #         "size_history": 3,
+    #     }
     for key in num_feature_dict:
         model_specifics[key] = {
             "num_features": num_feature_dict[key],
             "size_out": size_out_dict[key],
-            "size_history": 3,
         }
+    model_specifics["size_history"] = 3
     model_specifics["size_embedding"] = max(
         [model_specifics[key]["size_out"] for key in num_feature_dict]
     )
-    model = OthernetOptimized(model_specifics, device)
-    trainer = AdaptivenetTrainer(
+    # model = OthernetWithDoubleAttention(model_specifics, device)
+    # trainer = AdaptivenetTrainer(
+    #     model,
+    #     dataset,
+    #     n_epochs=10,
+    #     batch_size=int(len(dataset) / 2),
+    #     lr=1e-2,
+    #     balance_classes=True,
+    #     use_early_stopping=False,
+    # )
+    model = OthernetMultiloss(model_specifics, device)
+    trainer = MultilossTrainer(
         model,
         dataset,
-        n_epochs=2,
+        n_epochs=10,
         batch_size=int(len(dataset) / 2),
         lr=1e-2,
         balance_classes=True,
         use_early_stopping=False,
     )
     # train
+
+    # profiler = cProfile.Profile()
+    # profiler.enable()
+    start = time.time()
     trainer.train_model(model, partition, debug_patient=False)
+    end = time.time()
+    print(end - start)
+    # test apply function
+    (
+        predictions,
+        _,
+        target_values,
+        time_to_targets,
+        target_categories,
+        visit_ids,
+        predicted_categories,
+    ) = model.apply(dataset, dataset.test_ids[0])
+    print(target_categories)
+    print(predicted_categories)
     save = False
     if save:
         for name in dataset.df_names:

@@ -15,7 +15,7 @@ from scqm.custom_library.data_objects.dataset import Dataset
 from scqm.custom_library.trainers.batch.batch import Batch
 
 
-class OthernetWithAttention(Model):
+class OthernetWithDoubleAttention(Model):
     def __init__(self, config: dict, device: str):
         super().__init__(config, device)
         self.task = "regression"
@@ -24,11 +24,10 @@ class OthernetWithAttention(Model):
         # and the cumulative sum of the history sizes, used as indices later to store the
         # outputs of the individual lstms in a combined vector.
         self.combined_history_size = (
-            sum([config[name]["size_history"] for name in config["event_names"]]),
-            np.cumsum(
-                [0] + [config[name]["size_history"] for name in config["event_names"]]
-            ),
+            config["size_history"] * len(config["event_names"]),
+            np.cumsum([0] + [config["size_history"] for name in config["event_names"]]),
         )
+        self.history_size = config["size_history"]
         self.config = config
 
         self.encoders = {
@@ -55,18 +54,23 @@ class OthernetWithAttention(Model):
                 config[name]["size_out"],
                 config["device"],
                 config["batch_first"],
-                config[name]["size_history"],
+                config["size_history"],
                 config["num_layers"],
             ).to(device)
             for name in config["event_names"]
         }
         self.Attention = {
             name: torch.nn.Parameter(
-                torch.ones(size=(config[name]["size_history"], 1), device=self.device),
+                torch.ones(size=(config["size_history"], 1), device=self.device),
                 requires_grad=True,
             )
             for name in config["event_names"]
         }
+
+        self.GlobalAttention = torch.nn.Parameter(
+            torch.ones(size=(config["size_history"], 1), device=self.device),
+            requires_grad=True,
+        )
         # + 1 for time to prediction
         self.PModule = PredModule(
             self.combined_history_size[0] + config["patients"]["size_out"] + 1,
@@ -77,8 +81,10 @@ class OthernetWithAttention(Model):
         ).to(device)
         self.batch_first = config["batch_first"]
 
-        self.parameters = list(self.PModule.parameters()) + list(
-            self.p_encoder.parameters()
+        self.parameters = (
+            list(self.PModule.parameters())
+            + list(self.p_encoder.parameters())
+            + [self.GlobalAttention]
         )
         for name in self.encoders:
             self.parameters += list(self.encoders[name].parameters())
@@ -174,6 +180,8 @@ class OthernetWithAttention(Model):
             for patient, seq in enumerate(batch.seq_lengths[v]):
                 # check if the patient has at least v visits
                 if batch.available_visit_mask[patient, v] == True:
+
+                    print(target_categories[: index_target + 1])
                     # compute for each event the encoder outputs
                     for index, event in enumerate(dataset.event_names):
                         if seq[index] > 0:
@@ -195,12 +203,16 @@ class OthernetWithAttention(Model):
                         indices[visit_index] + v + dataset.min_num_visits - 1,
                         dataset.time_index,
                     ]
-                    target_categories[
-                        index_target
-                    ] = dataset.targets_df_scaled_tensor_train[batch.indices_targets][
-                        indices[visit_index] + v + dataset.min_num_visits - 1,
-                        dataset.target_index,
+                    target_categories[index_target] = batch.target_categories[
+                        patient, v
                     ]
+                    # target_categories[
+                    #     index_target
+                    # ] = dataset.targets_df_scaled_tensor_train[batch.indices_targets][
+                    #     indices[visit_index] + v + dataset.min_num_visits - 1,
+                    #     dataset.target_index,
+                    # ]
+
                     if batch.debug_index != None and patient == batch.debug_index:
                         print(f"next target value: {target_values[index_target]}")
                         print(
@@ -247,12 +259,30 @@ class OthernetWithAttention(Model):
                             index
                         ] : self.combined_history_size[1][index + 1],
                     ] = torch.sum(unpacked_output * attention_weights, dim=1)
+            # torch.reshape(combined_lstm[batch.available_visit_mask[:, v]], shape=(len(torch.nonzero(batch.available_visit_mask[:, v])), len(dataset.event_names), self.history_size))
+            combined_lstm_input = torch.reshape(
+                combined_lstm[batch.available_visit_mask[:, v]],
+                shape=(
+                    len(torch.nonzero(batch.available_visit_mask[:, v])),
+                    len(dataset.event_names),
+                    self.history_size,
+                ),
+            )
+            global_attention_weights = torch.nn.Softmax(dim=1)(
+                torch.matmul(combined_lstm_input, self.GlobalAttention)
+            )
+            combined_lstm_input = torch.reshape(
+                global_attention_weights * combined_lstm_input,
+                shape=(
+                    len(torch.nonzero(batch.available_visit_mask[:, v])),
+                    self.combined_history_size[0],
+                ),
+            )
             general_info = patient_encoding[batch.available_visit_mask[:, v]]
-
             pred_input = torch.cat(
                 (
                     general_info,
-                    combined_lstm[batch.available_visit_mask[:, v]],
+                    combined_lstm_input,
                     time_to_targets,
                 ),
                 dim=1,
@@ -388,6 +418,24 @@ class OthernetWithAttention(Model):
                                 index
                             ] : self.combined_history_size[1][index + 1],
                         ] = torch.sum(unpacked_output * attention_weights, dim=1)
+                combined_lstm_input = torch.reshape(
+                    combined_lstm[0],
+                    shape=(
+                        1,
+                        len(dataset.event_names),
+                        self.history_size,
+                    ),
+                )
+                global_attention_weights = torch.nn.Softmax(dim=1)(
+                    torch.matmul(combined_lstm_input, self.GlobalAttention)
+                )
+                combined_lstm_input = torch.reshape(
+                    global_attention_weights * combined_lstm_input,
+                    shape=(
+                        1,
+                        self.combined_history_size[0],
+                    ),
+                )
                 # concat computed patient history with general information
                 general_info = self.p_encoder(
                     dataset[patient_id].patients_df_tensor.to(self.device)
@@ -395,9 +443,7 @@ class OthernetWithAttention(Model):
                 pred_input = torch.cat(
                     (
                         general_info,
-                        combined_lstm[available_visit_mask[visit]].reshape(
-                            1, combined_lstm[available_visit_mask[visit]].shape[2]
-                        ),
+                        combined_lstm_input,
                         time_to_targets[index_target],
                     ),
                     dim=1,

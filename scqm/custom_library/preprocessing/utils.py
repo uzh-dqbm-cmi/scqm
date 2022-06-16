@@ -60,7 +60,7 @@ def get_dummies(df: pd.DataFrame) -> pd.DataFrame:
     columns = [
         col
         for col in df.columns
-        if df[col].dtype == "object" and df[col].nunique() < 10
+        if df[col].dtype == "object" and df[col].nunique() < 30
     ]
     df_dummies = pd.get_dummies(
         df, columns=columns, dummy_na=True, drop_first=True, prefix_sep="_dummy_"

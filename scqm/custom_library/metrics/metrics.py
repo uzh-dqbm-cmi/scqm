@@ -1,7 +1,7 @@
 import torch
 import pandas as pd
 
-
+# TODO add wregression separate class
 class Metrics:
     """Base metric object"""
 

@@ -1,21 +1,12 @@
-import numpy as np
-import random
 import torch
 import pickle
-import gc
+
 import io
-import copy
+
 
 from scqm.custom_library.models.other_net import Othernet
+from scqm.custom_library.models.other_net_with_attention import OthernetWithAttention
 from scqm.custom_library.trainers.adaptive_net import AdaptivenetTrainer
-from scqm.custom_library.partition.partition import DataPartition
-from scqm.custom_library.preprocessing.load_data import load_dfs_all_data
-from scqm.custom_library.preprocessing.preprocessing import preprocessing
-from scqm.custom_library.preprocessing.select_features import extract_other_features
-from scqm.custom_library.data_objects.dataset import Dataset
-from scqm.custom_library.cv import CVAdaptivenet
-from scqm.custom_library.results.results import Results
-from scqm.custom_library.utils import set_seeds
 
 
 class CPU_Unpickler(pickle.Unpickler):
@@ -27,7 +18,7 @@ class CPU_Unpickler(pickle.Unpickler):
 
 
 if __name__ == "__main__":
-    with open("/opt/tmp/saved_cv_ada.pickle", "rb") as handle:
+    with open("/opt/data/processed/saved_cv.pickle", "rb") as handle:
         # dataset = pickle.load(handle)
         cv = CPU_Unpickler(handle).load()
     dataset = cv.dataset
@@ -48,10 +39,9 @@ if __name__ == "__main__":
         dataset, "patients" + "_df_scaled_tensor_train"
     ).shape[1]
     size_out_dict["patients"] = int(num_feature_dict["patients"] / 10) + 1
-    # size_history_dict = {event: num_feature_dict[event]*2 for event in dataset.event_names}
-    size_history_dict = {event: 30 for event in dataset.event_names}
+    # size_history_dict = {event: 30 for event in dataset.event_names}
+    size_history_dict = {event: 40 for event in dataset.event_names}
     model_specifics = {
-        "size_embedding": 5,
         "num_layers_enc": 2,
         "hidden_enc": 100,
         "size_history": 10,
@@ -60,7 +50,7 @@ if __name__ == "__main__":
         "hidden_pred": 100,
         "event_names": dataset.event_names,
         "num_general_features": dataset.patients_df_scaled_tensor_train.shape[1],
-        "dropout": 0.0,
+        "dropout": 0.3,
         "batch_first": True,
         "device": device,
     }
@@ -75,8 +65,7 @@ if __name__ == "__main__":
         [model_specifics[key]["size_out"] for key in num_feature_dict]
     )
 
-    model = Othernet(model_specifics, device)
-    model.task = "regression"
+    model = OthernetWithAttention(model_specifics, device)
 
     batch_size = int(len(dataset) / 15)
     trainer = AdaptivenetTrainer(
@@ -91,5 +80,5 @@ if __name__ == "__main__":
     trainer.train_model(model, partition, debug_patient=False)
 
     delattr(trainer, "dataset")
-    with open("/opt/tmp/other_varhist_19_05.pickle", "wb") as handle:
+    with open("/opt/tmp/trainer_othernet_attention.pickle", "wb") as handle:
         pickle.dump(trainer, handle)
