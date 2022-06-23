@@ -112,9 +112,9 @@ class OthernetOptimized(Model):
         )
         # for scaling of loss
         num_targets = 0
-        for v in range(0, batch.max_num_visits - dataset.min_num_visits + 1):
+        for v in range(0, batch.max_num_targets - dataset.min_num_targets + 1):
             # continue if this visit shouldn't be predicted for any patient
-            if torch.sum(batch.available_visit_mask[:, v] == True).item() == 0:
+            if torch.sum(batch.available_target_mask[:, v] == True).item() == 0:
                 continue
             # stores for all the patients in the batch the tensor of ordered events (of varying size)
             # sequence = []
@@ -192,19 +192,19 @@ class OthernetOptimized(Model):
                 batch.indices_targets
             ][indices_targets, dataset.target_value_index]
             target_values = target_values.reshape(len(target_values), 1)[
-                batch.available_visit_mask[:, v]
+                batch.available_target_mask[:, v]
             ]
             time_to_targets = dataset.targets_df_scaled_tensor_train[
                 batch.indices_targets
             ][indices_targets, dataset.time_index]
             time_to_targets = time_to_targets.reshape(len(time_to_targets), 1)[
-                batch.available_visit_mask[:, v]
+                batch.available_target_mask[:, v]
             ]
             target_categories = dataset.targets_df_scaled_tensor_train[
                 batch.indices_targets
             ][indices_targets, dataset.target_index]
             target_categories = target_categories.reshape(len(target_categories), 1)[
-                batch.available_visit_mask[:, v]
+                batch.available_target_mask[:, v]
             ]
             # lengths = {event: batch.seq_lengths[v,index, :] for index, event in enumerate(dataset.event_names)}
             # combined representation (before prediction)
@@ -218,13 +218,13 @@ class OthernetOptimized(Model):
                 patients = [
                     elem.item()
                     for elem in patients
-                    if batch.available_visit_mask[elem, v]
+                    if batch.available_target_mask[elem, v]
                 ]
                 if len(patients) > 0:
                     # "preprocessing" to apply lstm
-                    #                     padded_sequence = torch.nn.utils.rnn.pad_sequence(combined[event][batch.available_visit_mask[:, v]], batch_first=self.batch_first)
+                    #                     padded_sequence = torch.nn.utils.rnn.pad_sequence(combined[event][batch.available_target_mask[:, v]], batch_first=self.batch_first)
                     #                     # compute the lengths of the sequences for each patient with available visit v
-                    #                     lengths = lengths[event][batch.available_visit_mask[:, v]].cpu()
+                    #                     lengths = lengths[event][batch.available_target_mask[:, v]].cpu()
 
                     #                     pack_padded_sequence = torch.nn.utils.rnn.pack_padded_sequence(
                     #                         padded_sequence, batch_first=self.batch_first, lengths=lengths, enforce_sorted=False)
@@ -243,12 +243,12 @@ class OthernetOptimized(Model):
                             index
                         ] : self.combined_history_size[1][index + 1],
                     ] = self.lstm_modules[event](pack_padded_sequence)[1][0][-1]
-            general_info = patient_encoding[batch.available_visit_mask[:, v]]
+            general_info = patient_encoding[batch.available_target_mask[:, v]]
 
             pred_input = torch.cat(
                 (
                     general_info,
-                    combined_lstm[batch.available_visit_mask[:, v]],
+                    combined_lstm[batch.available_target_mask[:, v]],
                     time_to_targets,
                 ),
                 dim=1,
@@ -309,7 +309,7 @@ if __name__ == "__main__":
         "haq": haq_df,
     }
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    min_num_visits = 2
+    min_num_targets = 2
     # instantiate dataset
     dataset = Dataset(
         device,
@@ -317,7 +317,7 @@ if __name__ == "__main__":
         df_dict_fake["patients"]["patient_id"].unique(),
         "das28_increase",
         ["a_visit", "med", "haq"],
-        min_num_visits,
+        min_num_targets,
     )
     dataset.drop(
         [

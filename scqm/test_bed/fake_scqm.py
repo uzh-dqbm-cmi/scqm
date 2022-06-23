@@ -113,6 +113,8 @@ def get_basdai_df(patient_df: pd.DataFrame) -> pd.DataFrame:
     """
     ids = random.choices(patient_df["patient_id"].values, k=len(patient_df) * 2)
     basdai_values = random.choices(range(10), k=len(ids))
+    event_id = random.sample(range(4000), k=len(ids))
+    event_id = [str(elem) for elem in event_id]
     dates = [
         random_date(
             start=patient_df[patient_df.patient_id == patient_id].date_of_birth.item()
@@ -120,8 +122,14 @@ def get_basdai_df(patient_df: pd.DataFrame) -> pd.DataFrame:
         for patient_id in ids
     ]
     return pd.DataFrame(
-        {"patient_id": ids, "date": dates, "basdai_score": basdai_values}
+        {
+            "patient_id": ids,
+            "date": dates,
+            "basdai_score": basdai_values,
+            "event_id": event_id,
+        }
     )
+
 
 def get_visit_df(patient_df: pd.DataFrame) -> pd.DataFrame:
     ids = random.choices(patient_df["patient_id"].values, k=len(patient_df) * 6)
@@ -151,7 +159,9 @@ def get_visit_df(patient_df: pd.DataFrame) -> pd.DataFrame:
             "crp": np.nan,
         }
     )
-def drop_values(list_:list, nan_prop: float) -> list:
+
+
+def drop_values(list_: list, nan_prop: float) -> list:
     """randomly replace some elements of the list with nans
 
     Args:
@@ -159,10 +169,13 @@ def drop_values(list_:list, nan_prop: float) -> list:
         nan_prop (np.float): proportion of element to be replaced
     """
     list_with_nan = list_.copy()
-    indices_to_drop = np.random.choice(range(len(list_)), size = int(nan_prop*len(list_)), replace = False)
+    indices_to_drop = np.random.choice(
+        range(len(list_)), size=int(nan_prop * len(list_)), replace=False
+    )
     for index in indices_to_drop:
         list_with_nan[index] = np.nan
     return list_with_nan
+
 
 def get_med_df(patient_df: pd.DataFrame) -> pd.DataFrame:
     mapping = {
@@ -212,7 +225,7 @@ def get_df_dict(num_patients: int = 10) -> dict:
         "visits": visit_df,
         "haq": haq_df,
         "medications": med_df,
-        "basdai" : basdai_df
+        "basdai": basdai_df,
     }
     return df_dict
 

@@ -1,8 +1,7 @@
 from scqm.custom_library.preprocessing.load_data import load_dfs_all_data
 from scqm.custom_library.preprocessing.preprocessing import preprocessing
 from scqm.custom_library.preprocessing.select_features import (
-    extract_adanet_features,
-    extract_other_features,
+    extract_multitask_features,
 )
 from scqm.custom_library.data_objects.dataset import Dataset
 from scqm.custom_library.cv.adaptive_net import CVAdaptivenet
@@ -18,72 +17,69 @@ import pickle
 import sys
 
 if __name__ == "__main__":
-    model = str(sys.argv[1])
-    set_seeds(0)
-    df_dict = load_dfs_all_data()
-    if model == "adanet":
+    reload = False
+    if reload:
+        with open("/opt/tmp/saved_cv_basdai.pickle", "rb") as f:
+            cv = pickle.load(f)
+    else:
+        set_seeds(0)
+        df_dict = load_dfs_all_data()
         df_dict = preprocessing(df_dict)
         (
-            patients_df,
-            medications_df,
+            general_df,
+            med_df,
             visits_df,
-            targets_df,
+            basdai_df,
+            targets_df_das28,
+            targets_df_basdai,
             socioeco_df,
             radai_df,
             haq_df,
-            _,
-        ) = extract_adanet_features(df_dict, only_meds=True, das28=True)
+            mny_df,
+        ) = extract_multitask_features(df_dict, transform_meds=True, only_meds=True)
         df_dict_pro = {
             "a_visit": visits_df,
-            "patients": patients_df,
-            "med": medications_df,
-            "targets_das28": targets_df,
+            "patients": general_df,
+            "med": med_df,
+            "targets_basdai": targets_df_basdai,
             "socio": socioeco_df,
             "radai": radai_df,
             "haq": haq_df,
+            "basdai": basdai_df,
+            "mny": mny_df,
         }
-        events = ["a_visit", "med", "socio", "radai", "haq"]
-    else:
-        df_dict_pro, events = extract_other_features(
-            df_dict, transform_meds=True, das28=True, only_meds=True, nan_prop=0.2
+        events = ["a_visit", "med", "socio", "radai", "haq", "basdai", "mny"]
+
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        min_num_targets = 2
+        dataset = Dataset(
+            device,
+            df_dict_pro,
+            df_dict_pro["patients"]["patient_id"].unique(),
+            "None",
+            events,
+            min_num_targets,
         )
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    min_num_targets = 2
-    dataset = Dataset(
-        device,
-        df_dict_pro,
-        df_dict_pro["patients"]["patient_id"].unique(),
-        "das28_increase",
-        events,
-        min_num_targets,
-    )
-    # # keep only patients with more than two visits
-    dataset.drop(
-        [
-            id_
-            for id_, patient in dataset.patients.items()
-            if len(patient.visit_ids) <= 2
-        ]
-    )
-    print(f"Dropping patients with less than 3 visits, keeping {len(dataset)}")
-    dataset.get_masks(min_time_since_last_event=15, max_time_since_last_event=450)
-    if model == "adanet":
-        path = "/opt/tmp/saved_dataset_more_drugs.pickle"
-    else:
-        path = "/opt/data/processed/saved_dataset_more_features.pickle"
-    with open(path, "wb") as handle:
-        pickle.dump(dataset, handle)
-    # create cvs
-    dataset.create_dfs()
-    if model == "adanet":
+
+        # # keep only patients with more than two visits
+        dataset.drop(
+            [
+                id_
+                for id_, patient in dataset.patients.items()
+                if len(patient.visit_ids) <= 2
+            ]
+        )
+        print(f"Dropping patients with less than 3 visits, keeping {len(dataset)}")
+        dataset.get_masks(min_time_since_last_event=15, max_time_since_last_event=450)
+
+        with open("/opt/tmp/saved_dataset_basdai_mny.pickle", "wb") as handle:
+            pickle.dump(dataset, handle)
+        # create cvs
+        dataset.create_dfs()
+
         dataset.transform_to_numeric_adanet()
         cv = CVAdaptivenet(dataset, k=5)
-        with open("/opt/tmp/saved_cv_ada_more_drugs.pickle", "wb") as f:
-            pickle.dump(cv, f)
-    else:
-        dataset.transform_to_numeric()
-        cv = CVAdaptivenet(dataset, k=5)
-        with open("/opt/data/processed/saved_cv.pickle", "wb") as f:
+        with open("/opt/tmp/saved_cv_basdai_mny.pickle", "wb") as f:
             pickle.dump(cv, f)
 
     dataset = cv.dataset
@@ -127,7 +123,7 @@ if __name__ == "__main__":
     model_specifics["size_embedding"] = max(
         [model_specifics[key]["size_out"] for key in num_feature_dict]
     )
-    model_specifics["target_name"] = "das283bsr_score"
+    model_specifics["target_name"] = "basdai"
     model = OthernetWithDoubleAttention(model_specifics, device)
 
     batch_size = int(len(dataset) / 15)
@@ -143,5 +139,5 @@ if __name__ == "__main__":
     trainer.train_model(model, partition, debug_patient=False)
 
     delattr(trainer, "dataset")
-    with open("/opt/tmp/trainer_double_attention_more_drugs.pickle", "wb") as handle:
+    with open("/opt/tmp/trainer_double_attention_basdai_mny.pickle", "wb") as handle:
         pickle.dump(trainer, handle)

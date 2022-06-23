@@ -1,3 +1,8 @@
+from scqm.custom_library.cv.cv import CV
+from scqm.custom_library.partition.multitask_partition import MultitaskPartition
+from scqm.custom_library.utils import set_seeds
+from scqm.custom_library.models.multitask_net import Multitask
+from scqm.custom_library.trainers.multitask_net import MultitaskTrainer
 import itertools
 import random
 import time
@@ -6,27 +11,22 @@ import torch
 import pickle
 import gc
 
-from scqm.custom_library.cv.cv import CV
-from scqm.custom_library.models.adaptive_net import Adaptivenet
-from scqm.custom_library.trainers.adaptive_net import AdaptivenetTrainer
 
-
-class CVAdaptivenet(CV):
-    """
-    Cross validation specific to adaptive net and similar models.
-    """
-
-    def __init__(self, dataset, k: int):
-        """Instantiate object
+class CVMultitask(CV):
+    def __init__(self, dataset, k: int = 5) -> None:
+        """Init method. Create the partition on the data.
 
         Args:
             dataset (Dataset): dataset
             k (int): Number of folds
         """
-        super().__init__(dataset, k)
+        set_seeds(0)
+        self.dataset = dataset
+        self.k = k
+        self.partition = MultitaskPartition(self.dataset, k=self.k)
 
     def perform_cv(
-        self, fold: int, n_epochs: int = 400, search: str = "random", num_combi: int = 1
+        self, fold: int, n_epochs: int = 40, search: str = "random", num_combi: int = 1
     ) -> None:
         """Perform a CV on a given fold, and save trained model.
 
@@ -75,6 +75,9 @@ class CVAdaptivenet(CV):
             p,
             bal,
         ) in enumerate(combinations):
+            # # to save
+            path = "/cluster/home/ctrottet/runs/scqm/" + time.strftime("%Y%m%d-%H%M")
+            os.mkdir(path)
 
             print(f"{ind} combination out of {len(combinations)}")
             print(
@@ -97,7 +100,6 @@ class CVAdaptivenet(CV):
                 "dropout": p,
                 "batch_first": batch_first,
                 "device": device,
-                "model_type": "padd",
             }
             for key in num_feature_dict:
                 model_specifics[key] = {
@@ -107,17 +109,24 @@ class CVAdaptivenet(CV):
             model_specifics["size_embedding"] = max(
                 [model_specifics[key]["size_out"] for key in num_feature_dict]
             )
-            model = Adaptivenet(model_specifics, device)
-            self.dataset.min_num_visits = 2
-            trainer = AdaptivenetTrainer(
+            model = Multitask(model_specifics, device)
+            self.dataset.min_num_targets = 2
+            trainer = MultitaskTrainer(
                 model,
                 self.dataset,
                 n_epochs,
-                batch_size=int(len(self.dataset) / 15),
+                batch_size={
+                    "das28": int(len(self.dataset) / 15),
+                    "basdai": int(len(self.dataset) / (15 * 3)),
+                },
                 lr=lr,
                 balance_classes=bal,
                 use_early_stopping=False,
             )
-            # TODO re-check
-            gc.collect()
             trainer.train_model(model, self.partition, debug_patient=False)
+            # for memory
+            delattr(trainer, "dataset")
+            with open(path + "/params.pkl", "wb") as f:
+                pickle.dump(model_specifics, f)
+            with open(path + "/trainer.pkl", "wb") as f:
+                pickle.dump(trainer, f)

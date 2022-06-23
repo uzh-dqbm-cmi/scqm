@@ -251,7 +251,7 @@ class AutoEncoder(Model):
 #         # for scaling of loss
 #         prediction_loss = 0
 #         num_targets = 0
-#         for v in range(0, batch.max_num_visits - dataset.min_num_visits + 1):
+#         for v in range(0, batch.max_num_targets - dataset.min_num_targets + 1):
 #             # stores for all the patients in the batch the tensor of ordered events (of varying size)
 #             sequence = []
 #             # to keep track of the right index in the visits/medication tensors
@@ -261,18 +261,18 @@ class AutoEncoder(Model):
 #             visit_index = dataset.event_names.index("a_visit")
 #             # targets (values)
 #             target_values = torch.empty(
-#                 size=(torch.sum(batch.available_visit_mask[:, v] == True).item(), 1),
+#                 size=(torch.sum(batch.available_target_mask[:, v] == True).item(), 1),
 #                 device=self.device,
 #             )
 #             # targets caetgories
 #             target_categories = torch.empty(
-#                 size=(torch.sum(batch.available_visit_mask[:, v] == True).item(),),
+#                 size=(torch.sum(batch.available_target_mask[:, v] == True).item(),),
 #                 dtype=torch.int64,
 #                 device=self.device,
 #             )
 #             # delta t
 #             time_to_targets = torch.empty(
-#                 size=(torch.sum(batch.available_visit_mask[:, v] == True).item(), 1),
+#                 size=(torch.sum(batch.available_target_mask[:, v] == True).item(), 1),
 #                 device=self.device,
 #             )
 #             # for each patient combine the medication and visit events in the right order up to visit v
@@ -280,7 +280,7 @@ class AutoEncoder(Model):
 #             debug_index_target = None
 #             for patient, seq in enumerate(batch.seq_lengths[v]):
 #                 # check if the patient has at least v visits
-#                 if batch.available_visit_mask[patient, v] == True:
+#                 if batch.available_target_mask[patient, v] == True:
 #                     # create combined ordered list of visit/medication/events up to v
 #                     combined = torch.zeros(
 #                         size=(seq.sum(), self.size_embedding), device=self.device
@@ -328,7 +328,7 @@ class AutoEncoder(Model):
 #             )
 #             # compute the lengths of the sequences for each patient with available visit v
 #             lengths = (
-#                 batch.seq_lengths[v].sum(dim=1)[batch.available_visit_mask[:, v]].cpu()
+#                 batch.seq_lengths[v].sum(dim=1)[batch.available_target_mask[:, v]].cpu()
 #             )
 
 #             pack_padded_sequence = torch.nn.utils.rnn.pack_padded_sequence(
@@ -343,12 +343,12 @@ class AutoEncoder(Model):
 #             history = hn[-1]
 #             # concat computed patient history with general information
 #             # general_info = self.p_encoder(
-#             #     dataset.patients_df_scaled_tensor_train[batch.indices_patients][batch.available_visit_mask[:, v]])
-#             general_info = p_encoder_output[batch.available_visit_mask[:, v]]
+#             #     dataset.patients_df_scaled_tensor_train[batch.indices_patients][batch.available_target_mask[:, v]])
+#             general_info = p_encoder_output[batch.available_target_mask[:, v]]
 
 #             pred_input = torch.cat((general_info, history, time_to_targets), dim=1)
 #             # pred_input = torch.cat(
-#             #     (dataset.patients_df_scaled_tensor_train[batch.indices_patients][batch.available_visit_mask[:, v]], history, time_to_targets), dim=1)
+#             #     (dataset.patients_df_scaled_tensor_train[batch.indices_patients][batch.available_target_mask[:, v]], history, time_to_targets), dim=1)
 #             # apply prediction module
 #             out = self.PModule(pred_input)
 #             # compute loss
@@ -386,26 +386,26 @@ class AutoEncoder(Model):
 
 #             predictions = torch.empty(
 #                 size=(
-#                     len(dataset[patient_id].visits) - dataset.min_num_visits + 1,
+#                     len(dataset[patient_id].visits) - dataset.min_num_targets + 1,
 #                     self.num_targets,
 #                 ),
 #                 device=self.device,
 #             )
 #             seq_lengths = dataset.masks.seq_lengths[:, patient_mask_index, :]
 
-#             available_visit_mask = dataset.masks.available_visit_mask[
+#             available_target_mask = dataset.masks.available_target_mask[
 #                 patient_mask_index
 #             ]
-#             max_num_visits = dataset.masks.num_visits[patient_mask_index]
+#             max_num_targets = dataset.masks.num_visits[patient_mask_index]
 #             total_num = dataset.masks.total_num[patient_mask_index]
 #             all_history = torch.empty(
 #                 size=(
-#                     max_num_visits - dataset.min_num_visits + 1,
+#                     max_num_targets - dataset.min_num_targets + 1,
 #                     self.LModule.hidden_size,
 #                 ),
 #                 device=self.device,
 #             )
-#             for visit in range(0, max_num_visits - dataset.min_num_visits + 1):
+#             for visit in range(0, max_num_targets - dataset.min_num_targets + 1):
 #                 # create combined ordered list of visit/medication/events up to v
 #                 combined = torch.zeros(
 #                     size=(seq_lengths[visit].sum(), self.size_embedding),
@@ -426,7 +426,7 @@ class AutoEncoder(Model):
 #                 padded_sequence = torch.nn.utils.rnn.pad_sequence(
 #                     [combined], batch_first=self.batch_first
 #                 )
-#                 lengths = seq_lengths[visit].sum()[available_visit_mask[visit]].cpu()
+#                 lengths = seq_lengths[visit].sum()[available_target_mask[visit]].cpu()
 #                 pack_padded = torch.nn.utils.rnn.pack_padded_sequence(
 #                     padded_sequence,
 #                     batch_first=self.batch_first,
@@ -444,7 +444,7 @@ class AutoEncoder(Model):
 #                 # pred_input = torch.cat(
 #                 #     (dataset[patient_id].patients_df_tensor.to(self.device), history, time_to_target), dim=1)
 #                 # apply prediction module
-#                 predictions[visit - dataset.min_num_visits] = self.PModule(pred_input)
+#                 predictions[visit - dataset.min_num_targets] = self.PModule(pred_input)
 #             if self.task == "classification":
 #                 predictions = torch.tensor(
 #                     [torch.argmax(elem) for elem in predictions], device=self.device

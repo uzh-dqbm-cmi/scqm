@@ -20,7 +20,7 @@ class CPU_Unpickler(pickle.Unpickler):
 
 
 if __name__ == "__main__":
-    with open("/opt/data/processed/saved_cv_ada.pickle", "rb") as handle:
+    with open("/opt/tmp/saved_cv_ada.pickle", "rb") as handle:
         # dataset = pickle.load(handle)
         cv = CPU_Unpickler(handle).load()
     dataset = cv.dataset
@@ -64,7 +64,7 @@ if __name__ == "__main__":
     model_specifics["size_embedding"] = max(
         [model_specifics[key]["size_out"] for key in num_feature_dict]
     )
-
+    model_specifics["target_name"] = "das283bsr_score"
     model = OthernetWithDoubleAttention(model_specifics, device)
 
     batch_size = int(len(dataset) / 15)

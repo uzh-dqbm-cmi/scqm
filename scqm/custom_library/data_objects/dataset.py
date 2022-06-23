@@ -23,7 +23,7 @@ class Dataset:
         ids: list,
         target_category_name: str,
         event_names: list,
-        min_num_visits: int,
+        min_num_targets: int,
         mapping=None,
     ):
         """Instantiate object.
@@ -34,14 +34,14 @@ class Dataset:
             ids (list): Patient ids to keep
             target_category_name (str): Name of categorical target
             event_names (list): Names of possible events (e.g. visit, medication)
-            min_num_visits (int): Minimum number of visits to keep patient
+            min_num_targets (int): Minimum number of visits to keep patient
             mapping (_type_, optional): Mapping used for categorical features. Defaults to None.
         """
         self.initial_df_dict = df_dict
         self.patient_ids = list(ids)
         self.target_category_name = target_category_name
         self.event_names = event_names
-        self.min_num_visits = min_num_visits
+        self.min_num_targets = min_num_targets
         self.device = device
         self.instantiate_patients()
         if mapping is not None:
@@ -73,14 +73,14 @@ class Dataset:
             min_time_since_last_event=min_time_since_last_event,
             max_time_since_last_event=max_time_since_last_event,
         )
-        # stratifier on number of visits
+        # stratifier on number of targets
         self.stratifier = {
-            num_visit: [
+            num_target: [
                 self.reverse_mapping_for_masks[patient_index]
-                for patient_index in range(len(self.masks.num_visits))
-                if self.masks.num_visits[patient_index] == num_visit
+                for patient_index in range(len(self.masks.num_targets))
+                if self.masks.num_targets[patient_index] == num_target
             ]
-            for num_visit in range(1, max(self.masks.num_visits) + 1)
+            for num_target in range(1, max(self.masks.num_targets) + 1)
         }
         return
 
@@ -88,10 +88,15 @@ class Dataset:
         """
         Instantiate all patient objects.
         """
-        self.patients = {
-            id_: Patient(self.initial_df_dict, id_, self.event_names)
-            for id_ in tqdm(self.patient_ids)
-        }
+        self.patients = {}
+        for id_ in tqdm(self.patient_ids):
+            p = Patient(self.initial_df_dict, id_, self.event_names)
+            if p.target_name != "None":
+                self.patients[id_] = p
+        print(
+            f"Dropping {len(self.patient_ids)- len(self.patients)} because they have not enough temporality in the targets"
+        )
+        self.patient_ids = list(self.patients.keys())
 
         return
 
@@ -188,7 +193,7 @@ class Dataset:
             self.train_ids = []
             self.valid_ids = []
             self.test_ids = []
-            for num_visits in range(1, max(self.masks.num_visits) + 1):
+            for num_visits in range(1, max(self.masks.num_targets) + 1):
                 available_ids = self.stratifier[num_visits]
                 length = len(available_ids)
                 test_size = int(length * prop_test)
@@ -256,6 +261,7 @@ class Dataset:
             self.radai_df_proc = pd.get_dummies(
                 self.radai_df_proc, columns=["morning_stiffness_duration_radai"]
             )
+            self.mny_df_proc = pd.get_dummies(self.mny_df_proc, columns=["mnyc_score"])
         self.med_df_proc = pd.get_dummies(
             self.med_df_proc,
             columns=[
@@ -268,7 +274,7 @@ class Dataset:
             columns=["gender", "anti_ccp", "ra_crit_rheumatoid_factor"],
         )
         # transform to numeric
-        columns_to_exclude = ["patient_id", "uid_num", "med_id"]
+        columns_to_exclude = ["patient_id", "uid_num", "med_id", "event_id"]
         for name in self.df_names:
             df = getattr(self, name + "_proc")
             columns = [col for col in df.columns if col not in columns_to_exclude]
@@ -363,7 +369,7 @@ class Dataset:
             df = getattr(self, name + "_proc")
 
             # get train min and max values
-            columns_to_exclude = ["patient_id", "uid_num", "med_id"]
+            columns_to_exclude = ["patient_id", "uid_num", "med_id", "event_id"]
             columns = [col for col in df.columns if col not in columns_to_exclude]
             min_train_values = df[df.patient_id.isin(self.train_ids)][columns].min()
             max_train_values = df[df.patient_id.isin(self.train_ids)][columns].max()
@@ -516,13 +522,21 @@ class Dataset:
                 ]
                 self[patient].add_info(tensor_name, value)
             # store column number of target and time to target visit
-            if name == "targets_df":
-                self.target_index = list(df[columns].columns).index(
-                    self.target_category_name
-                )
-                self.time_index = list(df[columns].columns).index("date")
-                self.target_value_index = list(df[columns].columns).index(
+            if name == "targets_das28_df":
+                # self.target_index = list(df[columns].columns).index(
+                #     self.target_category_name
+                # )
+                self.time_index_das28 = list(df[columns].columns).index("date")
+                self.target_value_index_das28 = list(df[columns].columns).index(
                     "das283bsr_score"
+                )
+            if name == "targets_basdai_df":
+                # self.target_index = list(df[columns].columns).index(
+                #     self.target_category_name
+                # )
+                self.time_index_basdai = list(df[columns].columns).index("date")
+                self.target_value_index_basdai = list(df[columns].columns).index(
+                    "basdai_score"
                 )
 
         # TODO have only one tensor and mapping to train, valid test (instead of 3 different ?)

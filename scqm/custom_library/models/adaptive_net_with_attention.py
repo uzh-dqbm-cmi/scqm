@@ -136,9 +136,9 @@ class AdaptivenetWithAttention(Model):
         )
         # for scaling of loss
         num_targets = 0
-        for v in range(0, batch.max_num_visits - dataset.min_num_visits + 1):
+        for v in range(0, batch.max_num_targets - dataset.min_num_targets + 1):
             # continue if this visit shouldn't be predicted for any patient
-            if torch.sum(batch.available_visit_mask[:, v] == True).item() == 0:
+            if torch.sum(batch.available_target_mask[:, v] == True).item() == 0:
                 continue
             # stores for all the patients in the batch the tensor of ordered events (of varying size)
             sequence = []
@@ -149,18 +149,18 @@ class AdaptivenetWithAttention(Model):
             visit_index = dataset.event_names.index("a_visit")
             # targets (values)
             target_values = torch.empty(
-                size=(torch.sum(batch.available_visit_mask[:, v] == True).item(), 1),
+                size=(torch.sum(batch.available_target_mask[:, v] == True).item(), 1),
                 device=self.device,
             )
             # targets caetgories
             target_categories = torch.empty(
-                size=(torch.sum(batch.available_visit_mask[:, v] == True).item(),),
+                size=(torch.sum(batch.available_target_mask[:, v] == True).item(),),
                 dtype=torch.int64,
                 device=self.device,
             )
             # delta t
             time_to_targets = torch.empty(
-                size=(torch.sum(batch.available_visit_mask[:, v] == True).item(), 1),
+                size=(torch.sum(batch.available_target_mask[:, v] == True).item(), 1),
                 device=self.device,
             )
             # for each patient combine the medication and visit events in the right order up to visit v
@@ -168,7 +168,7 @@ class AdaptivenetWithAttention(Model):
             debug_index_target = None
             for patient, seq in enumerate(batch.seq_lengths[v]):
                 # check if the patient has at least v visits
-                if batch.available_visit_mask[patient, v] == True:
+                if batch.available_target_mask[patient, v] == True:
                     # create combined ordered list of visit/medication/events up to v
                     combined = torch.zeros(
                         size=(seq.sum(), self.size_embedding), device=self.device
@@ -217,7 +217,7 @@ class AdaptivenetWithAttention(Model):
             )
             # compute the lengths of the sequences for each patient with available visit v
             lengths = (
-                batch.seq_lengths[v].sum(dim=1)[batch.available_visit_mask[:, v]].cpu()
+                batch.seq_lengths[v].sum(dim=1)[batch.available_target_mask[:, v]].cpu()
             )
 
             pack_padded_sequence = torch.nn.utils.rnn.pack_padded_sequence(
@@ -242,12 +242,12 @@ class AdaptivenetWithAttention(Model):
             history = torch.sum(unpacked_output * attention_weights, dim=1)
             # concat computed patient history with general information
             # general_info = self.p_encoder(
-            #     dataset.patients_df_scaled_tensor_train[batch.indices_patients][batch.available_visit_mask[:, v]])
-            general_info = patient_encoding[batch.available_visit_mask[:, v]]
+            #     dataset.patients_df_scaled_tensor_train[batch.indices_patients][batch.available_target_mask[:, v]])
+            general_info = patient_encoding[batch.available_target_mask[:, v]]
 
             pred_input = torch.cat((general_info, history, time_to_targets), dim=1)
             # pred_input = torch.cat(
-            #     (dataset.patients_df_scaled_tensor_train[batch.indices_patients][batch.available_visit_mask[:, v]], history, time_to_targets), dim=1)
+            #     (dataset.patients_df_scaled_tensor_train[batch.indices_patients][batch.available_target_mask[:, v]], history, time_to_targets), dim=1)
             # apply prediction module
             out = self.PModule(pred_input)
             # compute loss
@@ -290,18 +290,21 @@ class AdaptivenetWithAttention(Model):
                 )
 
             seq_lengths = dataset.masks.seq_lengths[:, patient_mask_index, :]
-            available_visit_mask = dataset.masks.available_visit_mask[
+            available_target_mask = dataset.masks.available_target_mask[
                 patient_mask_index
             ]
             predictions = torch.empty(
-                size=(torch.sum(available_visit_mask == True).item(), self.num_targets),
+                size=(
+                    torch.sum(available_target_mask == True).item(),
+                    self.num_targets,
+                ),
                 device=self.device,
             )
-            max_num_visits = dataset.masks.num_visits[patient_mask_index]
+            max_num_targets = dataset.masks.num_targets[patient_mask_index]
             total_num = dataset.masks.total_num[patient_mask_index]
             all_history = torch.empty(
                 size=(
-                    max_num_visits - dataset.min_num_visits + 1,
+                    max_num_targets - dataset.min_num_targets + 1,
                     self.LModule.hidden_size,
                 ),
                 device=self.device,
@@ -309,24 +312,24 @@ class AdaptivenetWithAttention(Model):
 
             # targets (values)
             target_values = torch.empty(
-                size=(torch.sum(available_visit_mask == True).item(), 1),
+                size=(torch.sum(available_target_mask == True).item(), 1),
                 device=self.device,
             )
             # targets categories
             target_categories = torch.empty(
-                size=(torch.sum(available_visit_mask == True).item(), 1),
+                size=(torch.sum(available_target_mask == True).item(), 1),
                 dtype=torch.int64,
                 device=self.device,
             )
             time_to_targets = torch.empty(
-                size=(torch.sum(available_visit_mask == True).item(), 1, 1),
+                size=(torch.sum(available_target_mask == True).item(), 1, 1),
                 device=self.device,
             )
 
             index_target = 0
-            for visit in range(0, max_num_visits - dataset.min_num_visits + 1):
+            for visit in range(0, max_num_targets - dataset.min_num_targets + 1):
                 # continue if this visit shouldn't be predicted for any patient
-                if torch.sum(available_visit_mask[visit] == True).item() == 0:
+                if torch.sum(available_target_mask[visit] == True).item() == 0:
                     continue
                 # create combined ordered list of visit/medication/events up to v
                 combined = torch.zeros(
@@ -358,7 +361,7 @@ class AdaptivenetWithAttention(Model):
                 padded_sequence = torch.nn.utils.rnn.pad_sequence(
                     [combined], batch_first=self.batch_first
                 )
-                lengths = seq_lengths[visit].sum()[available_visit_mask[visit]].cpu()
+                lengths = seq_lengths[visit].sum()[available_target_mask[visit]].cpu()
                 pack_padded = torch.nn.utils.rnn.pack_padded_sequence(
                     padded_sequence,
                     batch_first=self.batch_first,

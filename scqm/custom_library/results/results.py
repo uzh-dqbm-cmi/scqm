@@ -31,11 +31,11 @@ class Results:
         """
         results_df = pd.DataFrame()
         for patient in patient_ids:
-            # target_values = self.dataset[patient].targets_df['das283bsr_score'][self.dataset.min_num_visits - 1:].values
-            # target_categories = self.dataset[patient].targets_df['das28_increase'][self.dataset.min_num_visits - 1:].values
+            # target_values = self.dataset[patient].targets_df['das283bsr_score'][self.dataset.min_num_targets - 1:].values
+            # target_categories = self.dataset[patient].targets_df['das28_increase'][self.dataset.min_num_targets - 1:].values
             value_at_previous = (
                 self.dataset[patient]
-                .targets_df["das283bsr_score"][self.dataset.min_num_visits - 2 : -1]
+                .targets_df["das283bsr_score"][self.dataset.min_num_targets - 2 : -1]
                 .values
             )
 

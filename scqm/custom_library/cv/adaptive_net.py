@@ -111,7 +111,7 @@ class CVAdaptivenet(CV):
                 [model_specifics[key]["size_out"] for key in num_feature_dict]
             )
             model = Adaptivenet(model_specifics, device)
-            self.dataset.min_num_visits = 2
+            self.dataset.min_num_targets = 2
             trainer = AdaptivenetTrainer(
                 model,
                 self.dataset,

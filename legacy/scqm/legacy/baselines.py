@@ -1,4 +1,4 @@
-#TODO rewrite all of this
+# TODO rewrite all of this
 
 
 from scqm.custom_library.utils import create_results_df
@@ -265,7 +265,7 @@ def get_input_tensors(
             )
             indices_of_visits += hist_size + 1 - indices_of_visits[flag]
 
-        visits_to_predict = torch.tensor(
+        targets_to_predict = torch.tensor(
             [
                 elem
                 for index, elem in enumerate(indices_of_visits)
@@ -273,15 +273,15 @@ def get_input_tensors(
             ]
         )
         tensor_x = torch.empty(
-            size=(len(visits_to_predict), t.shape[1] * hist_size + p.shape[1] + 1),
+            size=(len(targets_to_predict), t.shape[1] * hist_size + p.shape[1] + 1),
             device=device,
         )
-        tensor_y = torch.empty(size=(len(visits_to_predict), 1), device=device)
-        num_targets[index_in_subset] = len(visits_to_predict)
-        for index, visit in enumerate(visits_to_predict):
+        tensor_y = torch.empty(size=(len(targets_to_predict), 1), device=device)
+        num_targets[index_in_subset] = len(targets_to_predict)
+        for index, visit in enumerate(targets_to_predict):
             tensor_x[index] = torch.cat(
                 [
-                    t[visit - hist_size : visit].flatten(),
+                    t[visit - hist_size: visit].flatten(),
                     p.flatten(),
                     t[visit, visit_date_flag].reshape(1),
                 ]

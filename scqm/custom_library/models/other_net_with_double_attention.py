@@ -19,6 +19,7 @@ class OthernetWithDoubleAttention(Model):
     def __init__(self, config: dict, device: str):
         super().__init__(config, device)
         self.task = "regression"
+        self.target_name = config["target_name"]
         self.size_embedding = config["size_embedding"]
         # tuple storing the sum of the history sizes (= input size for prediction module)
         # and the cumulative sum of the history sizes, used as indices later to store the
@@ -123,9 +124,9 @@ class OthernetWithDoubleAttention(Model):
         )
         # for scaling of loss
         num_targets = 0
-        for v in range(0, batch.max_num_visits - dataset.min_num_visits + 1):
+        for v in range(0, batch.max_num_targets - dataset.min_num_targets + 1):
             # continue if this visit shouldn't be predicted for any patient
-            if torch.sum(batch.available_visit_mask[:, v] == True).item() == 0:
+            if torch.sum(batch.available_target_mask[:, v] == True).item() == 0:
                 continue
             # stores for all the patients in the batch the tensor of ordered events (of varying size)
             # sequence = []
@@ -136,21 +137,34 @@ class OthernetWithDoubleAttention(Model):
             # indices_lstm = torch.zeros(
             #     (len(dataset.event_names),), dtype=torch.int32, device=self.device
             # )
-            visit_index = dataset.event_names.index("a_visit")
+
+            if self.target_name == "das283bsr_score":
+                target_index_in_events = dataset.event_names.index("a_visit")
+                target_index_in_tensor = dataset.target_value_index_das28
+                target_tensor = dataset.targets_das28_df_scaled_tensor_train
+                batch_indices_targets = batch.indices_targets_das28
+                time_index = dataset.time_index_das28
+            else:
+                target_index_in_events = dataset.event_names.index("basdai")
+                target_index_in_tensor = dataset.target_value_index_basdai
+                target_tensor = dataset.targets_basdai_df_scaled_tensor_train
+                batch_indices_targets = batch.indices_targets_basdai
+                time_index = dataset.time_index_basdai
+
             # targets (values)
             target_values = torch.empty(
-                size=(torch.sum(batch.available_visit_mask[:, v] == True).item(), 1),
+                size=(torch.sum(batch.available_target_mask[:, v] == True).item(), 1),
                 device=self.device,
             )
             # targets caetgories
             target_categories = torch.empty(
-                size=(torch.sum(batch.available_visit_mask[:, v] == True).item(),),
+                size=(torch.sum(batch.available_target_mask[:, v] == True).item(),),
                 dtype=torch.int64,
                 device=self.device,
             )
             # delta t
             time_to_targets = torch.empty(
-                size=(torch.sum(batch.available_visit_mask[:, v] == True).item(), 1),
+                size=(torch.sum(batch.available_target_mask[:, v] == True).item(), 1),
                 device=self.device,
             )
 
@@ -179,9 +193,7 @@ class OthernetWithDoubleAttention(Model):
 
             for patient, seq in enumerate(batch.seq_lengths[v]):
                 # check if the patient has at least v visits
-                if batch.available_visit_mask[patient, v] == True:
-
-                    print(target_categories[: index_target + 1])
+                if batch.available_target_mask[patient, v] == True:
                     # compute for each event the encoder outputs
                     for index, event in enumerate(dataset.event_names):
                         if seq[index] > 0:
@@ -190,18 +202,22 @@ class OthernetWithDoubleAttention(Model):
                             ][indices[index] : indices[index] + seq[index]]
                         else:
                             continue
-                    target_values[
-                        index_target
-                    ] = dataset.targets_df_scaled_tensor_train[batch.indices_targets][
-                        indices[visit_index] + v + dataset.min_num_visits - 1,
-                        dataset.target_value_index,
+                    target_values[index_target] = target_tensor[batch_indices_targets][
+                        indices[target_index_in_events]
+                        + v
+                        + dataset.min_num_targets
+                        - 1,
+                        target_index_in_tensor,
                     ]
                     # TODO change
-                    time_to_targets[
-                        index_target
-                    ] = dataset.targets_df_scaled_tensor_train[batch.indices_targets][
-                        indices[visit_index] + v + dataset.min_num_visits - 1,
-                        dataset.time_index,
+                    time_to_targets[index_target] = target_tensor[
+                        batch_indices_targets
+                    ][
+                        indices[target_index_in_events]
+                        + v
+                        + dataset.min_num_targets
+                        - 1,
+                        time_index,
                     ]
                     target_categories[index_target] = batch.target_categories[
                         patient, v
@@ -209,7 +225,7 @@ class OthernetWithDoubleAttention(Model):
                     # target_categories[
                     #     index_target
                     # ] = dataset.targets_df_scaled_tensor_train[batch.indices_targets][
-                    #     indices[visit_index] + v + dataset.min_num_visits - 1,
+                    #     indices[visit_index] + v + dataset.min_num_targets - 1,
                     #     dataset.target_index,
                     # ]
 
@@ -233,7 +249,7 @@ class OthernetWithDoubleAttention(Model):
                 # patients = [
                 #     elem.item()
                 #     for elem in patients
-                #     if batch.available_visit_mask[elem, v]
+                #     if batch.available_target_mask[elem, v]
                 # ]
                 if len(patients) > 0:
                     # compute the lengths of the sequences for each patient with available visit v
@@ -259,11 +275,11 @@ class OthernetWithDoubleAttention(Model):
                             index
                         ] : self.combined_history_size[1][index + 1],
                     ] = torch.sum(unpacked_output * attention_weights, dim=1)
-            # torch.reshape(combined_lstm[batch.available_visit_mask[:, v]], shape=(len(torch.nonzero(batch.available_visit_mask[:, v])), len(dataset.event_names), self.history_size))
+            # torch.reshape(combined_lstm[batch.available_target_mask[:, v]], shape=(len(torch.nonzero(batch.available_target_mask[:, v])), len(dataset.event_names), self.history_size))
             combined_lstm_input = torch.reshape(
-                combined_lstm[batch.available_visit_mask[:, v]],
+                combined_lstm[batch.available_target_mask[:, v]],
                 shape=(
-                    len(torch.nonzero(batch.available_visit_mask[:, v])),
+                    len(torch.nonzero(batch.available_target_mask[:, v])),
                     len(dataset.event_names),
                     self.history_size,
                 ),
@@ -274,11 +290,11 @@ class OthernetWithDoubleAttention(Model):
             combined_lstm_input = torch.reshape(
                 global_attention_weights * combined_lstm_input,
                 shape=(
-                    len(torch.nonzero(batch.available_visit_mask[:, v])),
+                    len(torch.nonzero(batch.available_target_mask[:, v])),
                     self.combined_history_size[0],
                 ),
             )
-            general_info = patient_encoding[batch.available_visit_mask[:, v]]
+            general_info = patient_encoding[batch.available_target_mask[:, v]]
             pred_input = torch.cat(
                 (
                     general_info,
@@ -311,43 +327,56 @@ class OthernetWithDoubleAttention(Model):
             # method to directly apply the model to a single patient
             patient_mask_index = dataset.mapping_for_masks[patient_id]
             encoder_outputs = {}
+            target_name = self.target_name
+            if target_name == "das283bsr_score":
+                target_index_in_events = dataset.event_names.index("a_visit")
+                target_index_in_tensor = dataset.target_value_index_das28
+                target_tensor = dataset[patient_id].targets_das28_df_tensor
+
+                time_index = dataset.time_index_das28
+            else:
+                target_index_in_events = dataset.event_names.index("basdai")
+                target_index_in_tensor = dataset.target_value_index_basdai
+                target_tensor = dataset[patient_id].targets_basdai_df_tensor
+
+                time_index = dataset.time_index_basdai
             for event in dataset.event_names:
                 encoder_outputs[event] = self.encoders[event](
                     getattr(dataset[patient_id], event + "_df_tensor").to(self.device)
                 )
 
             seq_lengths = dataset.masks.seq_lengths[:, patient_mask_index, :]
-            available_visit_mask = dataset.masks.available_visit_mask[
+            available_target_mask = dataset.masks.available_target_mask[
                 patient_mask_index
             ]
             predictions = torch.empty(
-                size=(torch.sum(available_visit_mask == True).item(), 1),
+                size=(torch.sum(available_target_mask == True).item(), 1),
                 device=self.device,
             )
-            max_num_visits = dataset.masks.num_visits[patient_mask_index]
+            max_num_targets = dataset.masks.num_targets[patient_mask_index]
             total_num = dataset.masks.total_num[patient_mask_index]
 
             # targets (values)
             target_values = torch.empty(
-                size=(torch.sum(available_visit_mask == True).item(), 1),
+                size=(torch.sum(available_target_mask == True).item(), 1),
                 device=self.device,
             )
-            # targets categories
-            target_categories = torch.empty(
-                size=(torch.sum(available_visit_mask == True).item(), 1),
-                dtype=torch.int64,
-                device=self.device,
-            )
+            # # targets categories
+            # target_categories = torch.empty(
+            #     size=(torch.sum(available_target_mask == True).item(), 1),
+            #     dtype=torch.int64,
+            #     device=self.device,
+            # )
             time_to_targets = torch.empty(
-                size=(torch.sum(available_visit_mask == True).item(), 1, 1),
+                size=(torch.sum(available_target_mask == True).item(), 1, 1),
                 device=self.device,
             )
             visit_ids = []
 
             index_target = 0
-            for visit in range(0, max_num_visits - dataset.min_num_visits + 1):
+            for visit in range(0, max_num_targets - dataset.min_num_targets + 1):
                 # continue if this visit shouldn't be predicted for any patient
-                if torch.sum(available_visit_mask[visit] == True).item() == 0:
+                if torch.sum(available_target_mask[visit] == True).item() == 0:
                     continue
                 # create combined ordered list of visit/medication/events up to v
 
@@ -377,23 +406,19 @@ class OthernetWithDoubleAttention(Model):
                         continue
 
                 # targets (values)
-                target_values[index_target] = dataset[patient_id].targets_df_tensor[
-                    visit + dataset.min_num_visits - 1, dataset.target_value_index
+                target_values[index_target] = target_tensor[
+                    visit + dataset.min_num_targets - 1,
+                    target_index_in_tensor,
                 ]
                 # TODO change
 
-                time_to_targets[index_target] = dataset[patient_id].targets_df_tensor[
-                    visit + dataset.min_num_visits - 1, dataset.time_index
+                time_to_targets[index_target] = target_tensor[
+                    visit + dataset.min_num_targets - 1, time_index
                 ]
 
-                visit_ids.append(
-                    dataset[patient_id]
-                    .targets_df.iloc[visit + dataset.min_num_visits - 1]
-                    .uid_num
-                )
-                target_categories[index_target] = dataset[patient_id].targets_df_tensor[
-                    visit + dataset.min_num_visits - 1, dataset.target_index
-                ]
+                # target_categories[index_target] = dataset[patient_id].targets_df_tensor[
+                #     visit + dataset.min_num_targets - 1, dataset.target_index
+                # ]
                 for index, event in enumerate(dataset.event_names):
                     if seq_lengths[visit][index].item() > 0:
                         lengths = seq_lengths[visit][index].reshape(1).cpu()
@@ -455,11 +480,4 @@ class OthernetWithDoubleAttention(Model):
                     [torch.argmax(elem) for elem in predictions], device=self.device
                 )
 
-        return (
-            predictions,
-            "nothing",
-            target_values,
-            time_to_targets,
-            target_categories,
-            visit_ids,
-        )
+        return (predictions, target_values, time_to_targets)

@@ -1,26 +1,26 @@
 # Execute complete timeline with fake data (generate + create dataset object + instantiate model + training)
+import torch.multiprocessing as mp
+from scqm.custom_library.models.adaptive_net import Adaptivenet
+from scqm.custom_library.models.other_net import OthernetOptimized
+from scqm.custom_library.models.other_net_with_attention import (
+    OthernetOptimizedWithAttention,
+)
+from scqm.custom_library.trainers.adaptive_net import AdaptivenetTrainer
+from scqm.custom_library.cv.adaptive_net_multi import CVAdaptivenet
+from scqm.test_bed.fake_scqm import get_df_dict
+import copy
+import pandas as pd
+import torch
+from scqm.custom_library.preprocessing.select_features import extract_adanet_features
+from scqm.custom_library.data_objects.dataset import Dataset
+from scqm.custom_library.partition.partition import DataPartition
+import numpy as np
 import random
 import itertools
 import sys
 
 sys.path.append("../scqm")
-import numpy as np
-from scqm.custom_library.partition.partition import DataPartition
-from scqm.custom_library.data_objects.dataset import Dataset
-from scqm.custom_library.preprocessing.select_features import extract_adanet_features
-import torch
-import pandas as pd
-import copy
-from scqm.test_bed.fake_scqm import get_df_dict
-from scqm.custom_library.cv.adaptive_net_multi import CVAdaptivenet
-from scqm.custom_library.trainers.adaptive_net import AdaptivenetTrainer
-from scqm.custom_library.models.other_net_with_attention import (
-    OthernetOptimizedWithAttention,
-)
-from scqm.custom_library.models.other_net import OthernetOptimized
-from scqm.custom_library.models.adaptive_net import Adaptivenet
 
-import torch.multiprocessing as mp
 
 # setting path
 
@@ -59,7 +59,7 @@ if __name__ == "__main__":
         "haq": haq_df,
     }
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    min_num_visits = 2
+    min_num_targets = 2
     # instantiate dataset
     dataset = Dataset(
         device,
@@ -67,7 +67,7 @@ if __name__ == "__main__":
         df_dict_fake["patients"]["patient_id"].unique(),
         "das28_increase",
         ["a_visit", "med", "haq"],
-        min_num_visits,
+        min_num_targets,
     )
     dataset.drop(
         [
@@ -171,7 +171,7 @@ if __name__ == "__main__":
             [model_specifics[key]["size_out"] for key in num_feature_dict]
         )
         model = Adaptivenet(model_specifics, device)
-        self.dataset.min_num_visits = 2
+        self.dataset.min_num_targets = 2
         trainer = AdaptivenetTrainer(
             model,
             self.dataset,

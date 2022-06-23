@@ -13,6 +13,7 @@ class Batch:
         all_indices: array,
         available_indices: array,
         current_indices=None,
+        tensor_names=list,
     ):
         """Instanciate obkect
 
@@ -26,6 +27,7 @@ class Batch:
         self.all_indices = all_indices
         self.available_indices = available_indices
         self.current_indices = current_indices
+        self.tensor_names = tensor_names
 
     def get_batch(self, dataset: Dataset, batch_size=None, debug_patient=None):
         """
@@ -49,7 +51,7 @@ class Batch:
             )
             # print(f'len available indices {len(self.available_indices)}')
 
-        for name in dataset.event_names + ["patients", "targets"]:
+        for name in self.tensor_names:
             indices = [
                 dataset.tensor_indices_mapping_train[patient][name + "_df"]
                 for patient in self.current_indices
@@ -62,8 +64,8 @@ class Batch:
             print(f"index in batch {self.debug_index}")
         else:
             self.debug_index = None
-        if (self.indices_a_visit != self.indices_targets).any():
-            raise ValueError("index mismatch between visits and targets")
+        # if (self.indices_a_visit != self.indices_targets).any():
+        #     raise ValueError("index mismatch between visits and targets")
 
         return
 
@@ -86,21 +88,26 @@ class Batch:
                 name,
                 list(getattr(dataset.masks, name)[i] for i in indices_mapping),
             )
-        self.available_visit_mask = dataset.masks.available_visit_mask[indices_mapping]
+        self.available_target_mask = dataset.masks.available_target_mask[
+            indices_mapping
+        ]
         self.target_categories = dataset.masks.target_category[indices_mapping]
         self.total_num = dataset.masks.total_num[indices_mapping]
-        self.max_num_visits = max(
-            list(dataset.masks.num_visits[i] for i in indices_mapping)
-        )
+        if len(self.current_indices) > 0:
+            self.max_num_targets = max(
+                list(dataset.masks.num_targets[i] for i in indices_mapping)
+            )
+        else:
+            self.max_num_targets = 0
 
         if debug_patient and debug_patient in self.current_indices:
             index = dataset.mapping_for_masks[debug_patient]
             for visit in range(
-                dataset.masks.num_visits[index] - dataset.min_num_visits + 1
+                dataset.masks.num_targets[index] - dataset.min_num_targets + 1
             ):
                 _, _, _, visual, _ = dataset.patients[
                     debug_patient
-                ].get_cropped_timeline(visit + dataset.min_num_visits)
+                ].get_cropped_timeline(visit + dataset.min_num_targets)
                 print(f"visit {visit} cropped timeline mask {visual}")
 
         return

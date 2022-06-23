@@ -3,7 +3,7 @@ alias sing_scqm_original='singularity shell --writable -B /cluster/dataset/medin
 alias sing_scqm='singularity shell --writable -B /cluster/dataset/medinfmk/scqm:/opt /cluster/dataset/medinfmk/scqm/containers/scqm.img'
 alias sing_scqm2='singularity shell -H $HOME -B /cluster/dataset/medinfmk/scqm:/opt /cluster/dataset/medinfmk/scqm/containers/scqm.img'
 #alias sing_cecile= 'srun --cpus-per-task 1 --mem-per-cpu 6G --time 12:00:00 --pty singularity shell -H $HOME -B /cluster/work/medinfmk/scqm:/opt /cluster/work/medinfmk/scqm/containers/scqm.img'
-alias sing_cecile_gpu='srun --cpus-per-task 2 --mem-per-cpu 10G --time 24:00:00 -p gpu --gpus-per-node=1 --pty singularity shell --nv -H $HOME -B /cluster/work/medinfmk/scqm:/opt /cluster/work/medinfmk/scqm/containers/scqm.img'
+alias sing_cecile_gpu='srun --cpus-per-task 3 --mem-per-cpu 10G --time 24:00:00 -p gpu --gpus-per-node=1 --pty singularity shell --nv -H $HOME -B /cluster/work/medinfmk/scqm:/opt /cluster/work/medinfmk/scqm/containers/scqm.img'
 # Creates two different entries for running Jupyter notebooks
 alias jup_cecile='jupyter notebook --no-browser --ip=$(hostname -i) --port 6070'
 # Create batch-job

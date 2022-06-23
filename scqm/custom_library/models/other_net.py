@@ -118,9 +118,9 @@ class Othernet(Model):
         )
         # for scaling of loss
         num_targets = 0
-        for v in range(0, batch.max_num_visits - dataset.min_num_visits + 1):
+        for v in range(0, batch.max_num_targets - dataset.min_num_targets + 1):
             # continue if this visit shouldn't be predicted for any patient
-            if torch.sum(batch.available_visit_mask[:, v] == True).item() == 0:
+            if torch.sum(batch.available_target_mask[:, v] == True).item() == 0:
                 continue
             # stores for all the patients in the batch the tensor of ordered events (of varying size)
             # sequence = []
@@ -134,18 +134,18 @@ class Othernet(Model):
             visit_index = dataset.event_names.index("a_visit")
             # targets (values)
             target_values = torch.empty(
-                size=(torch.sum(batch.available_visit_mask[:, v] == True).item(), 1),
+                size=(torch.sum(batch.available_target_mask[:, v] == True).item(), 1),
                 device=self.device,
             )
             # targets caetgories
             target_categories = torch.empty(
-                size=(torch.sum(batch.available_visit_mask[:, v] == True).item(),),
+                size=(torch.sum(batch.available_target_mask[:, v] == True).item(),),
                 dtype=torch.int64,
                 device=self.device,
             )
             # delta t
             time_to_targets = torch.empty(
-                size=(torch.sum(batch.available_visit_mask[:, v] == True).item(), 1),
+                size=(torch.sum(batch.available_target_mask[:, v] == True).item(), 1),
                 device=self.device,
             )
 
@@ -174,7 +174,7 @@ class Othernet(Model):
 
             for patient, seq in enumerate(batch.seq_lengths[v]):
                 # check if the patient has at least v visits
-                if batch.available_visit_mask[patient, v] == True:
+                if batch.available_target_mask[patient, v] == True:
                     # compute for each event the encoder outputs
                     for index, event in enumerate(dataset.event_names):
                         if seq[index] > 0:
@@ -183,24 +183,24 @@ class Othernet(Model):
                             ][indices[index] : indices[index] + seq[index]]
                         else:
                             continue
-                    # indices[visit_index] + v + dataset.min_num_visits - 1
+                    # indices[visit_index] + v + dataset.min_num_targets - 1
                     target_values[
                         index_target
                     ] = dataset.targets_df_scaled_tensor_train[batch.indices_targets][
-                        indices[visit_index] + v + dataset.min_num_visits - 1,
+                        indices[visit_index] + v + dataset.min_num_targets - 1,
                         dataset.target_value_index,
                     ]
                     # TODO change
                     time_to_targets[
                         index_target
                     ] = dataset.targets_df_scaled_tensor_train[batch.indices_targets][
-                        indices[visit_index] + v + dataset.min_num_visits - 1,
+                        indices[visit_index] + v + dataset.min_num_targets - 1,
                         dataset.time_index,
                     ]
                     target_categories[
                         index_target
                     ] = dataset.targets_df_scaled_tensor_train[batch.indices_targets][
-                        indices[visit_index] + v + dataset.min_num_visits - 1,
+                        indices[visit_index] + v + dataset.min_num_targets - 1,
                         dataset.target_index,
                     ]
                     if batch.debug_index != None and patient == batch.debug_index:
@@ -220,12 +220,12 @@ class Othernet(Model):
                 patients = torch.nonzero(batch.seq_lengths[v][:, index]).flatten()
                 if len(patients) > 0:
                     combined_lstm[
-                        batch.available_visit_mask[:, v],
+                        batch.available_target_mask[:, v],
                         self.combined_history_size[1][
                             index
                         ] : self.combined_history_size[1][index + 1],
                     ] = self.lstm_modules[event](
-                        combined[event][batch.available_visit_mask[:, v]]
+                        combined[event][batch.available_target_mask[:, v]]
                     )[
                         1
                     ][
@@ -233,11 +233,11 @@ class Othernet(Model):
                     ][
                         -1
                     ]
-            general_info = patient_encoding[batch.available_visit_mask[:, v]]
+            general_info = patient_encoding[batch.available_target_mask[:, v]]
             pred_input = torch.cat(
                 (
                     general_info,
-                    combined_lstm[batch.available_visit_mask[:, v]],
+                    combined_lstm[batch.available_target_mask[:, v]],
                     time_to_targets,
                 ),
                 dim=1,
@@ -276,37 +276,37 @@ class Othernet(Model):
                 )
 
             seq_lengths = dataset.masks.seq_lengths[:, patient_mask_index, :]
-            available_visit_mask = dataset.masks.available_visit_mask[
+            available_target_mask = dataset.masks.available_target_mask[
                 patient_mask_index
             ]
             predictions = torch.empty(
-                size=(torch.sum(available_visit_mask == True).item(), 1),
+                size=(torch.sum(available_target_mask == True).item(), 1),
                 device=self.device,
             )
-            max_num_visits = dataset.masks.num_visits[patient_mask_index]
+            max_num_targets = dataset.masks.num_targets[patient_mask_index]
             total_num = dataset.masks.total_num[patient_mask_index]
 
             # targets (values)
             target_values = torch.empty(
-                size=(torch.sum(available_visit_mask == True).item(), 1),
+                size=(torch.sum(available_target_mask == True).item(), 1),
                 device=self.device,
             )
             visit_ids = []
             # targets categories
             target_categories = torch.empty(
-                size=(torch.sum(available_visit_mask == True).item(), 1),
+                size=(torch.sum(available_target_mask == True).item(), 1),
                 dtype=torch.int64,
                 device=self.device,
             )
             time_to_targets = torch.empty(
-                size=(torch.sum(available_visit_mask == True).item(), 1, 1),
+                size=(torch.sum(available_target_mask == True).item(), 1, 1),
                 device=self.device,
             )
             visit_ids = []
             index_target = 0
-            for visit in range(0, max_num_visits - dataset.min_num_visits + 1):
+            for visit in range(0, max_num_targets - dataset.min_num_targets + 1):
                 # continue if this visit shouldn't be predicted for any patient
-                if torch.sum(available_visit_mask[visit] == True).item() == 0:
+                if torch.sum(available_target_mask[visit] == True).item() == 0:
                     continue
                 # create combined ordered list of visit/medication/events up to v
 
@@ -337,21 +337,21 @@ class Othernet(Model):
 
                 # targets (values)
                 target_values[index_target] = dataset[patient_id].targets_df_tensor[
-                    visit + dataset.min_num_visits - 1, dataset.target_value_index
+                    visit + dataset.min_num_targets - 1, dataset.target_value_index
                 ]
 
                 # TODO change
 
                 time_to_targets[index_target] = dataset[patient_id].targets_df_tensor[
-                    visit + dataset.min_num_visits - 1, dataset.time_index
+                    visit + dataset.min_num_targets - 1, dataset.time_index
                 ]
 
                 target_categories[index_target] = dataset[patient_id].targets_df_tensor[
-                    visit + dataset.min_num_visits - 1, dataset.target_index
+                    visit + dataset.min_num_targets - 1, dataset.target_index
                 ]
                 visit_ids.append(
                     dataset[patient_id]
-                    .targets_df.iloc[visit + dataset.min_num_visits - 1]
+                    .targets_df.iloc[visit + dataset.min_num_targets - 1]
                     .uid_num
                 )
                 for index, event in enumerate(dataset.event_names):
@@ -369,8 +369,8 @@ class Othernet(Model):
                 pred_input = torch.cat(
                     (
                         general_info,
-                        combined_lstm[available_visit_mask[visit]].reshape(
-                            1, combined_lstm[available_visit_mask[visit]].shape[2]
+                        combined_lstm[available_target_mask[visit]].reshape(
+                            1, combined_lstm[available_target_mask[visit]].shape[2]
                         ),
                         time_to_targets[index_target],
                     ),

@@ -1,32 +1,34 @@
 # Execute complete timeline with fake data (generate + create dataset object + instantiate model + training)
 import sys
-import cProfile, pstats
+import cProfile
+import pstats
 
 sys.path.append("../scqm")
-
-from scqm.custom_library.models.adaptive_net import Adaptivenet
-from scqm.custom_library.models.other_net import Othernet
-from scqm.custom_library.models.other_net_with_attention import (
-    OthernetWithAttention,
-)
-from scqm.custom_library.models.other_net_multiloss import OthernetMultiloss
+from scqm.custom_library.partition.partition import DataPartition
+from scqm.custom_library.data_objects.dataset import Dataset
+from scqm.custom_library.preprocessing.select_features import extract_adanet_features
+import time
+import torch
+import pandas as pd
+import copy
+from scqm.test_bed.fake_scqm import get_df_dict
+from legacy.scqm.legacy.trainers.multiloss import MultilossTrainer
+from scqm.custom_library.trainers.adaptive_net import AdaptivenetTrainer
 from scqm.custom_library.models.other_net_with_double_attention import (
     OthernetWithDoubleAttention,
 )
-from scqm.custom_library.trainers.adaptive_net import AdaptivenetTrainer
-from scqm.custom_library.trainers.multiloss import MultilossTrainer
-from scqm.test_bed.fake_scqm import get_df_dict
+from scqm.custom_library.models.other_net_with_attention import (
+    OthernetWithAttention,
+)
+from scqm.custom_library.models.other_net import Othernet
+from scqm.custom_library.models.adaptive_net import Adaptivenet
+import sys
+import cProfile
+import pstats
 
-import copy
-import pandas as pd
-import torch
-import time
 
 # setting path
 
-from scqm.custom_library.preprocessing.select_features import extract_adanet_features
-from scqm.custom_library.data_objects.dataset import Dataset
-from scqm.custom_library.partition.partition import DataPartition
 
 if __name__ == "__main__":
     # create fake data
@@ -59,11 +61,11 @@ if __name__ == "__main__":
         "a_visit": visits_df,
         "patients": patients_df,
         "med": medications_df,
-        "targets": targets_df,
+        "targets_das28": targets_df,
         "haq": haq_df,
     }
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    min_num_visits = 2
+    min_num_targets = 2
     # instantiate dataset
     dataset = Dataset(
         device,
@@ -71,14 +73,10 @@ if __name__ == "__main__":
         df_dict_fake["patients"]["patient_id"].unique(),
         "das28_increase",
         ["a_visit", "med", "haq"],
-        min_num_visits,
+        min_num_targets,
     )
     dataset.drop(
-        [
-            id_
-            for id_, patient in dataset.patients.items()
-            if len(patient.visit_ids) <= 2
-        ]
+        [id_ for id_, patient in dataset.patients.items() if len(patient.targets) <= 2]
     )
     print(f"Dropping patients with less than 3 visits, keeping {len(dataset)}")
     dataset.get_masks()
@@ -128,18 +126,9 @@ if __name__ == "__main__":
     model_specifics["size_embedding"] = max(
         [model_specifics[key]["size_out"] for key in num_feature_dict]
     )
-    # model = OthernetWithDoubleAttention(model_specifics, device)
-    # trainer = AdaptivenetTrainer(
-    #     model,
-    #     dataset,
-    #     n_epochs=10,
-    #     batch_size=int(len(dataset) / 2),
-    #     lr=1e-2,
-    #     balance_classes=True,
-    #     use_early_stopping=False,
-    # )
-    model = OthernetMultiloss(model_specifics, device)
-    trainer = MultilossTrainer(
+    model_specifics["target_name"] = "das283bsr_score"
+    model = OthernetWithDoubleAttention(model_specifics, device)
+    trainer = AdaptivenetTrainer(
         model,
         dataset,
         n_epochs=10,
@@ -148,6 +137,7 @@ if __name__ == "__main__":
         balance_classes=True,
         use_early_stopping=False,
     )
+
     # train
 
     # profiler = cProfile.Profile()
@@ -157,17 +147,10 @@ if __name__ == "__main__":
     end = time.time()
     print(end - start)
     # test apply function
-    (
-        predictions,
-        _,
-        target_values,
-        time_to_targets,
-        target_categories,
-        visit_ids,
-        predicted_categories,
-    ) = model.apply(dataset, dataset.test_ids[0])
-    print(target_categories)
-    print(predicted_categories)
+    for patient in dataset.test_ids:
+        (predictions, _, target_values, time_to_targets) = model.apply(
+            dataset, dataset.test_ids[0]
+        )
     save = False
     if save:
         for name in dataset.df_names:

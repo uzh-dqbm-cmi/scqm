@@ -1,29 +1,38 @@
 # Execute complete timeline with fake data (generate + create dataset object + instantiate model + training)
-import pstats
-import cProfile
-
 import sys
+import cProfile
+import pstats
 
 sys.path.append("../scqm")
-from scqm.custom_library.models.multitask_net import Multitask
-
-from scqm.custom_library.trainers.multitask_net import MultitaskTrainer
-
-from scqm.test_bed.fake_scqm import get_df_dict
-import copy
-import pandas as pd
-import torch
-import time
+from scqm.custom_library.partition.partition import DataPartition
+from scqm.custom_library.data_objects.dataset import Dataset
 from scqm.custom_library.preprocessing.select_features import extract_multitask_features
-from scqm.custom_library.data_objects.dataset_multitask import DatasetMultitask
-from scqm.custom_library.partition.multitask_partition import MultitaskPartition
+import time
+import torch
+import pandas as pd
+import copy
+from scqm.test_bed.fake_scqm import get_df_dict
+from legacy.scqm.legacy.trainers.multiloss import MultilossTrainer
+from scqm.custom_library.trainers.adaptive_net import AdaptivenetTrainer
+from scqm.custom_library.models.other_net_with_double_attention import (
+    OthernetWithDoubleAttention,
+)
+from scqm.custom_library.models.other_net_with_attention import (
+    OthernetWithAttention,
+)
+from scqm.custom_library.models.other_net import Othernet
+from scqm.custom_library.models.adaptive_net import Adaptivenet
+import sys
+import cProfile
+import pstats
 
 
 # setting path
 
+
 if __name__ == "__main__":
     # create fake data
-    df_dict = get_df_dict(num_patients=500)
+    df_dict = get_df_dict(num_patients=100)
     real_data = False
     df_dict_processed = copy.deepcopy(df_dict)
     for index, table in df_dict_processed.items():
@@ -51,35 +60,30 @@ if __name__ == "__main__":
         "a_visit": visits_df,
         "patients": general_df,
         "med": med_df,
-        "targets_das28": targets_df_das28,
+        "basdai": basdai_df,
         "targets_basdai": targets_df_basdai,
         "haq": haq_df,
-        "basdai": basdai_df,
     }
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     min_num_targets = 2
     # instantiate dataset
-    dataset = DatasetMultitask(
+    dataset = Dataset(
         device,
         df_dict_fake,
         df_dict_fake["patients"]["patient_id"].unique(),
-        ["das283bsr_score", "basdai_score"],
+        "None",
         ["a_visit", "med", "haq", "basdai"],
         min_num_targets,
     )
     dataset.drop(
-        [
-            id_
-            for id_, patient in dataset.patients.items()
-            if len(patient.visit_ids) <= 2
-        ]
+        [id_ for id_, patient in dataset.patients.items() if len(patient.targets) <= 2]
     )
-    print(f"Dropping patients with less than 3 visits, keeping {len(dataset)}")
+    print(f"Dropping patients with less than 3 targets, keeping {len(dataset)}")
     dataset.get_masks()
     dataset.create_dfs()
     # prepare for training
     dataset.transform_to_numeric_adanet(real_data)
-    partition = MultitaskPartition(dataset, k=3)
+    partition = DataPartition(dataset, k=3)
     fold = int(0)
     partition.set_current_fold(fold)
     num_feature_dict = {
@@ -107,6 +111,12 @@ if __name__ == "__main__":
         "batch_first": True,
         "device": device,
     }
+    # for key in num_feature_dict:
+    #     model_specifics[key] = {
+    #         "num_features": num_feature_dict[key],
+    #         "size_out": size_out_dict[key],
+    #         "size_history": 3,
+    #     }
     for key in num_feature_dict:
         model_specifics[key] = {
             "num_features": num_feature_dict[key],
@@ -116,12 +126,13 @@ if __name__ == "__main__":
     model_specifics["size_embedding"] = max(
         [model_specifics[key]["size_out"] for key in num_feature_dict]
     )
-    model = Multitask(model_specifics, device)
-    trainer = MultitaskTrainer(
+    model_specifics["target_name"] = "basdai"
+    model = OthernetWithDoubleAttention(model_specifics, device)
+    trainer = AdaptivenetTrainer(
         model,
         dataset,
         n_epochs=10,
-        batch_size=int(len(dataset) / 10),
+        batch_size=int(len(dataset) / 2),
         lr=1e-2,
         balance_classes=True,
         use_early_stopping=False,
@@ -135,9 +146,16 @@ if __name__ == "__main__":
     trainer.train_model(model, partition, debug_patient=False)
     end = time.time()
     print(end - start)
+    # test apply function
     for patient in dataset.test_ids:
-        (predictions, target_values, time_to_targets) = model.apply(dataset, patient)
-        print(
-            f"pred {predictions} target values {target_values} time {time_to_targets}"
+        (predictions, _, target_values, time_to_targets) = model.apply(
+            dataset, dataset.test_ids[0]
         )
+    save = False
+    if save:
+        for name in dataset.df_names:
+            getattr(dataset, name).to_csv(
+                "scqm/test_bed/dummy_data/" + name + ".csv", index=False
+            )
+
     print("End of script")

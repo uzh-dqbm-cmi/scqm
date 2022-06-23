@@ -230,6 +230,11 @@ def preprocessing(df_dict: dict, real_data: bool = True) -> dict:
             "a_former_smoker": "i_am_a_former_smoker_for_more_than_a_year",
         }
     )
+    # add id to basdai events
+    if "basdai" in df_dict_processed.keys():
+        df_dict_processed["basdai"]["event_id"] = [
+            "basdai_id" + str(i) for i in range(len(df_dict_processed["basdai"]))
+        ]
     # medications specific preprocessing
     # sometimes written bsDMARD or brDMARD for the same thing
     df_dict_processed["medications"][

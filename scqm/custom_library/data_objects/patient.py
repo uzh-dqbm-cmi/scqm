@@ -1,4 +1,5 @@
 import numpy as np
+from scqm.custom_library.data_objects.basdai import Basdai
 from scqm.custom_library.data_objects.data_object import DataObject
 from scqm.custom_library.data_objects.visit import Visit
 from scqm.custom_library.data_objects.medication import Medication
@@ -20,13 +21,41 @@ class Patient(DataObject):
         """
         super().__init__(df_dict, patient_id)
         self.id = patient_id
+        self.get_target_name()
+        if self.target_name == "None":
+            return
         self.visits = self.get_visits()
         self.medications = self.get_medications()
         self.event_names = event_names
+        if "basdai" in self.event_names:
+            self.basdai = self.get_basdai()
         self.other_events = self.get_other_events()
         self.timeline = self.get_timeline()
         # TODO remove first visit from visits to predict
-        self.visits_to_predict = self.visits
+        if self.target_name == "das283bsr_score":
+            self.targets = self.visits
+            self.targets_to_predict = self.visits
+            self.targets_df = self.targets_das28_df
+        else:
+            self.targets = self.basdai
+            self.targets_to_predict = self.basdai
+            self.targets_df = self.targets_basdai_df
+        return
+
+    def get_target_name(self):
+        # if at least 3 visit with das28 --> use das28 as target
+        if (
+            hasattr(self, "targets_das28_df")
+            and self.targets_das28_df["das283bsr_score"].notna().sum() >= 3
+        ):
+            self.target_name = "das283bsr_score"
+        elif (
+            hasattr(self, "targets_basdai_df")
+            and self.targets_basdai_df["basdai_score"].notna().sum() >= 3
+        ):
+            self.target_name = "basdai_score"
+        else:
+            self.target_name = "None"
         return
 
     def get_visits(self) -> list:
@@ -62,6 +91,16 @@ class Patient(DataObject):
             self.med_intervals.append(m.interval)
         return meds
 
+    def get_basdai(self) -> list:
+        self.basdai_df = self.basdai_df.sort_values(by="date", axis=0)
+        self.basdai_ids = self.basdai_df["event_id"].values
+        self.basdai_dates = self.basdai_df["date"].values
+        self.num_basdai_events = len(self.basdai_ids)
+        basdai = []
+        for id_, date in zip(self.basdai_ids, self.basdai_dates):
+            basdai.append(Basdai(self, id_, date))
+        return basdai
+
     def get_other_events(self) -> list:
         """Create other events related to that patient
 
@@ -69,7 +108,11 @@ class Patient(DataObject):
             list: event objects
         """
         other_events = []
-        events = [name for name in self.event_names if name not in ["a_visit", "med"]]
+        events = [
+            name
+            for name in self.event_names
+            if name not in ["a_visit", "med", "basdai"]
+        ]
         for name in events:
             df = getattr(self, name + "_df")
             setattr(self, "num_" + name + "_events", len(df))
@@ -102,10 +145,23 @@ class Patient(DataObject):
             (self.med_intervals[index][1], "med_e", self.med_ids[index])
             for index in range(len(self.med_intervals))
         ]
+        if hasattr(self, "basdai"):
+            basdai_event_list = [
+                (event.date, event.name, event.id) for event in self.basdai
+            ]
         other_events = [
             (event.date, event.name, event.id) for event in self.other_events
         ]
-        all_events = visit_event_list + med_sart_list + med_end_list + other_events
+        if hasattr(self, "basdai"):
+            all_events = (
+                visit_event_list
+                + med_sart_list
+                + med_end_list
+                + basdai_event_list
+                + other_events
+            )
+        else:
+            all_events = visit_event_list + med_sart_list + med_end_list + other_events
         # the 'a', 'b', 'c' flags before visit and meds are there to ensure that if they occur at the same date, the visit comes before
         # remove NaT events
         all_events = [event for event in all_events if not pd.isnull(event[0])]
@@ -152,25 +208,28 @@ class Patient(DataObject):
         Returns:
             _type_: _description_
         """
-        if n > len(self.visits):
-            raise ValueError("n bigger than number of visits")
+        if n > len(self.targets):
+            raise ValueError("n bigger than number of targets")
         # get all events up to n-th visit
         else:
             cropped_timeline = []
             num_of_each_event = torch.zeros(
                 size=(len(self.event_names),), dtype=torch.int32
             )
-            index_of_visit = self.event_names.index("a_visit")
+            if self.target_name == "das283bsr_score":
+                index_of_target = self.event_names.index("a_visit")
+            else:
+                index_of_target = self.event_names.index("basdai")
             index = 0
             # date of n-th visit
-            date_nth_visit = pd.Timestamp(self.visits[n - 1].date)
+            date_nth_target = pd.Timestamp(self.targets[n - 1].date)
             # id
-            uid_nth_visit = self.visits[n - 1].id
+            uid_nth_target = self.targets[n - 1].id
             # while number of visits < n and while ? other part is redundant no ?
             while (
-                num_of_each_event[index_of_visit] < n
+                num_of_each_event[index_of_target] < n
                 and index < len(self.timeline)
-                and (date_nth_visit - self.timeline[index][0]).days
+                and (date_nth_target - self.timeline[index][0]).days
                 > min_time_since_last_event
             ):
                 event = self.timeline[index]
@@ -181,7 +240,7 @@ class Patient(DataObject):
                     index_of_event = self.event_names.index(event[1])
                 num_of_each_event[index_of_event] += 1
                 index += 1
-            time_to_next = (date_nth_visit - self.timeline[index - 1][0]).days
+            time_to_next = (date_nth_target - self.timeline[index - 1][0]).days
 
             cropped_timeline_mask = [
                 (event[1], event[2])
@@ -201,26 +260,26 @@ class Patient(DataObject):
             ]
             to_predict = True if len(cropped_timeline) > 0 else False
             # if no previous visit
-            if num_of_each_event[index_of_visit] == 0:
+            if num_of_each_event[index_of_target] == 0:
                 to_predict = False
 
             if to_predict and (
-                (date_nth_visit - cropped_timeline[-1][0]).days
+                (date_nth_target - cropped_timeline[-1][0]).days
                 > max_time_since_last_event
             ):
                 to_predict = False
             if not to_predict:
-                self.visits_to_predict = [
-                    visit
-                    for visit in self.visits_to_predict
-                    if visit.id != uid_nth_visit
+                self.targets_to_predict = [
+                    target
+                    for target in self.targets_to_predict
+                    if target.id != uid_nth_target
                 ]
             if to_predict:
-                value_before = self.targets_df["das283bsr_score"].iloc[
-                    num_of_each_event[index_of_visit].item() - 1
+                value_before = self.targets_df[self.target_name].iloc[
+                    num_of_each_event[index_of_target].item() - 1
                 ]
-                value_at_visit = self.targets_df["das283bsr_score"].iloc[
-                    num_of_each_event[index_of_visit].item()
+                value_at_visit = self.targets_df[self.target_name].iloc[
+                    num_of_each_event[index_of_target].item()
                 ]
                 increase = 0 if value_at_visit <= value_before else 1
             else:

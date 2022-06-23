@@ -78,16 +78,32 @@ def extract_adanet_features(
         ]
     haq_df = df_dict["haq"][["patient_id", "uid_num", "date", "haq_score"]]
     # keep only some specific medications and change the label of remaining to "other"
+    # drugs_to_keep = [
+    #     "methotrexate",
+    #     "prednisone",
+    #     "rituximab",
+    #     "adalimumab",
+    #     "sulfasalazine",
+    #     "leflunomide",
+    #     "etanercept",
+    #     "infliximab",
+    # ]
     drugs_to_keep = [
         "methotrexate",
         "prednisone",
-        "rituximab",
         "adalimumab",
-        "sulfasalazine",
-        "leflunomide",
+        "rituximab",
         "etanercept",
+        "leflunomide",
         "infliximab",
+        "sulfasalazine",
+        "golimumab",
+        "hydroxychloroquine",
+        "tocilizumab",
+        "certolizumab",
+        "abatacept",
     ]
+
     med_df.loc[
         ~med_df["medication_generic_drug"].isin(drugs_to_keep),
         "medication_generic_drug",
@@ -391,7 +407,6 @@ def extract_other_features(
 def extract_multitask_features(
     df_dict: dict,
     transform_meds: bool = True,
-    das28_or_basdai: bool = True,
     only_meds: bool = False,
     real_data: bool = True,
 ):
@@ -450,8 +465,10 @@ def extract_multitask_features(
             "patient_id",
             "date",
             "basdai_score",
+            "event_id",
         ]
-    ].dropna(subset= ["basdai_score"])
+    ].dropna(subset=["basdai_score"])
+
     if real_data:
         socioeco_df = df_dict["socioeco"][["patient_id", "uid_num", "date", "smoker"]]
         radai_df = df_dict["radai5"][
@@ -464,56 +481,70 @@ def extract_multitask_features(
                 "activity_of_rheumatic_disease_today_radai",
             ]
         ]
+        mny_df = df_dict["modifiednewyorkxrayscore"][
+            ["patient_id", "date", "mnyc_score"]
+        ].dropna(subset=["mnyc_score"])
     haq_df = df_dict["haq"][["patient_id", "uid_num", "date", "haq_score"]]
     # keep only some specific medications and change the label of remaining to "other"
     drugs_to_keep = [
         "methotrexate",
         "prednisone",
-        "rituximab",
         "adalimumab",
-        "sulfasalazine",
-        "leflunomide",
+        "rituximab",
         "etanercept",
+        "leflunomide",
         "infliximab",
+        "sulfasalazine",
+        "golimumab",
+        "hydroxychloroquine",
+        "tocilizumab",
+        "certolizumab",
+        "abatacept",
     ]
     med_df.loc[
         ~med_df["medication_generic_drug"].isin(drugs_to_keep),
         "medication_generic_drug",
     ] = "Other"
-    if das28_or_basdai:
-        # keep only patients with basdai or patients with visits with available das28 score
 
-        # # add column for classification
-        # visits_df["das28_category"] = [
-        #     0 if value <= 2.6 else 1 for value in visits_df["das283bsr_score"]
-        # ]
-        # subset of patients with das28
-        patients_das28 = visits_df.dropna(subset=["das283bsr_score"])[
-            "patient_id"
-        ].unique()
-        print(f'initial number of patients {len(general_df["patient_id"].unique())}')
-        print(f"patients with das28 {len(patients_das28)}")
-        # subset of patients with basdai
-        patients_basdai = basdai_df.dropna(subset=["basdai_score"])[
-            "patient_id"
-        ].unique()
-        print(f"patients with basdai {len(patients_basdai)}")
-        patients = set(list(patients_das28) + list(patients_basdai))
-        print(
-            f'patients with neither {len(set(general_df["patient_id"].unique()).difference(patients))}'
-        )
-        # column saying if das28 at next visit increased (1) or decreased/remained stable 0
-        # visits_df["das28_increase"] = np.nan
-        # visits_df = visits_df.groupby("patient_id").apply(das28_increase)
-        visits_df = visits_df[visits_df.patient_id.isin(patients)]
-        basdai_df = basdai_df[basdai_df.patient_id.isin(patients)]
-        general_df = general_df[general_df.patient_id.isin(patients)]
-        med_df = med_df[med_df.patient_id.isin(patients)]
-        haq_df = haq_df[haq_df.patient_id.isin(patients)]
-        if real_data:
-            socioeco_df = socioeco_df[socioeco_df.patient_id.isin(patients)]
-            radai_df = radai_df[radai_df.patient_id.isin(patients)]
+    # subset of patients with das28
+    patients_das28 = visits_df.dropna(subset=["das283bsr_score"])["patient_id"].unique()
+    # patients for which we will predict das28 must have at least 3 available visits with value
+    # quite ugly code
+    tmp = (
+        visits_df[visits_df.patient_id.isin(patients_das28)]
+        .dropna(subset=["das283bsr_score"])
+        .groupby("patient_id")
+        .apply(len)
+        > 2
+    )
+    patients_das28 = tmp.index[tmp == True].tolist()
+    print(f'initial number of patients {len(general_df["patient_id"].unique())}')
+    print(f"patients with das28 {len(patients_das28)}")
+    # subset of patients with basdai
+    patients_basdai = basdai_df.dropna(subset=["basdai_score"])["patient_id"].unique()
+    print(f"patients with basdai {len(patients_basdai)}")
+    patients = set(list(patients_das28) + list(patients_basdai))
+    print(
+        f'patients with neither {len(set(general_df["patient_id"].unique()).difference(patients))}'
+    )
+    # column saying if das28 at next visit increased (1) or decreased/remained stable 0
+    # visits_df["das28_increase"] = np.nan
+    # visits_df = visits_df.groupby("patient_id").apply(das28_increase)
 
+    visits_df = visits_df[visits_df.patient_id.isin(patients)]
+    # for das28 patients, we drop the visits for which it is not available
+    visits_df.loc[visits_df.patient_id.isin(patients_das28)] = visits_df.loc[
+        visits_df.patient_id.isin(patients_das28)
+    ].dropna(subset=["das283bsr_score"])
+    basdai_df = basdai_df[basdai_df.patient_id.isin(patients)]
+    general_df = general_df[general_df.patient_id.isin(patients)]
+    med_df = med_df[med_df.patient_id.isin(patients)]
+    haq_df = haq_df[haq_df.patient_id.isin(patients)]
+
+    if real_data:
+        socioeco_df = socioeco_df[socioeco_df.patient_id.isin(patients)]
+        radai_df = radai_df[radai_df.patient_id.isin(patients)]
+        mny_df = mny_df[mny_df.patient_id.isin(patients)]
     if only_meds:
         patients = med_df["patient_id"].unique()
         print(
@@ -525,6 +556,7 @@ def extract_multitask_features(
         if real_data:
             socioeco_df = socioeco_df[socioeco_df.patient_id.isin(patients)]
             radai_df = radai_df[radai_df.patient_id.isin(patients)]
+            mny_df = mny_df[mny_df.patient_id.isin(patients)]
 
     # sort dfs
     visits_df.sort_values(["patient_id", "date"], inplace=True)
@@ -533,36 +565,25 @@ def extract_multitask_features(
         ["patient_id", "medication_start_date", "medication_end_date"], inplace=True
     )
     basdai_df.sort_values(["patient_id", "date"], inplace=True)
-    if das28_or_basdai:
-        targets_df = pd.concat(
-            [
-                visits_df[
-                    [
-                        "patient_id",
-                        "date",
-                        "uid_num",
-                        "das283bsr_score",
-                    ]
-                ].dropna(subset=['das283bsr_score']),
-                basdai_df[["patient_id", "date", "basdai_score"]],
-            ]
-        )
-        targets_df.sort_values(["patient_id", "date"], inplace = True)
 
-    else:
-        targets_df = visits_df[
-            [
-                "patient_id",
-                "date",
-                "uid_num",
-                "das283bsr_score",
-            ]
+    targets_df_das28 = visits_df[
+        [
+            "patient_id",
+            "date",
+            "uid_num",
+            "das283bsr_score",
         ]
+    ].dropna(subset=["das283bsr_score"])
+    targets_df_basdai = basdai_df[["patient_id", "date", "basdai_score"]]
+
+    targets_df_das28.sort_values(["patient_id", "date"], inplace=True)
+    targets_df_basdai.sort_values(["patient_id", "date"], inplace=True)
+
     haq_df.sort_values(["patient_id", "date"], inplace=True)
     if real_data:
         socioeco_df.sort_values(["patient_id", "date"], inplace=True)
         radai_df.sort_values(["patient_id", "date"], inplace=True)
-
+        mny_df.sort_values(["patient_id", "date"], inplace=True)
     if transform_meds:
         # add new column to med_df indicating for each event if it is a start or end of medication (0 false, 1 true) and replace med_start and med_end
         # by unique column (date). If start date is not available, drop the row. If start and end are available duplicate the row (with different date and is_start dates)
@@ -583,8 +604,10 @@ def extract_multitask_features(
         med_df,
         visits_df,
         basdai_df,
-        targets_df,
+        targets_df_das28,
+        targets_df_basdai,
         socioeco_df,
         radai_df,
         haq_df,
+        mny_df,
     )

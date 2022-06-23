@@ -94,11 +94,22 @@ class AdaptivenetTrainer(Trainer):
 
         # print(
         #     f'Debug patient {debug_patient_valid} \nall targets \n{dataset.targets_df_proc[dataset.targets_df_proc.patient_id == debug_patient_valid]["das283bsr_score"]}')
+        if model.target_name == "das283bsr_score":
+            self.tensor_names = self.dataset.event_names + [
+                "patients",
+                "targets_das28",
+            ]
+        else:
+            self.tensor_names = self.dataset.event_names + [
+                "patients",
+                "targets_basdai",
+            ]
         batch_valid = Batch(
             model.device,
             partition.partitions_test[partition.current_fold],
             partition.partitions_test[partition.current_fold],
             partition.partitions_test[partition.current_fold],
+            tensor_names=self.tensor_names,
         )
         batch_valid.get_batch(self.dataset, debug_patient=None)
         batch_valid.get_masks(self.dataset, debug_patient=None)
@@ -122,6 +133,7 @@ class AdaptivenetTrainer(Trainer):
             model.device,
             partition.partitions_train[partition.current_fold],
             partition.partitions_train[partition.current_fold],
+            tensor_names=self.tensor_names,
         )
         while (self.current_epoch < self.n_epochs) and self.early_stopping == False:
             # gc.collect()

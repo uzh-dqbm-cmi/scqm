@@ -59,7 +59,7 @@ if __name__ == "__main__":
             events_to_keep=events_to_keep,
         )
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    min_num_visits = 2
+    min_num_targets = 2
     if model == "adanet":
         dataset = Dataset(
             device,
@@ -67,7 +67,7 @@ if __name__ == "__main__":
             df_dict_pro["patients"]["patient_id"].unique(),
             "das28_increase",
             ["a_visit", "med", "socio", "radai", "haq"],
-            min_num_visits,
+            min_num_targets,
         )
         dataset.inclusion_criteria()
     else:
@@ -77,7 +77,7 @@ if __name__ == "__main__":
             df_dict_pro["patients"]["patient_id"].unique(),
             "das28_increase",
             events,
-            min_num_visits,
+            min_num_targets,
         )
         dataset.inclusion_criteria()
     # # keep only patients with more than two visits

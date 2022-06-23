@@ -40,13 +40,13 @@ class Masks:
         # get max number of visits for a patient in subset
         self.min_time_since_last_event = min_time_since_last_event
         self.max_time_since_last_event = max_time_since_last_event
-        self.num_visits = [
-            len(dataset.patients[index].visits) for index in self.indices
+        self.num_targets = [
+            len(dataset.patients[index].targets) for index in self.indices
         ]
-        max_num_visits = max(self.num_visits)
+        max_num_targets = max(self.num_targets)
         seq_lengths = torch.zeros(
             size=(
-                max_num_visits - dataset.min_num_visits + 1,
+                max_num_targets - dataset.min_num_targets + 1,
                 len(self.indices),
                 len(dataset.event_names),
             ),
@@ -62,35 +62,35 @@ class Masks:
             event: [[] for i in range(len(self.indices))]
             for event in dataset.event_names
         }
-        self.available_visit_mask = torch.full(
-            size=(len(self.indices), max_num_visits - dataset.min_num_visits + 1),
+        self.available_target_mask = torch.full(
+            size=(len(self.indices), max_num_targets - dataset.min_num_targets + 1),
             fill_value=False,
             device=self.device,
         )
         self.target_category = torch.full(
-            size=(len(self.indices), max_num_visits - dataset.min_num_visits + 1),
+            size=(len(self.indices), max_num_targets - dataset.min_num_targets + 1),
             fill_value=np.nan,
             device=self.device,
         )
         for i, patient in enumerate(self.indices):
-            for visit in range(
-                0, len(dataset.patients[patient].visits) - dataset.min_num_visits + 1
+            for target in range(
+                0, len(dataset.patients[patient].targets) - dataset.min_num_targets + 1
             ):
                 # get timeline up to visit (not included)
                 (
-                    seq_lengths[visit, i, :],
+                    seq_lengths[target, i, :],
                     cropped_timeline,
                     cropped_timeline_mask,
                     visual,
                     to_predict,
                     increase,
                 ) = dataset.patients[patient].get_cropped_timeline(
-                    visit + dataset.min_num_visits,
+                    target + dataset.min_num_targets,
                     min_time_since_last_event=min_time_since_last_event,
                     max_time_since_last_event=max_time_since_last_event,
                 )
-                self.available_visit_mask[i, visit] = to_predict
-                self.target_category[i, visit] = increase
+                self.available_target_mask[i, target] = to_predict
+                self.target_category[i, target] = increase
                 for event in dataset.event_names:
                     # masks_dict[event][i].append(torch.broadcast_to(torch.tensor([[True if tuple_[0] == event else False] for tuple_ in cropped_timeline_mask]),
                     #                                               (len(cropped_timeline_mask), model.size_embedding)))
@@ -105,13 +105,13 @@ class Masks:
 
                 if debug_patient and patient == debug_patient:
                     print(
-                        f'visit {visit} cropped timeline mask {visual} visit mask {masks_dict["a_visit"][i]} medication mask {masks_dict["med"][i]}'
+                        f'target {target} cropped timeline mask {visual} visit mask {masks_dict["a_visit"][i]} medication mask {masks_dict["med"][i]}'
                     )
 
-        # tensor of shape batch_size x max_num_visits with True in position (p, v) if patient p has at least v visits
+        # tensor of shape batch_size x max_num_targets with True in position (p, v) if patient p has at least v visits
         # and False else. we use this mask later to select the patients up to each visit.
-        # self.available_visit_mask = torch.tensor([[True if index <= len(dataset.patients[patient].visits)
-        #                                           else False for index in range(dataset.min_num_visits, max_num_visits + 1)] for patient in self.indices], device=self.device)
+        # self.available_target_mask = torch.tensor([[True if index <= len(dataset.patients[patient].visits)
+        #                                           else False for index in range(dataset.min_num_targets, max_num_targets + 1)] for patient in self.indices], device=self.device)
 
         # stores for each patient in batch the total number of visits and medications
         # it is used later to index correctly the visits and medications dataframes
@@ -134,11 +134,11 @@ class Masks:
 
         # just for prints
         lengths = torch.zeros(len(dataset.event_names), device=self.device)
-        number_hist = np.count_nonzero(np.array(self.available_visit_mask.cpu()))
+        number_hist = np.count_nonzero(np.array(self.available_target_mask.cpu()))
         for visit in range(seq_lengths.shape[0]):
             for event in range(seq_lengths.shape[2]):
                 lengths[event] += seq_lengths[
-                    visit, self.available_visit_mask[:, visit], event
+                    visit, self.available_target_mask[:, visit], event
                 ].sum()
         print(f"total num of histories {number_hist}")
         for event in range(seq_lengths.shape[2]):
