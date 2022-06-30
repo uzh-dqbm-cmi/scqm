@@ -2,11 +2,11 @@
 import torch.multiprocessing as mp
 from scqm.custom_library.models.adaptive_net import Adaptivenet
 from scqm.custom_library.models.other_net import OthernetOptimized
-from scqm.custom_library.models.other_net_with_attention import (
+from legacy.scqm.legacy.models.other_net_with_attention import (
     OthernetOptimizedWithAttention,
 )
 from scqm.custom_library.trainers.adaptive_net import AdaptivenetTrainer
-from scqm.custom_library.cv.adaptive_net_multi import CVAdaptivenet
+from scqm.custom_library.cv.adaptive_net import CVAdaptivenet
 from scqm.test_bed.fake_scqm import get_df_dict
 import copy
 import pandas as pd

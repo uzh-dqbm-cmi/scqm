@@ -5,7 +5,7 @@ import io
 
 
 from scqm.custom_library.models.other_net import Othernet
-from scqm.custom_library.models.other_net_with_attention import OthernetWithAttention
+from legacy.scqm.legacy.models.other_net_with_attention import OthernetWithAttention
 from scqm.custom_library.trainers.adaptive_net import AdaptivenetTrainer
 
 
