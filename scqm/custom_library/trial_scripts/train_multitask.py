@@ -14,9 +14,9 @@ from scqm.custom_library.preprocessing.load_data import load_dfs_all_data
 from scqm.custom_library.preprocessing.preprocessing import preprocessing
 
 if __name__ == "__main__":
-    reload = False
+    reload = True
     if reload:
-        with open("/opt/tmp/saved_cv_multitask.pickle", "rb") as f:
+        with open("/opt/tmp/saved_cv_multitask_mny.pickle", "rb") as f:
             cv = pickle.load(f)
     else:
         df_dict = load_dfs_all_data()
@@ -118,6 +118,7 @@ if __name__ == "__main__":
     )
 
     model = Multitask(model_specifics, device)
+    # n_epochs = 60
     trainer = MultitaskTrainer(
         model,
         dataset,
@@ -131,6 +132,23 @@ if __name__ == "__main__":
         use_early_stopping=False,
     )
     trainer.train_model(model, partition, debug_patient=False)
+    # store histories
+    subset = dataset.train_ids
+    numbers_of_target = [
+        torch.sum(
+            dataset.masks.available_target_mask[dataset.mapping_for_masks[patient]]
+            == True
+        ).item()
+        for patient in subset
+    ]
+    histories = torch.empty(size=(sum(numbers_of_target), model.pred_input_size))
+    index_in_history = 0
+    for index, patient in enumerate(subset):
+        _, _, _, hist = model.apply(dataset, patient, return_history=True)
+        histories[index_in_history : index_in_history + numbers_of_target[index]] = hist
+        index_in_history += numbers_of_target[index]
     delattr(trainer, "dataset")
-    with open("/opt/tmp/trainer_multitarget_mny.pickle", "wb") as handle:
+    with open("/opt/tmp/trainer_multitarget_04_07.pickle", "wb") as handle:
         pickle.dump(trainer, handle)
+    with open("/opt/tmp/train_histories.pickle", "wb") as handle:
+        pickle.dump(histories, handle)

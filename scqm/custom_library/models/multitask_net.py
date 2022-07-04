@@ -19,7 +19,7 @@ class Multitask(Model):
         super().__init__(config, device)
         self.task = "regression"
         self.size_embedding = config["size_embedding"]
-        # tuple storing the sum of the history sizes (= input size for prediction module)
+        # tuple storing the sum of the history sizes
         # and the cumulative sum of the history sizes, used as indices later to store the
         # outputs of the individual lstms in a combined vector.
         self.combined_history_size = (
@@ -71,15 +71,18 @@ class Multitask(Model):
             requires_grad=True,
         )
         # + 1 for time to prediction
+        self.pred_input_size = (
+            self.combined_history_size[0] + config["patients"]["size_out"] + 1
+        )
         self.PModuleDas28 = PredModule(
-            self.combined_history_size[0] + config["patients"]["size_out"] + 1,
+            self.pred_input_size,
             1,
             config["num_layers_pred"],
             config["hidden_pred"],
             config["dropout"],
         ).to(device)
         self.PModuleBasdai = PredModule(
-            self.combined_history_size[0] + config["patients"]["size_out"] + 1,
+            self.pred_input_size,
             1,
             config["num_layers_pred"],
             config["hidden_pred"],
@@ -324,7 +327,7 @@ class Multitask(Model):
 
         return loss / num_targets
 
-    def apply(self, dataset: Dataset, patient_id: str):
+    def apply(self, dataset: Dataset, patient_id: str, return_history: bool = False):
         with torch.no_grad():
             # method to directly apply the model to a single patient
             patient_mask_index = dataset.mapping_for_masks[patient_id]
@@ -355,6 +358,13 @@ class Multitask(Model):
             ]
             predictions = torch.empty(
                 size=(torch.sum(available_target_mask == True).item(), 1),
+                device=self.device,
+            )
+            histories = torch.empty(
+                size=(
+                    torch.sum(available_target_mask == True).item(),
+                    self.pred_input_size,
+                ),
                 device=self.device,
             )
             max_num_targets = dataset.masks.num_targets[patient_mask_index]
@@ -470,10 +480,14 @@ class Multitask(Model):
                     ),
                     dim=1,
                 )
+                histories[index_target] = pred_input
                 if target_name == "das283bsr_score":
                     predictions[index_target] = self.PModuleDas28(pred_input)
                 else:
                     predictions[index_target] = self.PModuleBasdai(pred_input)
                 index_target += 1
+        if return_history:
+            return (predictions, target_values, time_to_targets, histories)
 
-        return (predictions, target_values, time_to_targets)
+        else:
+            return (predictions, target_values, time_to_targets)

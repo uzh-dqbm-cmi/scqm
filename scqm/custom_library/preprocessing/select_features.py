@@ -599,6 +599,7 @@ def extract_multitask_features(
     if not real_data:
         radai_df = None
         socioeco_df = None
+        mny_df = None
     return (
         general_df,
         med_df,
