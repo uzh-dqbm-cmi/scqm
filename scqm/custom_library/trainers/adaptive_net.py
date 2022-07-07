@@ -110,6 +110,7 @@ class AdaptivenetTrainer(Trainer):
             partition.partitions_test[partition.current_fold],
             partition.partitions_test[partition.current_fold],
             tensor_names=self.tensor_names,
+            target_name=model.target_name,
         )
         batch_valid.get_batch(self.dataset, debug_patient=None)
         batch_valid.get_masks(self.dataset, debug_patient=None)
@@ -134,6 +135,7 @@ class AdaptivenetTrainer(Trainer):
             partition.partitions_train[partition.current_fold],
             partition.partitions_train[partition.current_fold],
             tensor_names=self.tensor_names,
+            target_name=model.target_name,
         )
         while (self.current_epoch < self.n_epochs) and self.early_stopping == False:
             # gc.collect()

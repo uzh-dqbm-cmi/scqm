@@ -26,6 +26,7 @@ class Masks:
         debug_patient: str,
         min_time_since_last_event: int = 15,
         max_time_since_last_event: int = 450,
+        target_name="das283bsr_score",
     ):
         """Create masks for each event.
 
@@ -41,7 +42,7 @@ class Masks:
         self.min_time_since_last_event = min_time_since_last_event
         self.max_time_since_last_event = max_time_since_last_event
         self.num_targets = [
-            len(dataset.patients[index].targets) for index in self.indices
+            len(dataset.patients[index].targets[target_name]) for index in self.indices
         ]
         max_num_targets = max(self.num_targets)
         seq_lengths = torch.zeros(
@@ -74,7 +75,10 @@ class Masks:
         )
         for i, patient in enumerate(self.indices):
             for target in range(
-                0, len(dataset.patients[patient].targets) - dataset.min_num_targets + 1
+                0,
+                len(dataset.patients[patient].targets[target_name])
+                - dataset.min_num_targets
+                + 1,
             ):
                 # get timeline up to visit (not included)
                 (
@@ -88,6 +92,7 @@ class Masks:
                     target + dataset.min_num_targets,
                     min_time_since_last_event=min_time_since_last_event,
                     max_time_since_last_event=max_time_since_last_event,
+                    target_name=target_name,
                 )
                 self.available_target_mask[i, target] = to_predict
                 self.target_category[i, target] = increase

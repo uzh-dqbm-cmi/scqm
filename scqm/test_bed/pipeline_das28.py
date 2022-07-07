@@ -76,7 +76,11 @@ if __name__ == "__main__":
         min_num_targets,
     )
     dataset.drop(
-        [id_ for id_, patient in dataset.patients.items() if len(patient.targets) <= 2]
+        [
+            id_
+            for id_, patient in dataset.patients.items()
+            if len(patient.targets["das283bsr_score"]) <= 2
+        ]
     )
     print(f"Dropping patients with less than 3 visits, keeping {len(dataset)}")
     dataset.get_masks()
@@ -148,7 +152,7 @@ if __name__ == "__main__":
     print(end - start)
     # test apply function
     for patient in dataset.test_ids:
-        (predictions, _, target_values, time_to_targets) = model.apply(
+        (predictions, target_values, time_to_targets) = model.apply(
             dataset, dataset.test_ids[0]
         )
     save = False

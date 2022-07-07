@@ -79,22 +79,30 @@ class MultitaskTrainer(AdaptivenetTrainer):
         # create separate batches for both types of targets
         batch_valid_das28 = Batch(
             model.device,
-            partition.partitions_test_das28[partition.current_fold],
-            partition.partitions_test_das28[partition.current_fold],
-            partition.partitions_test_das28[partition.current_fold],
+            partition.partitions_test_das28[partition.current_fold]
+            + partition.partitions_test_both[partition.current_fold],
+            partition.partitions_test_das28[partition.current_fold]
+            + partition.partitions_test_both[partition.current_fold],
+            partition.partitions_test_das28[partition.current_fold]
+            + partition.partitions_test_both[partition.current_fold],
             tensor_names=self.dataset.event_names
             + ["patients", "targets_das28", "targets_basdai"],
+            target_name="das283bsr_score",
         )
         batch_valid_das28.get_batch(self.dataset, debug_patient=None)
         batch_valid_das28.get_masks(self.dataset, debug_patient=None)
 
         batch_valid_basdai = Batch(
             model.device,
-            partition.partitions_test_basdai[partition.current_fold],
-            partition.partitions_test_basdai[partition.current_fold],
-            partition.partitions_test_basdai[partition.current_fold],
+            partition.partitions_test_basdai[partition.current_fold]
+            + partition.partitions_test_both[partition.current_fold],
+            partition.partitions_test_basdai[partition.current_fold]
+            + partition.partitions_test_both[partition.current_fold],
+            partition.partitions_test_basdai[partition.current_fold]
+            + partition.partitions_test_both[partition.current_fold],
             tensor_names=self.dataset.event_names
             + ["patients", "targets_das28", "targets_basdai"],
+            target_name="basdai_score",
         )
         batch_valid_basdai.get_batch(self.dataset, debug_patient=None)
         batch_valid_basdai.get_masks(self.dataset, debug_patient=None)
@@ -111,18 +119,26 @@ class MultitaskTrainer(AdaptivenetTrainer):
 
         batch_das28 = Batch(
             model.device,
-            partition.partitions_train_das28[partition.current_fold],
-            partition.partitions_train_das28[partition.current_fold],
+            partition.partitions_train_das28[partition.current_fold]
+            + partition.partitions_train_both[partition.current_fold],
+            partition.partitions_train_das28[partition.current_fold]
+            + partition.partitions_train_both[partition.current_fold],
             tensor_names=self.dataset.event_names
             + ["patients", "targets_das28", "targets_basdai"],
+            target_name="das283bsr_score",
+            special_indices=partition.partitions_train_both[partition.current_fold],
         )
 
         batch_basdai = Batch(
             model.device,
-            partition.partitions_train_basdai[partition.current_fold],
-            partition.partitions_train_basdai[partition.current_fold],
+            partition.partitions_train_basdai[partition.current_fold]
+            + partition.partitions_train_both[partition.current_fold],
+            partition.partitions_train_basdai[partition.current_fold]
+            + partition.partitions_train_both[partition.current_fold],
             tensor_names=self.dataset.event_names
             + ["patients", "targets_das28", "targets_basdai"],
+            target_name="basdai_score",
+            special_indices=partition.partitions_train_both[partition.current_fold],
         )
         while (self.current_epoch < self.n_epochs) and self.early_stopping == False:
             # gc.collect()
@@ -130,9 +146,25 @@ class MultitaskTrainer(AdaptivenetTrainer):
             # get batch, corresponding tensor slices and masks to combine the visits/medication events and to select the
             # patients with a given number of visits
 
-            batch_das28.get_batch(self.dataset, self.batch_size_das28, debug_patient)
+            indices_to_include = batch_das28.get_batch(
+                self.dataset, self.batch_size_das28, debug_patient
+            )
             batch_das28.get_masks(self.dataset, debug_patient)
-            batch_basdai.get_batch(self.dataset, self.batch_size_basdai, debug_patient)
+            if indices_to_include is None:
+                indices_to_exclude = batch_das28.special_indices
+            else:
+                indices_to_exclude = [
+                    index
+                    for index in batch_das28.special_indices
+                    if index not in indices_to_include
+                ]
+            batch_basdai.get_batch(
+                self.dataset,
+                self.batch_size_basdai,
+                debug_patient,
+                indices_to_include=indices_to_include,
+                indices_to_exclude=indices_to_exclude,
+            )
             batch_basdai.get_masks(self.dataset, debug_patient)
             self.update_epoch_and_indices([batch_das28, batch_basdai])
 

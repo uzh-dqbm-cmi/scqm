@@ -32,19 +32,35 @@ class Patient(DataObject):
         self.other_events = self.get_other_events()
         self.timeline = self.get_timeline()
         # TODO remove first visit from visits to predict
-        if self.target_name == "das283bsr_score":
-            self.targets = self.visits
-            self.targets_to_predict = self.visits
-            self.targets_df = self.targets_das28_df
+        if self.target_name == "both":
+            self.targets = {"das283bsr_score": self.visits, "basdai_score": self.basdai}
+            self.targets_to_predict = {
+                "das283bsr_score": self.visits,
+                "basdai_score": self.basdai,
+            }
+            self.targets_df = {
+                "das283bsr_score": self.targets_das28_df,
+                "basdai_score": self.targets_basdai_df,
+            }
+        elif self.target_name == "das283bsr_score":
+            self.targets = {"das283bsr_score": self.visits}
+            self.targets_to_predict = {"das283bsr_score": self.visits}
+            self.targets_df = {"das283bsr_score": self.targets_das28_df}
         else:
-            self.targets = self.basdai
-            self.targets_to_predict = self.basdai
-            self.targets_df = self.targets_basdai_df
+            self.targets = {"basdai_score": self.basdai}
+            self.targets_to_predict = {"basdai_score": self.basdai}
+            self.targets_df = {"basdai_score": self.targets_basdai_df}
         return
 
     def get_target_name(self):
-        # if at least 3 visit with das28 --> use das28 as target
         if (
+            hasattr(self, "targets_das28_df")
+            and self.targets_das28_df["das283bsr_score"].notna().sum() >= 3
+            and hasattr(self, "targets_basdai_df")
+            and self.targets_basdai_df["basdai_score"].notna().sum() >= 3
+        ):
+            self.target_name = "both"
+        elif (
             hasattr(self, "targets_das28_df")
             and self.targets_das28_df["das283bsr_score"].notna().sum() >= 3
         ):
@@ -194,6 +210,7 @@ class Patient(DataObject):
         n: int = 1,
         min_time_since_last_event: int = 15,
         max_time_since_last_event: int = 450,
+        target_name: str = "das283bsr_score",
     ):
         """Get cropped timeline up to a given visit.
 
@@ -208,7 +225,7 @@ class Patient(DataObject):
         Returns:
             _type_: _description_
         """
-        if n > len(self.targets):
+        if n > len(self.targets[target_name]):
             raise ValueError("n bigger than number of targets")
         # get all events up to n-th visit
         else:
@@ -216,15 +233,15 @@ class Patient(DataObject):
             num_of_each_event = torch.zeros(
                 size=(len(self.event_names),), dtype=torch.int32
             )
-            if self.target_name == "das283bsr_score":
+            if target_name == "das283bsr_score":
                 index_of_target = self.event_names.index("a_visit")
             else:
                 index_of_target = self.event_names.index("basdai")
             index = 0
             # date of n-th visit
-            date_nth_target = pd.Timestamp(self.targets[n - 1].date)
+            date_nth_target = pd.Timestamp(self.targets[target_name][n - 1].date)
             # id
-            uid_nth_target = self.targets[n - 1].id
+            uid_nth_target = self.targets[target_name][n - 1].id
             # while number of visits < n and while ? other part is redundant no ?
             while (
                 num_of_each_event[index_of_target] < n
@@ -269,16 +286,16 @@ class Patient(DataObject):
             ):
                 to_predict = False
             if not to_predict:
-                self.targets_to_predict = [
+                self.targets_to_predict[target_name] = [
                     target
-                    for target in self.targets_to_predict
+                    for target in self.targets_to_predict[target_name]
                     if target.id != uid_nth_target
                 ]
             if to_predict:
-                value_before = self.targets_df[self.target_name].iloc[
+                value_before = self.targets_df[target_name][target_name].iloc[
                     num_of_each_event[index_of_target].item() - 1
                 ]
-                value_at_visit = self.targets_df[self.target_name].iloc[
+                value_at_visit = self.targets_df[target_name][target_name].iloc[
                     num_of_each_event[index_of_target].item()
                 ]
                 increase = 0 if value_at_visit <= value_before else 1

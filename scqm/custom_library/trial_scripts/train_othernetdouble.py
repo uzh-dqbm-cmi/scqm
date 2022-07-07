@@ -20,7 +20,7 @@ class CPU_Unpickler(pickle.Unpickler):
 
 
 if __name__ == "__main__":
-    with open("/opt/tmp/saved_cv_ada.pickle", "rb") as handle:
+    with open("/opt/tmp/saved_cv_ada_more_drugs.pickle", "rb") as handle:
         # dataset = pickle.load(handle)
         cv = CPU_Unpickler(handle).load()
     dataset = cv.dataset
@@ -80,5 +80,5 @@ if __name__ == "__main__":
     trainer.train_model(model, partition, debug_patient=False)
 
     delattr(trainer, "dataset")
-    with open("/opt/tmp/trainer_othernet_double.pickle", "wb") as handle:
+    with open("/opt/tmp/trainer_double_attention_more_drugs.pickle", "wb") as handle:
         pickle.dump(trainer, handle)

@@ -13,9 +13,11 @@ class Batch:
         all_indices: array,
         available_indices: array,
         current_indices=None,
-        tensor_names=list,
+        tensor_names: list = [],
+        target_name: str = "",
+        special_indices: list = [],
     ):
-        """Instanciate obkect
+        """Instanciate object
 
         Args:
             device (str): device
@@ -28,8 +30,17 @@ class Batch:
         self.available_indices = available_indices
         self.current_indices = current_indices
         self.tensor_names = tensor_names
+        self.target_name = target_name
+        self.special_indices = special_indices
 
-    def get_batch(self, dataset: Dataset, batch_size=None, debug_patient=None):
+    def get_batch(
+        self,
+        dataset: Dataset,
+        batch_size=None,
+        debug_patient=None,
+        indices_to_include=None,
+        indices_to_exclude=None,
+    ):
         """
         Select batch of patients from available indices
 
@@ -41,14 +52,48 @@ class Batch:
         Raises:
             ValueError: if some patients in visits dont correspond to patients in targets (and vice versa)
         """
+        indices_to_include_next = None
         # during training, only select subset of available indices
         if batch_size:
             # batch size
             size = min(len(self.available_indices), batch_size)
             # batch and corresponding tensor indices
-            self.current_indices = np.random.choice(
-                self.available_indices, size=size, replace=False
-            )
+            if indices_to_include:
+                self.current_indices = indices_to_include + list(
+                    np.random.choice(
+                        [
+                            index
+                            for index in self.available_indices
+                            if index not in indices_to_include
+                        ],
+                        size=max(size - len(indices_to_include), 0),
+                        replace=False,
+                    )
+                )
+            elif indices_to_exclude:
+                self.current_indices = np.random.choice(
+                    [
+                        index
+                        for index in self.available_indices
+                        if index not in indices_to_exclude
+                    ],
+                    size=size,
+                    replace=False,
+                )
+            else:
+                self.current_indices = np.random.choice(
+                    self.available_indices, size=size, replace=False
+                )
+                if (
+                    len(set(self.special_indices).intersection(self.current_indices))
+                    > 0
+                ):
+                    indices_to_include_next = [
+                        index
+                        for index in self.current_indices
+                        if index in self.special_indices
+                    ]
+
             # print(f'len available indices {len(self.available_indices)}')
 
         for name in self.tensor_names:
@@ -67,7 +112,7 @@ class Batch:
         # if (self.indices_a_visit != self.indices_targets).any():
         #     raise ValueError("index mismatch between visits and targets")
 
-        return
+        return indices_to_include_next
 
     def get_masks(self, dataset: Dataset, debug_patient):
         """Get event masks for patients in batch
@@ -76,35 +121,39 @@ class Batch:
             dataset (Dataset): dataset
             debug_patient (_type_): ID of patient for debugging
         """
+        if hasattr(dataset, "mapping_for_masks"):
+            mapping = dataset.mapping_for_masks
+            masks = dataset.masks
+        else:
+            if self.target_name == "das283bsr_score":
 
-        indices_mapping = [
-            dataset.mapping_for_masks[id_] for id_ in self.current_indices
-        ]
-        self.seq_lengths = dataset.masks.seq_lengths[:, indices_mapping, :]
+                mapping = dataset.mapping_for_masks_das28
+                masks = dataset.masks_das28
+            elif self.target_name == "basdai_score":
+                mapping = dataset.mapping_for_masks_basdai
+                masks = dataset.masks_basdai
+        indices_mapping = [mapping[id_] for id_ in self.current_indices]
+        self.seq_lengths = masks.seq_lengths[:, indices_mapping, :]
         for event in dataset.event_names:
             name = event + "_masks"
             setattr(
                 self,
                 name,
-                list(getattr(dataset.masks, name)[i] for i in indices_mapping),
+                list(getattr(masks, name)[i] for i in indices_mapping),
             )
-        self.available_target_mask = dataset.masks.available_target_mask[
-            indices_mapping
-        ]
-        self.target_categories = dataset.masks.target_category[indices_mapping]
-        self.total_num = dataset.masks.total_num[indices_mapping]
+        self.available_target_mask = masks.available_target_mask[indices_mapping]
+        self.target_categories = masks.target_category[indices_mapping]
+        self.total_num = masks.total_num[indices_mapping]
         if len(self.current_indices) > 0:
             self.max_num_targets = max(
-                list(dataset.masks.num_targets[i] for i in indices_mapping)
+                list(masks.num_targets[i] for i in indices_mapping)
             )
         else:
             self.max_num_targets = 0
 
         if debug_patient and debug_patient in self.current_indices:
-            index = dataset.mapping_for_masks[debug_patient]
-            for visit in range(
-                dataset.masks.num_targets[index] - dataset.min_num_targets + 1
-            ):
+            index = mapping[debug_patient]
+            for visit in range(masks.num_targets[index] - dataset.min_num_targets + 1):
                 _, _, _, visual, _ = dataset.patients[
                     debug_patient
                 ].get_cropped_timeline(visit + dataset.min_num_targets)

@@ -193,7 +193,8 @@ class Dataset:
             self.train_ids = []
             self.valid_ids = []
             self.test_ids = []
-            for num_visits in range(1, max(self.masks.num_targets) + 1):
+
+            for num_visits in range(1, max(self.stratifier.keys()) + 1):
                 available_ids = self.stratifier[num_visits]
                 length = len(available_ids)
                 test_size = int(length * prop_test)
@@ -261,7 +262,8 @@ class Dataset:
             self.radai_df_proc = pd.get_dummies(
                 self.radai_df_proc, columns=["morning_stiffness_duration_radai"]
             )
-            self.mny_df_proc = pd.get_dummies(self.mny_df_proc, columns=["mnyc_score"])
+
+            # self.mny_df_proc = pd.get_dummies(self.mny_df_proc, columns=["mnyc_score"])
         self.med_df_proc = pd.get_dummies(
             self.med_df_proc,
             columns=[

@@ -138,48 +138,54 @@ if __name__ == "__main__":
     trainer.train_model(model, partition, debug_patient=False)
     end = time.time()
     print(end - start)
-    # kmeans clustering
-    subset = dataset.train_ids
-    # torch.sum(dataset.masks.available_target_mask == True).item()
-    numbers_of_target = [
-        torch.sum(
-            dataset.masks.available_target_mask[dataset.mapping_for_masks[patient]]
-            == True
-        ).item()
-        for patient in subset
-    ]
-    histories = torch.empty(size=(sum(numbers_of_target), model.pred_input_size))
-    index_in_history = 0
-    for index, patient in enumerate(subset):
-        _, _, _, hist = model.apply(dataset, patient, return_history=True)
-        histories[index_in_history : index_in_history + numbers_of_target[index]] = hist
-        index_in_history += numbers_of_target[index]
-    k = 3
-    kmeans = KMeans(n_clusters=k, random_state=seed).fit(histories)
-    # evaluate on test
-    subset = dataset.test_ids
-    numbers_of_target_test = [
-        torch.sum(
-            dataset.masks.available_target_mask[dataset.mapping_for_masks[patient]]
-            == True
-        ).item()
-        for patient in subset
-    ]
-    histories_test = torch.empty(
-        size=(sum(numbers_of_target_test), model.pred_input_size)
-    )
-    index_in_history = 0
-    for index, patient in enumerate(subset):
-        (predictions, target_values, time_to_targets, hist) = model.apply(
-            dataset, patient, return_history=True
-        )
-        histories_test[
-            index_in_history : index_in_history + numbers_of_target_test[index]
-        ] = hist
-        index_in_history += numbers_of_target_test[index]
-        print(
-            f"pred {predictions} target values {target_values} time {time_to_targets}"
-        )
-    # kmeans
-    kmeans.predict(histories_test)
+    # test apply function
+    for p in dataset.test_ids:
+        if dataset[p].target_name in ["both", "das283bsr_score"]:
+            model.apply(dataset, p, "das283bsr_score", return_history=False)
+        if dataset[p].target_name in ["both", "basdai_score"]:
+            model.apply(dataset, p, "basdai_score", return_history=False)
+    # # kmeans clustering
+    # subset = dataset.train_ids
+    # # torch.sum(dataset.masks.available_target_mask == True).item()
+    # numbers_of_target = [
+    #     torch.sum(
+    #         dataset.masks.available_target_mask[dataset.mapping_for_masks[patient]]
+    #         == True
+    #     ).item()
+    #     for patient in subset
+    # ]
+    # histories = torch.empty(size=(sum(numbers_of_target), model.pred_input_size))
+    # index_in_history = 0
+    # for index, patient in enumerate(subset):
+    #     _, _, _, hist = model.apply(dataset, patient, return_history=True)
+    #     histories[index_in_history : index_in_history + numbers_of_target[index]] = hist
+    #     index_in_history += numbers_of_target[index]
+    # k = 3
+    # kmeans = KMeans(n_clusters=k, random_state=seed).fit(histories)
+    # # evaluate on test
+    # subset = dataset.test_ids
+    # numbers_of_target_test = [
+    #     torch.sum(
+    #         dataset.masks.available_target_mask[dataset.mapping_for_masks[patient]]
+    #         == True
+    #     ).item()
+    #     for patient in subset
+    # ]
+    # histories_test = torch.empty(
+    #     size=(sum(numbers_of_target_test), model.pred_input_size)
+    # )
+    # index_in_history = 0
+    # for index, patient in enumerate(subset):
+    #     (predictions, target_values, time_to_targets, hist) = model.apply(
+    #         dataset, patient, return_history=True
+    #     )
+    #     histories_test[
+    #         index_in_history : index_in_history + numbers_of_target_test[index]
+    #     ] = hist
+    #     index_in_history += numbers_of_target_test[index]
+    #     print(
+    #         f"pred {predictions} target values {target_values} time {time_to_targets}"
+    #     )
+    # # kmeans
+    # kmeans.predict(histories_test)
     print("End of script")

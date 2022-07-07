@@ -26,15 +26,20 @@ class MulticlassResults(Results):
             for patient in patient_ids
             if self.dataset[patient].target_name == "basdai_score"
         ]
+        patients_both = [
+            patient
+            for patient in patient_ids
+            if self.dataset[patient].target_name == "both"
+        ]
         metrics_das28 = None
         metrics_basdai = None
-        if len(patients_das28) > 0:
-            for patient in patients_das28:
+        if len(patients_das28 + patients_both) > 0:
+            for patient in patients_das28 + patients_both:
                 (
                     predictions,
                     target_values,
                     time_to_targets,
-                ) = self.model.apply(self.dataset, patient)
+                ) = self.model.apply(self.dataset, patient, "das283bsr_score")
 
                 results_df_das28 = results_df_das28.append(
                     pd.DataFrame(
@@ -69,13 +74,13 @@ class MulticlassResults(Results):
                 results_df_das28["predictions"],
                 results_df_das28["targets"],
             )
-        if len(patients_basdai) > 0:
-            for patient in patients_basdai:
+        if len(patients_basdai + patients_both) > 0:
+            for patient in patients_basdai + patients_both:
                 (
                     predictions,
                     target_values,
                     time_to_targets,
-                ) = self.model.apply(self.dataset, patient)
+                ) = self.model.apply(self.dataset, patient, "basdai_score")
 
                 results_df_basdai = results_df_basdai.append(
                     pd.DataFrame(

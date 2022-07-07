@@ -47,6 +47,14 @@ class MultitaskPartition(DataPartition):
             ]
             for test_fold in range(self.k)
         }
+        self.partitions_test_both = {
+            test_fold: [
+                patient
+                for patient in self.partitions_test[test_fold]
+                if self.dataset[patient].target_name == "both"
+            ]
+            for test_fold in range(self.k)
+        }
         self.partitions_train_das28 = {
             train_fold: [
                 patient
@@ -60,6 +68,14 @@ class MultitaskPartition(DataPartition):
                 patient
                 for patient in self.partitions_train[train_fold]
                 if self.dataset[patient].target_name == "basdai_score"
+            ]
+            for train_fold in range(self.k)
+        }
+        self.partitions_train_both = {
+            train_fold: [
+                patient
+                for patient in self.partitions_train[train_fold]
+                if self.dataset[patient].target_name == "both"
             ]
             for train_fold in range(self.k)
         }

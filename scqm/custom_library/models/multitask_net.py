@@ -327,35 +327,42 @@ class Multitask(Model):
 
         return loss / num_targets
 
-    def apply(self, dataset: Dataset, patient_id: str, return_history: bool = False):
+    def apply(
+        self,
+        dataset: Dataset,
+        patient_id: str,
+        target_name: str,
+        return_history: bool = False,
+    ):
         with torch.no_grad():
             # method to directly apply the model to a single patient
-            patient_mask_index = dataset.mapping_for_masks[patient_id]
-            encoder_outputs = {}
-            # basdai or das28
-            target_name = dataset[patient_id].target_name
-            if target_name == "das283bsr_score":
-                target_index_in_events = dataset.event_names.index("a_visit")
-                target_index_in_tensor = dataset.target_value_index_das28
-                target_tensor = dataset[patient_id].targets_das28_df_tensor
-
-                time_index = dataset.time_index_das28
+            if target_name not in dataset[patient_id].targets.keys():
+                raise ValueError("target name not available for this patient")
             else:
-                target_index_in_events = dataset.event_names.index("basdai")
-                target_index_in_tensor = dataset.target_value_index_basdai
-                target_tensor = dataset[patient_id].targets_basdai_df_tensor
-
-                time_index = dataset.time_index_basdai
+                if target_name == "das283bsr_score":
+                    mapping = dataset.mapping_for_masks_das28
+                    masks = dataset.masks_das28
+                    target_index_in_events = dataset.event_names.index("a_visit")
+                    target_index_in_tensor = dataset.target_value_index_das28
+                    target_tensor = dataset[patient_id].targets_das28_df_tensor
+                    time_index = dataset.time_index_das28
+                elif target_name == "basdai_score":
+                    mapping = dataset.mapping_for_masks_basdai
+                    masks = dataset.masks_basdai
+                    target_index_in_events = dataset.event_names.index("basdai")
+                    target_index_in_tensor = dataset.target_value_index_basdai
+                    target_tensor = dataset[patient_id].targets_basdai_df_tensor
+                    time_index = dataset.time_index_basdai
+            patient_mask_index = mapping[patient_id]
+            encoder_outputs = {}
 
             for event in dataset.event_names:
                 encoder_outputs[event] = self.encoders[event](
                     getattr(dataset[patient_id], event + "_df_tensor").to(self.device)
                 )
 
-            seq_lengths = dataset.masks.seq_lengths[:, patient_mask_index, :]
-            available_target_mask = dataset.masks.available_target_mask[
-                patient_mask_index
-            ]
+            seq_lengths = masks.seq_lengths[:, patient_mask_index, :]
+            available_target_mask = masks.available_target_mask[patient_mask_index]
             predictions = torch.empty(
                 size=(torch.sum(available_target_mask == True).item(), 1),
                 device=self.device,
@@ -367,8 +374,8 @@ class Multitask(Model):
                 ),
                 device=self.device,
             )
-            max_num_targets = dataset.masks.num_targets[patient_mask_index]
-            total_num = dataset.masks.total_num[patient_mask_index]
+            max_num_targets = masks.num_targets[patient_mask_index]
+            total_num = masks.total_num[patient_mask_index]
 
             # targets (values)
             target_values = torch.empty(
