@@ -39,6 +39,7 @@ class MulticlassResults(Results):
                     predictions,
                     target_values,
                     time_to_targets,
+                    prediction_dates,
                 ) = self.model.apply(self.dataset, patient, "das283bsr_score")
 
                 results_df_das28 = results_df_das28.append(
@@ -47,6 +48,7 @@ class MulticlassResults(Results):
                             "patient_id": patient,
                             "targets": target_values.flatten().cpu(),
                             "predictions": predictions.flatten().cpu(),
+                            "prediction_dates": prediction_dates,
                         }
                     )
                 )
@@ -80,6 +82,7 @@ class MulticlassResults(Results):
                     predictions,
                     target_values,
                     time_to_targets,
+                    prediction_dates,
                 ) = self.model.apply(self.dataset, patient, "basdai_score")
 
                 results_df_basdai = results_df_basdai.append(
@@ -88,6 +91,7 @@ class MulticlassResults(Results):
                             "patient_id": patient,
                             "targets": target_values.flatten().cpu(),
                             "predictions": predictions.flatten().cpu(),
+                            "prediction_dates": prediction_dates,
                         }
                     )
                 )

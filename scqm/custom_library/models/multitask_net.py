@@ -346,6 +346,8 @@ class Multitask(Model):
                     target_index_in_tensor = dataset.target_value_index_das28
                     target_tensor = dataset[patient_id].targets_das28_df_tensor
                     time_index = dataset.time_index_das28
+                    targets_df = dataset[patient_id].targets_das28_df
+
                 elif target_name == "basdai_score":
                     mapping = dataset.mapping_for_masks_basdai
                     masks = dataset.masks_basdai
@@ -353,6 +355,8 @@ class Multitask(Model):
                     target_index_in_tensor = dataset.target_value_index_basdai
                     target_tensor = dataset[patient_id].targets_basdai_df_tensor
                     time_index = dataset.time_index_basdai
+                    targets_df = dataset[patient_id].targets_basdai_df
+
             patient_mask_index = mapping[patient_id]
             encoder_outputs = {}
 
@@ -388,6 +392,7 @@ class Multitask(Model):
             )
 
             index_target = 0
+            prediction_dates = []
             for t in range(0, max_num_targets - dataset.min_num_targets + 1):
                 # continue if this visit shouldn't be predicted for any patient
                 if torch.sum(available_target_mask[t] == True).item() == 0:
@@ -430,6 +435,7 @@ class Multitask(Model):
                     t + dataset.min_num_targets - 1, time_index
                 ]
 
+                prediction_dates.append(targets_df["date"].iloc[index_target])
                 # target_categories[index_target] = dataset[patient_id].targets_df_tensor[
                 #     visit + dataset.min_num_targets - 1, dataset.target_index
                 # ]
@@ -497,4 +503,4 @@ class Multitask(Model):
             return (predictions, target_values, time_to_targets, histories)
 
         else:
-            return (predictions, target_values, time_to_targets)
+            return (predictions, target_values, time_to_targets, prediction_dates)

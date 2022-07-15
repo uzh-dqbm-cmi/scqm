@@ -13,9 +13,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 
-def get_heatmaps_for_patient(model, dataset, patient):
-    all_events, all_attention, all_global_attention, events = apply_attention(
-        model, dataset, patient
+def get_heatmaps_for_patient(model, dataset, patient, target_name):
+    all_events, all_attention, all_global_attention, events, _, _ = apply_attention(
+        model, dataset, patient, target_name
     )
     meds_all = {
         index: find_drugs(
@@ -197,7 +197,7 @@ def plot_aggregated_drug(patients, dataset, meds_all, meds_and_attention, values
             histories_with_meds, lengths, med
         )
         # histories_with_meds, lengths, med
-        # print(average_scores)
+
         df.loc[med, :] = average_scores
     fig, ax = plt.subplots(figsize=(10, 10))
     im = ax.imshow(np.array(df, dtype=np.float32))

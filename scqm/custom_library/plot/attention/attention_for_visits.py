@@ -1,10 +1,15 @@
-from scqm.custom_library.plot.attention.utils import regularise_array, get_all_attention
+from scqm.custom_library.plot.attention.utils import (
+    regularise_array,
+    get_all_attention_and_ranking,
+)
 import numpy as np
 import matplotlib.pyplot as plt
 
 
-def plot_visit_attention(model, dataset, patient):
-    _, _, _, all_patients_all_attention = get_all_attention(model, dataset, [patient])
+def plot_visit_attention(model, dataset, patient, target_name):
+    _, _, _, _, all_patients_all_attention, _ = get_all_attention_and_ranking(
+        model, dataset, [patient], target_name
+    )
     values = np.array(
         [
             np.array(
@@ -45,6 +50,13 @@ def aggregate_visit_attention(model, dataset, patients, all_patients_all_attenti
                     max(all_patients_all_attention[patient].keys())
                 ]["a_visit"].flatten()
             )
+            if len(
+                all_patients_all_attention[patient][
+                    max(all_patients_all_attention[patient].keys())
+                ]["a_visit"]
+            )
+            > 0
+            else 0
             for patient in patients_to_keep
         ]
     )
@@ -69,10 +81,15 @@ def aggregate_visit_attention(model, dataset, patients, all_patients_all_attenti
         if len(visit_histories[length]) == 0:
             print(length)
             visit_histories.pop(length)
+    visit_histories_to_keep = {
+        key: elem
+        for key, elem in visit_histories.items()
+        if len(visit_histories[key]) > 5
+    }
     aggregated_histories = np.array(
         [
-            sum(visit_histories[length]) / len(visit_histories[length])
-            for length in visit_histories.keys()
+            sum(visit_histories_to_keep[length]) / len(visit_histories_to_keep[length])
+            for length in visit_histories_to_keep.keys()
         ]
     )
     reg_data = regularise_array(aggregated_histories, val=-1)
@@ -81,7 +98,7 @@ def aggregate_visit_attention(model, dataset, patients, all_patients_all_attenti
     ax.set_xticks(np.arange(reg_data.shape[1]))
     ax.set_xticklabels([i + 1 for i in range(reg_data.shape[1])])
     ax.set_yticks(np.arange(len(reg_data)))
-    ax.set_yticklabels([str(key + 1) for key in visit_histories.keys()])
+    ax.set_yticklabels([str(key + 1) for key in visit_histories_to_keep.keys()])
     plt.ylabel("Prediction number")
     plt.xlabel("Visit history ")
     plt.title("Average attention given to past visits to predict next")
@@ -89,19 +106,23 @@ def aggregate_visit_attention(model, dataset, patients, all_patients_all_attenti
     fig.colorbar(
         im,
     )
-    # aggregated_histories_norm = np.array([elem * len(elem) for elem in aggregated_histories])
+    aggregated_histories_norm = np.array(
+        [elem * len(elem) for elem in aggregated_histories]
+    )
 
-    # reg_data = regularise_array(aggregated_histories_norm, val=-1)
-    # fig, ax = plt.subplots(figsize=(20, 20))
-    # im = ax.imshow(reg_data)
-    # ax.set_xticks(np.arange(reg_data.shape[1]))
-    # ax.set_xticklabels([i + 1 for i in range(reg_data.shape[1])])
-    # ax.set_yticks(np.arange(len(reg_data)))
-    # ax.set_yticklabels([str(key + 1) for key in visit_histories.keys()])
-    # plt.ylabel('Prediction number')
-    # plt.xlabel('Visit history ')
-    # plt.title('Rescaled')
-    # im.set_cmap('viridis')
-    # fig.colorbar(im,)
+    reg_data = regularise_array(aggregated_histories_norm, val=-1)
+    fig, ax = plt.subplots(figsize=(20, 20))
+    im = ax.imshow(reg_data)
+    ax.set_xticks(np.arange(reg_data.shape[1]))
+    ax.set_xticklabels([i + 1 for i in range(reg_data.shape[1])])
+    ax.set_yticks(np.arange(len(reg_data)))
+    ax.set_yticklabels([str(key + 1) for key in visit_histories_to_keep.keys()])
+    plt.ylabel("Prediction number")
+    plt.xlabel("Visit history ")
+    plt.title("Rescaled")
+    im.set_cmap("viridis")
+    fig.colorbar(
+        im,
+    )
     return
     return visit_histories, aggregated_histories

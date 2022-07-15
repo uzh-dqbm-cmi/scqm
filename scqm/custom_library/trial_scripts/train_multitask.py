@@ -122,12 +122,12 @@ if __name__ == "__main__":
     trainer = MultitaskTrainer(
         model,
         dataset,
-        n_epochs=65,
+        n_epochs=100,
         batch_size={
             "das28": int(len(dataset) / 15),
             "basdai": int(len(dataset) / (15 * 3)),
         },
-        lr=1e-2,
+        lr=1e-3,
         balance_classes=True,
         use_early_stopping=False,
     )
@@ -148,7 +148,7 @@ if __name__ == "__main__":
     #     histories[index_in_history : index_in_history + numbers_of_target[index]] = hist
     #     index_in_history += numbers_of_target[index]
     delattr(trainer, "dataset")
-    with open("/opt/tmp/trainer_multitarget_07_07.pickle", "wb") as handle:
+    with open("/opt/tmp/trainer_multitarget_11_07.pickle", "wb") as handle:
         pickle.dump(trainer, handle)
     # with open("/opt/tmp/train_histories.pickle", "wb") as handle:
     #     pickle.dump(histories, handle)

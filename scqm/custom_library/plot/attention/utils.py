@@ -37,15 +37,33 @@ def find_drugs(meds_list, patient, dataset):
     return med_names
 
 
-def get_all_attention(model, dataset, patients):
+def get_all_attention_and_ranking(model, dataset, patients, target_name):
     meds_all = {patient: {} for patient in patients}
     meds_and_attention = {patient: {} for patient in patients}
+    meds_and_attention_without_end = {patient: {} for patient in patients}
     values = {patient: [] for patient in patients}
     all_patients_all_attention = {patient: {} for patient in patients}
+    rank_dict = {
+        med: {"ranks": [], "predictions": [], "true_values": []}
+        for med in dataset.med_df["medication_generic_drug"].unique()
+    }
+    patient_info = {
+        patient: {"target_values": np.nan, "predictions": np.nan, "sorted_meds": []}
+        for patient in patients
+    }
+
     for patient in patients:
-        all_events, all_attention, all_global_attention, events = apply_attention(
-            model, dataset, patient
-        )
+        # print(patient)
+        (
+            all_events,
+            all_attention,
+            all_global_attention,
+            events,
+            target_values,
+            predictions,
+        ) = apply_attention(model, dataset, patient, target_name)
+        patient_info[patient]["target_values"] = target_values
+        patient_info[patient]["predictions"] = predictions
         meds_all[patient] = {
             index: find_drugs(
                 [(elem[1], elem[2]) for elem in all_events[index] if "med_" in elem[1]],
@@ -62,6 +80,33 @@ def get_all_attention(model, dataset, patients):
             ]
             for index in range(len(all_events))
         }
+        meds_and_attention_without_end[patient] = {
+            index: [
+                meds_all[patient][index][index_med]
+                + (all_attention[index]["med"].flatten()[index_med].item(),)
+                for index_med in range(len(meds_all[patient][index]))
+                if meds_all[patient][index][index_med][0] == "med_s"
+            ]
+            for index in range(len(all_events))
+        }
+        for i, key in enumerate(meds_and_attention_without_end[patient]):
+            sorted_list = sorted(
+                meds_and_attention_without_end[patient][key],
+                key=lambda x: x[2],
+                reverse=True,
+            )
+            ranks = [
+                (elem[1], elem[2], (index + 1) / len(sorted_list))
+                for index, elem in enumerate(sorted_list)
+                if len(sorted_list) > 1
+            ]
+            patient_info[patient]["sorted_meds"].append(ranks)
+            if len(sorted_list) > 1:
+                for index, elem in enumerate(sorted_list):
+                    rank_dict[elem[1]]["ranks"].append((index + 1) / len(sorted_list))
+                    rank_dict[elem[1]]["predictions"].append(predictions[i].item())
+                    rank_dict[elem[1]]["true_values"].append(target_values[i].item())
+
         values[patient] = np.array(
             [
                 np.array(
@@ -72,40 +117,91 @@ def get_all_attention(model, dataset, patients):
             dtype=object,
         )
         all_patients_all_attention[patient] = all_attention
-    return meds_all, meds_and_attention, values, all_patients_all_attention
+    if target_name == "das283bsr_score":
+        for med in rank_dict.keys():
+            rank_dict[med]["true_values"] = (
+                np.array(rank_dict[med]["true_values"])
+                * (
+                    dataset.a_visit_df_scaling_values[1]["das283bsr_score"]
+                    - dataset.a_visit_df_scaling_values[0]["das283bsr_score"]
+                )
+                + dataset.a_visit_df_scaling_values[0]["das283bsr_score"]
+            )
+
+            rank_dict[med]["predictions"] = (
+                np.array(rank_dict[med]["predictions"])
+                * (
+                    dataset.a_visit_df_scaling_values[1]["das283bsr_score"]
+                    - dataset.a_visit_df_scaling_values[0]["das283bsr_score"]
+                )
+                + dataset.a_visit_df_scaling_values[0]["das283bsr_score"]
+            )
+    elif target_name == "basdai_score":
+        for med in rank_dict.keys():
+            rank_dict[med]["true_values"] = (
+                np.array(rank_dict[med]["true_values"])
+                * (
+                    dataset.basdai_df_scaling_values[1]["basdai_score"]
+                    - dataset.basdai_df_scaling_values[0]["basdai_score"]
+                )
+                + dataset.basdai_df_scaling_values[0]["basdai_score"]
+            )
+
+            rank_dict[med]["predictions"] = (
+                np.array(rank_dict[med]["predictions"])
+                * (
+                    dataset.basdai_df_scaling_values[1]["basdai_score"]
+                    - dataset.basdai_df_scaling_values[0]["basdai_score"]
+                )
+                + dataset.basdai_df_scaling_values[0]["basdai_score"]
+            )
+    return (
+        meds_all,
+        meds_and_attention,
+        rank_dict,
+        values,
+        all_patients_all_attention,
+        patient_info,
+    )
 
 
-def apply_attention(model, dataset: Dataset, patient_id: str):
+def apply_attention(
+    model,
+    dataset: Dataset,
+    patient_id: str,
+    target_name: str,
+):
     with torch.no_grad():
         # method to directly apply the model to a single patient
-        target_name = model.target_name
         if target_name == "das283bsr_score":
+            mapping = dataset.mapping_for_masks_das28
+            masks = dataset.masks_das28
             target_index_in_events = dataset.event_names.index("a_visit")
             target_index_in_tensor = dataset.target_value_index_das28
             target_tensor = dataset[patient_id].targets_das28_df_tensor
-
             time_index = dataset.time_index_das28
-        else:
+        elif target_name == "basdai_score":
+            mapping = dataset.mapping_for_masks_basdai
+            masks = dataset.masks_basdai
             target_index_in_events = dataset.event_names.index("basdai")
             target_index_in_tensor = dataset.target_value_index_basdai
             target_tensor = dataset[patient_id].targets_basdai_df_tensor
-
             time_index = dataset.time_index_basdai
-        patient_mask_index = dataset.mapping_for_masks[patient_id]
+        patient_mask_index = mapping[patient_id]
         encoder_outputs = {}
         for event in dataset.event_names:
             encoder_outputs[event] = model.encoders[event](
                 getattr(dataset[patient_id], event + "_df_tensor").to(model.device)
             )
 
-        seq_lengths = dataset.masks.seq_lengths[:, patient_mask_index, :]
-        available_target_mask = dataset.masks.available_target_mask[patient_mask_index]
+        seq_lengths = masks.seq_lengths[:, patient_mask_index, :]
+        available_target_mask = masks.available_target_mask[patient_mask_index]
         predictions = torch.empty(
             size=(torch.sum(available_target_mask == True).item(), 1),
             device=model.device,
         )
-        max_num_visits = dataset.masks.num_targets[patient_mask_index]
-        total_num = dataset.masks.total_num[patient_mask_index]
+        max_num_visits = masks.num_targets[patient_mask_index]
+        total_num = masks.total_num[patient_mask_index]
 
         # targets (values)
         target_values = torch.empty(
@@ -175,8 +271,9 @@ def apply_attention(model, dataset: Dataset, patient_id: str):
                 patient_id
             ].get_cropped_timeline(
                 visit + dataset.min_num_targets,
-                dataset.masks.min_time_since_last_event,
-                dataset.masks.max_time_since_last_event,
+                masks.min_time_since_last_event,
+                masks.max_time_since_last_event,
+                target_name,
             )
             all_timelines.append(cropped_timeline)
             all_events[index_target] = cropped_ext
@@ -248,14 +345,24 @@ def apply_attention(model, dataset: Dataset, patient_id: str):
                 ),
                 dim=1,
             )
-            predictions[index_target] = model.PModule(pred_input)
+            if target_name == "das283bsr_score":
+                predictions[index_target] = model.PModuleDas28(pred_input)
+            else:
+                predictions[index_target] = model.PModuleBasdai(pred_input)
             index_target += 1
         if model.task == "classification":
             predictions = torch.tensor(
                 [torch.argmax(elem) for elem in predictions], device=model.device
             )
 
-    return all_events, all_attention, all_global_attention, events
+    return (
+        all_events,
+        all_attention,
+        all_global_attention,
+        events,
+        target_values,
+        predictions,
+    )
 
 
 def regularise_array(arr, val=-1):
