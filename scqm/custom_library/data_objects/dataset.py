@@ -263,7 +263,7 @@ class Dataset:
                 self.radai_df_proc, columns=["morning_stiffness_duration_radai"]
             )
 
-            # self.mny_df_proc = pd.get_dummies(self.mny_df_proc, columns=["mnyc_score"])
+            self.mny_df_proc = pd.get_dummies(self.mny_df_proc, columns=["mnyc_score"])
         self.med_df_proc = pd.get_dummies(
             self.med_df_proc,
             columns=[

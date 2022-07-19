@@ -458,6 +458,10 @@ def extract_multitask_features(
             "n_painfull_joints_28",
             "height_cm",
             "crp",
+            "hb",
+            "n_enthesides",
+            "mda_score",
+            "joints_type",
         ]
     ]
     basdai_df = df_dict["basdai"][
@@ -500,6 +504,7 @@ def extract_multitask_features(
         "tocilizumab",
         "certolizumab",
         "abatacept",
+        "secukinumab",
     ]
     med_df.loc[
         ~med_df["medication_generic_drug"].isin(drugs_to_keep),

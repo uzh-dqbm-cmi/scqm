@@ -48,7 +48,13 @@ def get_all_attention_and_ranking(model, dataset, patients, target_name):
         for med in dataset.med_df["medication_generic_drug"].unique()
     }
     patient_info = {
-        patient: {"target_values": np.nan, "predictions": np.nan, "sorted_meds": []}
+        patient: {
+            "target_values": np.nan,
+            "predictions": np.nan,
+            "sorted_meds": [],
+            "all_attention": {},
+            "global_attention": [],
+        }
         for patient in patients
     }
 
@@ -64,6 +70,9 @@ def get_all_attention_and_ranking(model, dataset, patients, target_name):
         ) = apply_attention(model, dataset, patient, target_name)
         patient_info[patient]["target_values"] = target_values
         patient_info[patient]["predictions"] = predictions
+        patient_info[patient]["all_attention"] = all_attention
+        patient_info[patient]["global_attention"] = all_global_attention
+
         meds_all[patient] = {
             index: find_drugs(
                 [(elem[1], elem[2]) for elem in all_events[index] if "med_" in elem[1]],
@@ -338,9 +347,7 @@ def apply_attention(
             pred_input = torch.cat(
                 (
                     general_info,
-                    combined_lstm[available_target_mask[visit]].reshape(
-                        1, combined_lstm[available_target_mask[visit]].shape[2]
-                    ),
+                    combined_lstm_input,
                     time_to_targets[index_target],
                 ),
                 dim=1,

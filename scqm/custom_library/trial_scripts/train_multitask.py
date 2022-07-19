@@ -14,7 +14,7 @@ from scqm.custom_library.preprocessing.load_data import load_dfs_all_data
 from scqm.custom_library.preprocessing.preprocessing import preprocessing
 
 if __name__ == "__main__":
-    reload = True
+    reload = False
     if reload:
         with open("/opt/tmp/saved_cv_multitask_mny_06_07.pickle", "rb") as f:
             cv = pickle.load(f)
@@ -66,13 +66,13 @@ if __name__ == "__main__":
         )
         print(f"Dropping patients with less than 3 visits, keeping {len(dataset)}")
         dataset.get_masks()
-        with open("/opt/tmp/dataset_multitask_mny_06_07.pickle", "wb") as handle:
+        with open("/opt/tmp/dataset_multitask_mny_19_07.pickle", "wb") as handle:
             pickle.dump(dataset, handle)
         dataset.create_dfs()
         dataset.transform_to_numeric_adanet()
 
         cv = CVMultitask(dataset, k=5)
-        with open("/opt/tmp/saved_cv_multitask_mny_06_07.pickle", "wb") as f:
+        with open("/opt/tmp/saved_cv_multitask_mny_19_07.pickle", "wb") as f:
             pickle.dump(cv, f)
     dataset = cv.dataset
     partition = cv.partition
@@ -148,7 +148,7 @@ if __name__ == "__main__":
     #     histories[index_in_history : index_in_history + numbers_of_target[index]] = hist
     #     index_in_history += numbers_of_target[index]
     delattr(trainer, "dataset")
-    with open("/opt/tmp/trainer_multitarget_11_07.pickle", "wb") as handle:
+    with open("/opt/tmp/trainer_multitarget_19_07.pickle", "wb") as handle:
         pickle.dump(trainer, handle)
     # with open("/opt/tmp/train_histories.pickle", "wb") as handle:
     #     pickle.dump(histories, handle)
