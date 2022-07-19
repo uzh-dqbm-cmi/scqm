@@ -19,6 +19,7 @@ from scqm.custom_library.preprocessing.select_features import extract_multitask_
 from scqm.custom_library.data_objects.dataset_multitask import DatasetMultitask
 from scqm.custom_library.partition.multitask_partition import MultitaskPartition
 
+from scqm.custom_library.clustering.similarity import compute_similarity
 
 # setting path
 
@@ -144,48 +145,124 @@ if __name__ == "__main__":
             model.apply(dataset, p, "das283bsr_score", return_history=False)
         if dataset[p].target_name in ["both", "basdai_score"]:
             model.apply(dataset, p, "basdai_score", return_history=False)
-    # # kmeans clustering
-    # subset = dataset.train_ids
-    # # torch.sum(dataset.masks.available_target_mask == True).item()
-    # numbers_of_target = [
-    #     torch.sum(
-    #         dataset.masks.available_target_mask[dataset.mapping_for_masks[patient]]
-    #         == True
-    #     ).item()
-    #     for patient in subset
-    # ]
-    # histories = torch.empty(size=(sum(numbers_of_target), model.pred_input_size))
-    # index_in_history = 0
-    # for index, patient in enumerate(subset):
-    #     _, _, _, hist = model.apply(dataset, patient, return_history=True)
-    #     histories[index_in_history : index_in_history + numbers_of_target[index]] = hist
-    #     index_in_history += numbers_of_target[index]
-    # k = 3
-    # kmeans = KMeans(n_clusters=k, random_state=seed).fit(histories)
-    # # evaluate on test
-    # subset = dataset.test_ids
-    # numbers_of_target_test = [
-    #     torch.sum(
-    #         dataset.masks.available_target_mask[dataset.mapping_for_masks[patient]]
-    #         == True
-    #     ).item()
-    #     for patient in subset
-    # ]
-    # histories_test = torch.empty(
-    #     size=(sum(numbers_of_target_test), model.pred_input_size)
-    # )
-    # index_in_history = 0
-    # for index, patient in enumerate(subset):
-    #     (predictions, target_values, time_to_targets, hist) = model.apply(
-    #         dataset, patient, return_history=True
-    #     )
-    #     histories_test[
-    #         index_in_history : index_in_history + numbers_of_target_test[index]
-    #     ] = hist
-    #     index_in_history += numbers_of_target_test[index]
-    #     print(
-    #         f"pred {predictions} target values {target_values} time {time_to_targets}"
-    #     )
-    # # kmeans
-    # kmeans.predict(histories_test)
+    # kmeans clustering
+    subset = dataset.train_ids
+    subset_das28 = [
+        p for p in subset if dataset[p].target_name in ["both", "das283bsr_score"]
+    ]
+    subset_basdai = [p for p in subset if dataset[p].target_name == "basdai_score"]
+
+    # torch.sum(dataset.masks.available_target_mask == True).item()
+    numbers_of_target = [
+        torch.sum(
+            dataset.masks_das28.available_target_mask[
+                dataset.mapping_for_masks_das28[patient]
+            ]
+            == True
+        ).item()
+        for patient in subset_das28
+    ]
+    numbers_of_target.extend(
+        [
+            torch.sum(
+                dataset.masks_basdai.available_target_mask[
+                    dataset.mapping_for_masks_basdai[patient]
+                ]
+                == True
+            ).item()
+            for patient in subset_basdai
+        ]
+    )
+    histories = torch.empty(size=(sum(numbers_of_target), model.pred_input_size))
+    index_in_history = 0
+    for index, patient in enumerate(subset_das28):
+        _, _, _, hist = model.apply(
+            dataset, patient, "das283bsr_score", return_history=True
+        )
+        histories[index_in_history : index_in_history + numbers_of_target[index]] = hist
+        index_in_history += numbers_of_target[index]
+    for index, patient in enumerate(subset_basdai):
+        _, _, _, hist = model.apply(
+            dataset, patient, "basdai_score", return_history=True
+        )
+        histories[
+            index_in_history : index_in_history
+            + numbers_of_target[index + len(subset_das28)]
+        ] = hist
+        index_in_history += numbers_of_target[index + len(subset_das28)]
+    k = 3
+    print("KMeans")
+    kmeans = KMeans(n_clusters=k, random_state=seed).fit(histories)
+    # evaluate on test
+    subset_test = dataset.test_ids
+    subset_test_das28 = [
+        p for p in subset_test if dataset[p].target_name in ["both", "das283bsr_score"]
+    ]
+    subset_test_basdai = [
+        p for p in subset_test if dataset[p].target_name == "basdai_score"
+    ]
+    numbers_of_target_test = [
+        torch.sum(
+            dataset.masks_das28.available_target_mask[
+                dataset.mapping_for_masks_das28[patient]
+            ]
+            == True
+        ).item()
+        for patient in subset_test_das28
+    ]
+    numbers_of_target_test.extend(
+        [
+            torch.sum(
+                dataset.masks_basdai.available_target_mask[
+                    dataset.mapping_for_masks_basdai[patient]
+                ]
+                == True
+            ).item()
+            for patient in subset_test_basdai
+        ]
+    )
+    histories_test = torch.empty(
+        size=(sum(numbers_of_target_test), model.pred_input_size)
+    )
+    index_in_history = 0
+    mapping_patient_history_test = {}
+    for index, patient in enumerate(subset_test_das28):
+        (predictions, target_values, time_to_targets, hist) = model.apply(
+            dataset, patient, "das283bsr_score", return_history=True
+        )
+        histories_test[
+            index_in_history : index_in_history + numbers_of_target_test[index]
+        ] = hist
+        index_in_history += numbers_of_target_test[index]
+        mapping_patient_history_test[patient] = index
+
+    for index, patient in enumerate(subset_test_basdai):
+        (predictions, target_values, time_to_targets, hist) = model.apply(
+            dataset, patient, "basdai_score", return_history=True
+        )
+        histories_test[
+            index_in_history : index_in_history
+            + numbers_of_target_test[index + len(subset_test_das28)]
+        ] = hist
+        index_in_history += numbers_of_target_test[index + len(subset_test_das28)]
+        mapping_patient_history_test[patient] = index + len(subset_test_das28)
+
+    # kmeans
+    kmeans.predict(histories_test)
+    # MSE between patients
+    mses = compute_similarity(
+        subset_test_das28[1],
+        subset_test_das28,
+        histories_test,
+        mapping_patient_history_test,
+        "mse",
+    )
+    # cosine
+    cosine = compute_similarity(
+        subset_test_das28[1],
+        subset_test_das28,
+        histories_test,
+        mapping_patient_history_test,
+        "cosine",
+    )
     print("End of script")

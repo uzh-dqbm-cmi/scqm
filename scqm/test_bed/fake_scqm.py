@@ -157,6 +157,10 @@ def get_visit_df(patient_df: pd.DataFrame) -> pd.DataFrame:
             "n_painfull_joints_28": np.nan,
             "height_cm": np.nan,
             "crp": np.nan,
+            "hb": np.nan,
+            "n_enthesides": np.nan,
+            "mda_score": np.nan,
+            "joints_type": np.nan,
         }
     )
 
