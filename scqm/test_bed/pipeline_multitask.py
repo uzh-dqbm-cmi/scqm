@@ -20,6 +20,7 @@ from scqm.custom_library.data_objects.dataset_multitask import DatasetMultitask
 from scqm.custom_library.partition.multitask_partition import MultitaskPartition
 
 from scqm.custom_library.clustering.similarity import compute_similarity
+from scqm.custom_library.clustering.utils import get_features
 
 # setting path
 
@@ -174,17 +175,38 @@ if __name__ == "__main__":
         ]
     )
     histories = torch.empty(size=(sum(numbers_of_target), model.pred_input_size))
+    raw_histories = torch.empty(
+        size=(
+            sum(numbers_of_target),
+            sum([model.config[event]["num_features"] for event in dataset.event_names])
+            + model.config["num_general_features"],
+        )
+    )
     index_in_history = 0
+    raw_features = {}
     for index, patient in enumerate(subset_das28):
         _, _, _, hist = model.apply(
             dataset, patient, "das283bsr_score", return_history=True
         )
+        (
+            raw_features[patient],
+            raw_histories[
+                index_in_history : index_in_history + numbers_of_target[index]
+            ],
+        ) = get_features(model, dataset, patient, "das283bsr_score")
         histories[index_in_history : index_in_history + numbers_of_target[index]] = hist
         index_in_history += numbers_of_target[index]
     for index, patient in enumerate(subset_basdai):
         _, _, _, hist = model.apply(
             dataset, patient, "basdai_score", return_history=True
         )
+        (
+            raw_features[patient],
+            raw_histories[
+                index_in_history : index_in_history
+                + numbers_of_target[index + len(subset_das28)]
+            ],
+        ) = get_features(model, dataset, patient, "basdai_score")
         histories[
             index_in_history : index_in_history
             + numbers_of_target[index + len(subset_das28)]
@@ -224,12 +246,27 @@ if __name__ == "__main__":
     histories_test = torch.empty(
         size=(sum(numbers_of_target_test), model.pred_input_size)
     )
+    raw_histories_test = torch.empty(
+        size=(
+            sum(numbers_of_target_test),
+            sum([model.config[event]["num_features"] for event in dataset.event_names])
+            + model.config["num_general_features"],
+        )
+    )
+
     index_in_history = 0
     mapping_patient_history_test = {}
+    raw_features_test = {}
     for index, patient in enumerate(subset_test_das28):
         (predictions, target_values, time_to_targets, hist) = model.apply(
             dataset, patient, "das283bsr_score", return_history=True
         )
+        (
+            raw_features_test[patient],
+            raw_histories_test[
+                index_in_history : index_in_history + numbers_of_target_test[index]
+            ],
+        ) = get_features(model, dataset, patient, "das283bsr_score")
         histories_test[
             index_in_history : index_in_history + numbers_of_target_test[index]
         ] = hist
@@ -240,6 +277,13 @@ if __name__ == "__main__":
         (predictions, target_values, time_to_targets, hist) = model.apply(
             dataset, patient, "basdai_score", return_history=True
         )
+        (
+            raw_features_test[patient],
+            raw_histories_test[
+                index_in_history : index_in_history
+                + numbers_of_target_test[index + len(subset_test_das28)]
+            ],
+        ) = get_features(model, dataset, patient, "basdai_score")
         histories_test[
             index_in_history : index_in_history
             + numbers_of_target_test[index + len(subset_test_das28)]
@@ -265,4 +309,8 @@ if __name__ == "__main__":
         mapping_patient_history_test,
         "cosine",
     )
+    # # cluster normalized data directly
+    kmeans_raw = KMeans(n_clusters=k, random_state=seed).fit(raw_histories)
+    kmeans_raw.predict(raw_histories_test)
+
     print("End of script")
