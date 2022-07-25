@@ -20,7 +20,12 @@ from scqm.custom_library.data_objects.dataset_multitask import DatasetMultitask
 from scqm.custom_library.partition.multitask_partition import MultitaskPartition
 
 from scqm.custom_library.clustering.similarity import compute_similarity
-from scqm.custom_library.clustering.utils import get_features
+from scqm.custom_library.clustering.utils import (
+    get_features,
+    get_histories_and_features,
+)
+
+import numpy as np
 
 # setting path
 
@@ -182,8 +187,22 @@ if __name__ == "__main__":
             + model.config["num_general_features"],
         )
     )
+    raw_histories_unscaled = np.empty(
+        shape=(
+            sum(numbers_of_target),
+            sum(
+                [
+                    getattr(dataset, event + "_df").shape[1]
+                    for event in dataset.event_names
+                ]
+            )
+            + dataset.patients_df.shape[1],
+        ),
+        dtype="object",
+    )
     index_in_history = 0
     raw_features = {}
+    raw_features_unscaled = {}
     for index, patient in enumerate(subset_das28):
         _, _, _, hist = model.apply(
             dataset, patient, "das283bsr_score", return_history=True
@@ -191,6 +210,10 @@ if __name__ == "__main__":
         (
             raw_features[patient],
             raw_histories[
+                index_in_history : index_in_history + numbers_of_target[index]
+            ],
+            raw_features_unscaled[patient],
+            raw_histories_unscaled[
                 index_in_history : index_in_history + numbers_of_target[index]
             ],
         ) = get_features(model, dataset, patient, "das283bsr_score")
@@ -203,6 +226,11 @@ if __name__ == "__main__":
         (
             raw_features[patient],
             raw_histories[
+                index_in_history : index_in_history
+                + numbers_of_target[index + len(subset_das28)]
+            ],
+            raw_features_unscaled[patient],
+            raw_histories_unscaled[
                 index_in_history : index_in_history
                 + numbers_of_target[index + len(subset_das28)]
             ],
@@ -266,6 +294,8 @@ if __name__ == "__main__":
             raw_histories_test[
                 index_in_history : index_in_history + numbers_of_target_test[index]
             ],
+            _,
+            _,
         ) = get_features(model, dataset, patient, "das283bsr_score")
         histories_test[
             index_in_history : index_in_history + numbers_of_target_test[index]
@@ -283,6 +313,8 @@ if __name__ == "__main__":
                 index_in_history : index_in_history
                 + numbers_of_target_test[index + len(subset_test_das28)]
             ],
+            _,
+            _,
         ) = get_features(model, dataset, patient, "basdai_score")
         histories_test[
             index_in_history : index_in_history
@@ -312,5 +344,13 @@ if __name__ == "__main__":
     # # cluster normalized data directly
     kmeans_raw = KMeans(n_clusters=k, random_state=seed).fit(raw_histories)
     kmeans_raw.predict(raw_histories_test)
-
+    (
+        raw_features,
+        raw_histories,
+        raw_features_unscaled,
+        raw_histories_unscaled,
+        model_histories,
+        subset_das28,
+        subset_basdai,
+    ) = get_histories_and_features(dataset, model, subset=dataset.train_ids)
     print("End of script")
