@@ -52,9 +52,10 @@ def get_features(
         }
         combined_unscaled = {
             t: {
-                event: torch.zeros(
+                event: torch.full(
                     size=(event_unscaled[event].shape[1],),
                     device="cpu",
+                    fill_value=np.nan,
                 )
                 for index, event in enumerate(dataset.event_names)
             }
@@ -98,6 +99,7 @@ def get_features(
 
                 else:
                     continue
+
             combined[index_target]["general"] = general_info
             combined_unscaled[index_target]["general"] = general_info_unscaled
             combined_concat[index_target] = torch.cat(
@@ -184,7 +186,6 @@ def get_histories_and_features(dataset, model, subset):
                 index_in_history : index_in_history + numbers_of_target[index]
             ],
         ) = get_features(model, dataset, patient, "das283bsr_score")
-        _, _, _, _ = get_features(model, dataset, patient, "das283bsr_score")
         model_histories[
             index_in_history : index_in_history + numbers_of_target[index]
         ] = hist
