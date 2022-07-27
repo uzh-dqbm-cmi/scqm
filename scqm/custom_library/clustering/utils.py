@@ -167,13 +167,17 @@ def get_histories_and_features(dataset, model, subset):
         ),
         dtype="object",
     )
+    patient_in_embedding = {
+        patient: {"indices": [], "target": dataset[patient].target_name}
+        for patient in subset_das28 + subset_basdai
+    }
     index_in_history = 0
     raw_features = {}
     raw_features_unscaled = {}
     print(f"saving histories for das28")
-
+    hist_per_event_all = {}
     for index, patient in enumerate(tqdm(subset_das28)):
-        _, _, _, hist = model.apply(
+        _, _, _, hist, hist_per_event = model.apply(
             dataset, patient, "das283bsr_score", return_history=True
         )
         (
@@ -189,12 +193,16 @@ def get_histories_and_features(dataset, model, subset):
         model_histories[
             index_in_history : index_in_history + numbers_of_target[index]
         ] = hist
+        hist_per_event_all[patient] = hist_per_event
+        patient_in_embedding[patient]["indices"] = np.arange(
+            index_in_history, index_in_history + numbers_of_target[index]
+        )
         index_in_history += numbers_of_target[index]
 
     print(f"saving histories for basdai")
 
     for index, patient in enumerate(tqdm(subset_basdai)):
-        _, _, _, hist = model.apply(
+        _, _, _, hist, hist_per_event = model.apply(
             dataset, patient, "basdai_score", return_history=True
         )
         (
@@ -213,6 +221,10 @@ def get_histories_and_features(dataset, model, subset):
             index_in_history : index_in_history
             + numbers_of_target[index + len(subset_das28)]
         ] = hist
+        hist_per_event_all[patient] = hist_per_event
+        patient_in_embedding[patient]["indices"] = np.arange(
+            index_in_history, index_in_history + numbers_of_target[index]
+        )
         index_in_history += numbers_of_target[index + len(subset_das28)]
 
     return (
@@ -223,4 +235,6 @@ def get_histories_and_features(dataset, model, subset):
         model_histories,
         subset_das28,
         subset_basdai,
+        patient_in_embedding,
+        hist_per_event_all,
     )

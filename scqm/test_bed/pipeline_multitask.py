@@ -204,7 +204,7 @@ if __name__ == "__main__":
     raw_features = {}
     raw_features_unscaled = {}
     for index, patient in enumerate(subset_das28):
-        _, _, _, hist = model.apply(
+        _, _, _, hist, hist_per_event = model.apply(
             dataset, patient, "das283bsr_score", return_history=True
         )
         (
@@ -220,7 +220,7 @@ if __name__ == "__main__":
         histories[index_in_history : index_in_history + numbers_of_target[index]] = hist
         index_in_history += numbers_of_target[index]
     for index, patient in enumerate(subset_basdai):
-        _, _, _, hist = model.apply(
+        _, _, _, hist, hist_per_event = model.apply(
             dataset, patient, "basdai_score", return_history=True
         )
         (
@@ -286,9 +286,13 @@ if __name__ == "__main__":
     mapping_patient_history_test = {}
     raw_features_test = {}
     for index, patient in enumerate(subset_test_das28):
-        (predictions, target_values, time_to_targets, hist) = model.apply(
-            dataset, patient, "das283bsr_score", return_history=True
-        )
+        (
+            predictions,
+            target_values,
+            time_to_targets,
+            hist,
+            hist_per_event,
+        ) = model.apply(dataset, patient, "das283bsr_score", return_history=True)
         (
             raw_features_test[patient],
             raw_histories_test[
@@ -304,9 +308,13 @@ if __name__ == "__main__":
         mapping_patient_history_test[patient] = index
 
     for index, patient in enumerate(subset_test_basdai):
-        (predictions, target_values, time_to_targets, hist) = model.apply(
-            dataset, patient, "basdai_score", return_history=True
-        )
+        (
+            predictions,
+            target_values,
+            time_to_targets,
+            hist,
+            hist_per_event,
+        ) = model.apply(dataset, patient, "basdai_score", return_history=True)
         (
             raw_features_test[patient],
             raw_histories_test[
@@ -352,5 +360,7 @@ if __name__ == "__main__":
         model_histories,
         subset_das28,
         subset_basdai,
+        _,
+        hist_per_event,
     ) = get_histories_and_features(dataset, model, subset=dataset.train_ids)
     print("End of script")

@@ -371,13 +371,23 @@ class Multitask(Model):
                 size=(torch.sum(available_target_mask == True).item(), 1),
                 device=self.device,
             )
-            histories = torch.empty(
+            histories = torch.zeros(
                 size=(
                     torch.sum(available_target_mask == True).item(),
                     self.pred_input_size,
                 ),
                 device=self.device,
             )
+            histories_per_event = {
+                event: torch.zeros(
+                    size=(
+                        torch.sum(available_target_mask == True).item(),
+                        self.history_size,
+                    ),
+                    device=self.device,
+                )
+                for event in dataset.event_names
+            }
             max_num_targets = masks.num_targets[patient_mask_index]
             total_num = masks.total_num[patient_mask_index]
 
@@ -463,6 +473,9 @@ class Multitask(Model):
                                 index
                             ] : self.combined_history_size[1][index + 1],
                         ] = torch.sum(unpacked_output * attention_weights, dim=1)
+                        histories_per_event[event][index_target] = torch.sum(
+                            unpacked_output * attention_weights, dim=1
+                        )
                 combined_lstm_input = torch.reshape(
                     combined_lstm[0],
                     shape=(
@@ -500,7 +513,13 @@ class Multitask(Model):
                     predictions[index_target] = self.PModuleBasdai(pred_input)
                 index_target += 1
         if return_history:
-            return (predictions, target_values, time_to_targets, histories)
+            return (
+                predictions,
+                target_values,
+                time_to_targets,
+                histories,
+                histories_per_event,
+            )
 
         else:
             return (predictions, target_values, time_to_targets, prediction_dates)
