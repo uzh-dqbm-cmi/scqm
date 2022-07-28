@@ -223,7 +223,8 @@ def get_histories_and_features(dataset, model, subset):
         ] = hist
         hist_per_event_all[patient] = hist_per_event
         patient_in_embedding[patient]["indices"] = np.arange(
-            index_in_history, index_in_history + numbers_of_target[index]
+            index_in_history,
+            index_in_history + numbers_of_target[index + len(subset_das28)],
         )
         index_in_history += numbers_of_target[index + len(subset_das28)]
 
