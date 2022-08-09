@@ -283,7 +283,10 @@ if __name__ == "__main__":
     )
 
     index_in_history = 0
-    mapping_patient_history_test = {}
+    patient_in_embedding_test = {
+        patient: {"indices": []} for patient in subset_test_das28 + subset_test_basdai
+    }
+
     raw_features_test = {}
     for index, patient in enumerate(subset_test_das28):
         (
@@ -305,7 +308,9 @@ if __name__ == "__main__":
             index_in_history : index_in_history + numbers_of_target_test[index]
         ] = hist
         index_in_history += numbers_of_target_test[index]
-        mapping_patient_history_test[patient] = index
+        patient_in_embedding_test[patient]["indices"] = np.arange(
+            index_in_history, index_in_history + numbers_of_target_test[index]
+        )
 
     for index, patient in enumerate(subset_test_basdai):
         (
@@ -329,26 +334,35 @@ if __name__ == "__main__":
             + numbers_of_target_test[index + len(subset_test_das28)]
         ] = hist
         index_in_history += numbers_of_target_test[index + len(subset_test_das28)]
-        mapping_patient_history_test[patient] = index + len(subset_test_das28)
+        patient_in_embedding_test[patient]["indices"] = np.arange(
+            index_in_history,
+            index_in_history + numbers_of_target_test[index + len(subset_test_das28)],
+        )
 
     # kmeans
     kmeans.predict(histories_test)
     # MSE between patients
-    mses = compute_similarity(
-        subset_test_das28[1],
-        subset_test_das28,
-        histories_test,
-        mapping_patient_history_test,
-        "mse",
-    )
-    # cosine
-    cosine = compute_similarity(
-        subset_test_das28[1],
-        subset_test_das28,
-        histories_test,
-        mapping_patient_history_test,
-        "cosine",
-    )
+    similarities_mse = {}
+    similarities_cos = {}
+    for index, p in enumerate(subset_test_das28):
+        if len(patient_in_embedding_test[p]["indices"]) > 0:
+            similarities_mse[p] = compute_similarity(
+                p,
+                subset_test_das28,
+                histories_test,
+                patient_in_embedding_test,
+                "mse",
+            )
+            print(similarities_mse[p][p])
+            similarities_cos[p] = compute_similarity(
+                p,
+                subset_test_das28,
+                histories_test,
+                patient_in_embedding_test,
+                "cosine",
+            )
+            print(similarities_cos[p][p])
+
     # # cluster normalized data directly
     kmeans_raw = KMeans(n_clusters=k, random_state=seed).fit(raw_histories)
     kmeans_raw.predict(raw_histories_test)

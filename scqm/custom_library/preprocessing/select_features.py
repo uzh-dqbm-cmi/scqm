@@ -428,8 +428,6 @@ def extract_multitask_features(
             "patient_id",
             "date_of_birth",
             "gender",
-            "anti_ccp",
-            "ra_crit_rheumatoid_factor",
             "date_first_symptoms",
             "date_diagnosis",
         ]
@@ -462,6 +460,8 @@ def extract_multitask_features(
             "n_enthesides",
             "mda_score",
             "joints_type",
+            "anti_ccp",
+            "ra_crit_rheumatoid_factor",
         ]
     ]
     basdai_df = df_dict["basdai"][

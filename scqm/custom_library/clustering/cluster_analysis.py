@@ -10,6 +10,8 @@ import seaborn as sns
 import random
 import torch
 from yellowbrick.cluster import KElbowVisualizer
+from tqdm import tqdm
+from scqm.custom_library.clustering.similarity import compute_similarity
 
 
 class ClusterAnalysis:
@@ -226,6 +228,7 @@ class ClusterAnalysis:
             c=getattr(self, "clusters_" + event + "_" + subset),
             alpha=0.4,
         )
+        plt.title(event + " clusters")
         for index, name in enumerate(self.feature_names):
             if name in self.feature_continuous:
                 plt.figure(figsize=(10, 10))
@@ -235,7 +238,7 @@ class ClusterAnalysis:
                     c=c[:, index].astype(float),
                 )
                 plt.colorbar()
-                plt.title(name)
+                plt.title(event + " decomposition : " + name)
             elif name in self.feature_categorical:
                 tmp = [item if item == item else np.nan for item in c[:, index]]
                 df = pd.DataFrame(
@@ -251,7 +254,7 @@ class ClusterAnalysis:
                         label=i,
                         color=colors[index],
                     )
-                    plt.title(name)
+                    plt.title(event + " decomposition : " + name)
                 plt.legend()
         return
 
@@ -474,5 +477,27 @@ class ClusterAnalysis:
         plt.legend()
 
         return
+
+    def get_similarities(self):
+        similarities_mse = {}
+        similarities_cos = {}
+        for index, p in enumerate(tqdm(self.subset_das28_test)):
+            if len(self.patient_in_embedding_test[p]["indices"]) > 0:
+                similarities_mse[p] = compute_similarity(
+                    p,
+                    self.subset_das28_test,
+                    self.model_histories_test,
+                    self.patient_in_embedding_test,
+                    "mse",
+                )
+                similarities_cos[p] = compute_similarity(
+                    p,
+                    self.subset_das28_test,
+                    self.model_histories_test,
+                    self.patient_in_embedding_test,
+                    "cosine",
+                )
+
+        return similarities_mse, similarities_cos
 
     # TODO method to highlight one patient, find if some patients move clusters (also potentially in train)

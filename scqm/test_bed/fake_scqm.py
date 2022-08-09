@@ -71,8 +71,6 @@ def get_patient_df(num_patients: int = 10) -> pd.DataFrame:
             "patient_id": patient_ids,
             "gender": gender,
             "date_of_birth": date_of_birth,
-            "anti_ccp": np.nan,
-            "ra_crit_rheumatoid_factor": np.nan,
             "date_first_symptoms": np.nan,
             "date_diagnosis": np.nan,
         }
@@ -155,6 +153,8 @@ def get_visit_df(patient_df: pd.DataFrame) -> pd.DataFrame:
             "n_painfull_joints": np.nan,
             "bsr": np.nan,
             "n_painfull_joints_28": np.nan,
+            "anti_ccp": np.nan,
+            "ra_crit_rheumatoid_factor": np.nan,
             "height_cm": np.nan,
             "crp": np.nan,
             "hb": np.nan,

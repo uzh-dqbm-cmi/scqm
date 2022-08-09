@@ -273,7 +273,10 @@ class Dataset:
         )
         self.patients_df_proc = pd.get_dummies(
             self.patients_df_proc,
-            columns=["gender", "anti_ccp", "ra_crit_rheumatoid_factor"],
+            columns=["gender"],
+        )
+        self.a_visit_df_proc = pd.get_dummies(
+            self.a_visit_df_proc, columns=["anti_ccp", "ra_crit_rheumatoid_factor"]
         )
         # transform to numeric
         columns_to_exclude = ["patient_id", "uid_num", "med_id", "event_id"]
