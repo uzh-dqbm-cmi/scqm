@@ -27,17 +27,18 @@ def compute_similarity(
     name: str = "mse",
 ):
     other_representations = [
-        representations[patient_in_embedding[p]["indices"]] for p in other_ids
+        representations[patient_in_embedding[p]["indices"]] for p in other_ids if len(representations[patient_in_embedding[p]["indices"]]) < 30
     ]
-    similarities = {}
-    rep = representations[patient_in_embedding[patient_id]["indices"][-1]].reshape(
-        (1, -1)
-    )
-    if name == "mse":
-        for index, p in enumerate(other_representations):
-            similarities[other_ids[index]] = mse(rep, p)
+    similarities = {visit : {} for visit in range(len(patient_in_embedding[patient_id]["indices"]))}
+    for visit in similarities:
+        rep = representations[patient_in_embedding[patient_id]["indices"][visit]].reshape(
+            (1, -1)
+        )
+        if name == "mse":
+            for index, p in enumerate(other_representations):
+                similarities[visit][other_ids[index]] = mse(rep, p)
 
-    elif name == "cosine":
-        for index, p in enumerate(other_representations):
-            similarities[other_ids[index]] = cosine(rep, p)
+        elif name == "cosine":
+            for index, p in enumerate(other_representations):
+                similarities[visit][other_ids[index]] = cosine(rep, p)
     return similarities

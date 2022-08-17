@@ -400,6 +400,11 @@ class Multitask(Model):
                 size=(torch.sum(available_target_mask == True).item(), 1, 1),
                 device=self.device,
             )
+            all_attention = {
+                index: {event: [] for event in dataset.event_names}
+                for index in range(torch.sum(available_target_mask == True).item())
+            }
+            all_global_attention = []
 
             index_target = 0
             prediction_dates = []
@@ -467,6 +472,7 @@ class Multitask(Model):
                         attention_weights = torch.nn.Softmax(dim=1)(
                             torch.matmul(unpacked_output, self.Attention[event])
                         )
+                        all_attention[index_target][event] = attention_weights
                         combined_lstm[
                             0,
                             self.combined_history_size[1][
@@ -487,6 +493,7 @@ class Multitask(Model):
                 global_attention_weights = torch.nn.Softmax(dim=1)(
                     torch.matmul(combined_lstm_input, self.GlobalAttention)
                 )
+                all_global_attention.append(global_attention_weights)
                 combined_lstm_input = torch.reshape(
                     global_attention_weights * combined_lstm_input,
                     shape=(
@@ -519,6 +526,8 @@ class Multitask(Model):
                 time_to_targets,
                 histories,
                 histories_per_event,
+                all_attention,
+                all_global_attention
             )
 
         else:

@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from scqm.custom_library.data_objects.dataset import Dataset
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 
 def plot_colormap(df, xlabels, xlabel, ylabels, ylabel, title):
@@ -58,7 +59,7 @@ def get_all_attention_and_ranking(model, dataset, patients, target_name):
         for patient in patients
     }
 
-    for patient in patients:
+    for patient in tqdm(patients):
         # print(patient)
         (
             all_events,

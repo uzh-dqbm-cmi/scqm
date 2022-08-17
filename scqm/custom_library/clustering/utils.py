@@ -11,7 +11,7 @@ def get_features(
     target_name: str,
 ):
     with torch.no_grad():
-        # method to directly apply the model to a single patient
+
         if target_name not in dataset[patient_id].targets.keys():
             raise ValueError("target name not available for this patient")
         else:
@@ -61,6 +61,11 @@ def get_features(
             }
             for t in range(torch.sum(available_target_mask == True).item())
         }
+        combined_unscaled_all = {t: {
+            event: {}
+            for index, event in enumerate(dataset.event_names)
+        }
+            for t in range(torch.sum(available_target_mask == True).item())}
         index_target = 0
         combined_concat = torch.zeros(
             size=(
@@ -96,6 +101,7 @@ def get_features(
                     combined_unscaled[index_target][event] = event_unscaled[event][
                         seq_lengths[t][index] - 1
                     ]
+                    combined_unscaled_all[index_target][event] = event_unscaled[event][:seq_lengths[t][index]]
 
                 else:
                     continue
@@ -115,7 +121,7 @@ def get_features(
             )
             index_target += 1
 
-        return combined, combined_concat, combined_unscaled, combined_concat_unscaled
+        return combined, combined_concat, combined_unscaled, combined_concat_unscaled, combined_unscaled_all
 
 
 def get_histories_and_features(dataset, model, subset):
@@ -173,6 +179,7 @@ def get_histories_and_features(dataset, model, subset):
     }
     index_in_history = 0
     raw_features = {}
+    raw_features_all = {}
     raw_features_unscaled = {}
     print(f"saving histories for das28")
     hist_per_event_all = {}
@@ -189,6 +196,7 @@ def get_histories_and_features(dataset, model, subset):
             raw_histories_unscaled[
                 index_in_history : index_in_history + numbers_of_target[index]
             ],
+            raw_features_all[patient]
         ) = get_features(model, dataset, patient, "das283bsr_score")
         model_histories[
             index_in_history : index_in_history + numbers_of_target[index]
@@ -216,6 +224,7 @@ def get_histories_and_features(dataset, model, subset):
                 index_in_history : index_in_history
                 + numbers_of_target[index + len(subset_das28)]
             ],
+            raw_features_all[patient]
         ) = get_features(model, dataset, patient, "basdai_score")
         model_histories[
             index_in_history : index_in_history
@@ -231,6 +240,7 @@ def get_histories_and_features(dataset, model, subset):
     return (
         raw_features,
         raw_histories,
+        raw_features_all,
         raw_features_unscaled,
         raw_histories_unscaled,
         model_histories,

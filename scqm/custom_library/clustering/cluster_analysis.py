@@ -23,6 +23,7 @@ class ClusterAnalysis:
         (
             self.raw_features,
             self.raw_histories,
+            self.raw_features_all,
             self.raw_features_unscaled,
             self.raw_histories_unscaled,
             self.model_histories,
@@ -34,6 +35,7 @@ class ClusterAnalysis:
         (
             self.raw_features_test,
             self.raw_histories_test,
+            self.raw_features_all_test,
             self.raw_features_unscaled_test,
             self.raw_histories_unscaled_test,
             self.model_histories_test,
@@ -478,25 +480,29 @@ class ClusterAnalysis:
 
         return
 
-    def get_similarities(self):
+    def get_similarities(self, subset = []):
+        if len(subset) == 0:
+            subset = self.subset_das28_test
         similarities_mse = {}
         similarities_cos = {}
-        for index, p in enumerate(tqdm(self.subset_das28_test)):
-            if len(self.patient_in_embedding_test[p]["indices"]) > 0:
+        for index, p in enumerate(tqdm(subset)):
+            if len(self.patient_in_embedding_test[p]["indices"]) > 0 and len(self.patient_in_embedding_test[p]["indices"]) < 30:
                 similarities_mse[p] = compute_similarity(
                     p,
-                    self.subset_das28_test,
+                    subset,
                     self.model_histories_test,
                     self.patient_in_embedding_test,
                     "mse",
                 )
                 similarities_cos[p] = compute_similarity(
                     p,
-                    self.subset_das28_test,
+                    subset,
                     self.model_histories_test,
                     self.patient_in_embedding_test,
                     "cosine",
                 )
+        self.similarities_mse = similarities_mse
+        self.similarities_cos = similarities_cos
 
         return similarities_mse, similarities_cos
 
