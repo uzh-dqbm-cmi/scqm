@@ -27,13 +27,17 @@ def compute_similarity(
     name: str = "mse",
 ):
     other_representations = [
-        representations[patient_in_embedding[p]["indices"]] for p in other_ids if len(representations[patient_in_embedding[p]["indices"]]) < 30
+        representations[patient_in_embedding[p]["indices"]]
+        for p in other_ids
+        if len(representations[patient_in_embedding[p]["indices"]]) < 30
     ]
-    similarities = {visit : {} for visit in range(len(patient_in_embedding[patient_id]["indices"]))}
+    similarities = {
+        visit: {} for visit in range(len(patient_in_embedding[patient_id]["indices"]))
+    }
     for visit in similarities:
-        rep = representations[patient_in_embedding[patient_id]["indices"][visit]].reshape(
-            (1, -1)
-        )
+        rep = representations[
+            patient_in_embedding[patient_id]["indices"][visit]
+        ].reshape((1, -1))
         if name == "mse":
             for index, p in enumerate(other_representations):
                 similarities[visit][other_ids[index]] = mse(rep, p)

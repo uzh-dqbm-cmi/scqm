@@ -8,6 +8,7 @@ from scqm.custom_library.data_objects.dataset import Dataset
 from scqm.custom_library.partition.multitask_partition import MultitaskPartition
 import matplotlib.pyplot as plt
 import timeit
+import copy
 
 
 class MultitaskTrainer(AdaptivenetTrainer):
@@ -21,7 +22,7 @@ class MultitaskTrainer(AdaptivenetTrainer):
         balance_classes: bool,
         use_early_stopping: bool,
     ):
-        """Instanciate trainer
+        """Instantiate trainer
 
         Args:
             model (Model): model to train
@@ -73,9 +74,10 @@ class MultitaskTrainer(AdaptivenetTrainer):
         return
 
     def train_model(self, model: Model, partition: MultitaskPartition, debug_patient):
-        print(f"device {model.device}")
+        print(f"model device {model.device}")
         # dfs and tensors
         self.dataset.move_to_device(model.device)
+
         # create separate batches for both types of targets
         batch_valid_das28 = Batch(
             model.device,
@@ -217,6 +219,16 @@ class MultitaskTrainer(AdaptivenetTrainer):
                     self.loss_per_epoch_valid_basdai[
                         self.current_epoch - 1
                     ] = self.loss_valid_basdai
+                    # if valid loss lower than all previous, save trainer/model state as best
+                    if self.current_epoch == 1:
+                        self.best_model = copy.deepcopy(self.model)
+                        self.best_loss_valid = self.loss_valid
+                        self.optimal_epoch = self.current_epoch
+                    elif self.loss_valid < self.best_loss_valid:
+                        self.best_model = copy.deepcopy(self.model)
+                        self.best_loss_valid = self.loss_valid
+                        self.optimal_epoch = self.current_epoch
+
                     print(
                         f"epoch : {self.current_epoch} loss {self.loss} loss_valid {self.loss_valid}"
                         f"loss das28 {self.loss_das28} loss_valid {self.loss_valid_das28}"
@@ -225,6 +237,7 @@ class MultitaskTrainer(AdaptivenetTrainer):
 
                     if self.use_early_stopping:
                         self.check_early_stopping()
+
         return
 
     def plot_losses(self):

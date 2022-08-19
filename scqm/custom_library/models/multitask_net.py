@@ -527,7 +527,7 @@ class Multitask(Model):
                 histories,
                 histories_per_event,
                 all_attention,
-                all_global_attention
+                all_global_attention,
             )
 
         else:

@@ -25,26 +25,18 @@ class CVMultitask(CV):
         self.k = k
         self.partition = MultitaskPartition(self.dataset, k=self.k)
 
-    def perform_cv(
-        self, fold: int, n_epochs: int = 40, search: str = "random", num_combi: int = 1
-    ) -> None:
+    def perform_cv(self, parameters: dict, fold: int, n_epochs: int = 40) -> None:
         """Perform a CV on a given fold, and save trained model.
 
         Args:
+            parameters (dict): name of parameters as keys, list of values to try out as values
             fold (int): Fold on which to perform cv.
-            n_epochs (int, optional): Number of training epochs. Defaults to 400.
-            search (str, optional): Type of search; random or grid. Defaults to "random".
-            num_combi (int, optional): Number of combinations to try out if search is random. Defaults to 1.
+            n_epochs (int, optional): Number of training epochs. Defaults to 40.
+
         """
-        combinations = list(itertools.product(*self.parameters.values()))
+        combinations = list(itertools.product(*parameters.values()))
         self.partition.set_current_fold(fold)
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        task = "regression"
-
-        if task == "regression":
-            num_targets = 1
-        else:
-            num_targets = 3
 
         # instantiate model
         num_feature_dict = {
@@ -60,20 +52,14 @@ class CVMultitask(CV):
         ).shape[1]
         size_out_dict["patients"] = int(num_feature_dict["patients"] / 10) + 1
         batch_first = True
-        # random search instead of grid search
-        if search == "random":
-            combinations = random.sample(combinations, num_combi)
         for ind, (
-            size_embedding,
             num_layers_enc,
             hidden_enc,
-            size_history,
             num_layers,
             num_layers_pred,
             hidden_pred,
             lr,
             p,
-            bal,
         ) in enumerate(combinations):
             # # to save
             path = "/cluster/home/ctrottet/runs/scqm/" + time.strftime("%Y%m%d-%H%M")
@@ -81,15 +67,11 @@ class CVMultitask(CV):
 
             print(f"{ind} combination out of {len(combinations)}")
             print(
-                f"size_embedding {size_embedding}, num_layers_enc {num_layers_enc}, hidden_enc {hidden_enc}, size_history {size_history}, num_layers {num_layers}, num_layers_pred {num_layers_pred}, hidden_pred {hidden_pred}, dropout {p}, lr {lr}"
+                f"num_layers_enc {num_layers_enc}, hidden_enc {hidden_enc}, num_layers {num_layers}, num_layers_pred {num_layers_pred}, hidden_pred {hidden_pred}, dropout {p}, lr {lr}"
             )
             model_specifics = {
-                "task": task,
-                "num_targets": num_targets,
-                "size_embedding": size_embedding,
                 "num_layers_enc": num_layers_enc,
                 "hidden_enc": hidden_enc,
-                "size_history": size_history,
                 "num_layers": num_layers,
                 "num_layers_pred": num_layers_pred,
                 "hidden_pred": hidden_pred,
@@ -106,6 +88,7 @@ class CVMultitask(CV):
                     "num_features": num_feature_dict[key],
                     "size_out": size_out_dict[key],
                 }
+            model_specifics["size_history"] = 30
             model_specifics["size_embedding"] = max(
                 [model_specifics[key]["size_out"] for key in num_feature_dict]
             )
@@ -120,7 +103,7 @@ class CVMultitask(CV):
                     "basdai": int(len(self.dataset) / (15 * 3)),
                 },
                 lr=lr,
-                balance_classes=bal,
+                balance_classes=True,
                 use_early_stopping=False,
             )
             trainer.train_model(model, self.partition, debug_patient=False)

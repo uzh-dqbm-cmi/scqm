@@ -480,13 +480,16 @@ class ClusterAnalysis:
 
         return
 
-    def get_similarities(self, subset = []):
+    def get_similarities(self, subset=[]):
         if len(subset) == 0:
             subset = self.subset_das28_test
         similarities_mse = {}
         similarities_cos = {}
         for index, p in enumerate(tqdm(subset)):
-            if len(self.patient_in_embedding_test[p]["indices"]) > 0 and len(self.patient_in_embedding_test[p]["indices"]) < 30:
+            if (
+                len(self.patient_in_embedding_test[p]["indices"]) > 0
+                and len(self.patient_in_embedding_test[p]["indices"]) < 30
+            ):
                 similarities_mse[p] = compute_similarity(
                     p,
                     subset,

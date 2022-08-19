@@ -206,7 +206,7 @@ if __name__ == "__main__":
     raw_features = {}
     raw_features_unscaled = {}
     for index, patient in enumerate(subset_das28):
-        _, _, _, hist, hist_per_event = model.apply(
+        _, _, _, hist, hist_per_event, _, _ = model.apply(
             dataset, patient, "das283bsr_score", return_history=True
         )
         (
@@ -218,11 +218,13 @@ if __name__ == "__main__":
             raw_histories_unscaled[
                 index_in_history : index_in_history + numbers_of_target[index]
             ],
+            _,
         ) = get_features(model, dataset, patient, "das283bsr_score")
+
         histories[index_in_history : index_in_history + numbers_of_target[index]] = hist
         index_in_history += numbers_of_target[index]
     for index, patient in enumerate(subset_basdai):
-        _, _, _, hist, hist_per_event = model.apply(
+        _, _, _, hist, hist_per_event, _, _ = model.apply(
             dataset, patient, "basdai_score", return_history=True
         )
         (
@@ -236,6 +238,7 @@ if __name__ == "__main__":
                 index_in_history : index_in_history
                 + numbers_of_target[index + len(subset_das28)]
             ],
+            _,
         ) = get_features(model, dataset, patient, "basdai_score")
         histories[
             index_in_history : index_in_history
@@ -297,12 +300,15 @@ if __name__ == "__main__":
             time_to_targets,
             hist,
             hist_per_event,
+            _,
+            _,
         ) = model.apply(dataset, patient, "das283bsr_score", return_history=True)
         (
             raw_features_test[patient],
             raw_histories_test[
                 index_in_history : index_in_history + numbers_of_target_test[index]
             ],
+            _,
             _,
             _,
         ) = get_features(model, dataset, patient, "das283bsr_score")
@@ -315,12 +321,15 @@ if __name__ == "__main__":
         )
 
     for index, patient in enumerate(subset_test_basdai):
+
         (
             predictions,
             target_values,
             time_to_targets,
             hist,
             hist_per_event,
+            att,
+            global_att,
         ) = model.apply(dataset, patient, "basdai_score", return_history=True)
         (
             raw_features_test[patient],
@@ -328,6 +337,7 @@ if __name__ == "__main__":
                 index_in_history : index_in_history
                 + numbers_of_target_test[index + len(subset_test_das28)]
             ],
+            _,
             _,
             _,
         ) = get_features(model, dataset, patient, "basdai_score")
@@ -364,83 +374,113 @@ if __name__ == "__main__":
                 "cosine",
             )
             print(similarities_cos[p][0][p])
-    def aggregate_similarities(similarities, metric = 'mse'):
-        # for each patient compute average mean similarity to each other patient {pj : {pi : average}} 
-        mean_similarities = {p : {} for p in similarities.keys()}
-        visit_similarities = {p: {visit : {} for visit in range(len(similarities[p]))} for p in similarities.keys()}
+
+    def aggregate_similarities(similarities, metric="mse"):
+        # for each patient compute average mean similarity to each other patient {pj : {pi : average}}
+        mean_similarities = {p: {} for p in similarities.keys()}
+        visit_similarities = {
+            p: {visit: {} for visit in range(len(similarities[p]))}
+            for p in similarities.keys()
+        }
         for pi in similarities.keys():
             for pj in similarities.keys():
                 mean_simil = 0
                 for visit in range(len(similarities[pi])):
                     simil = similarities[pi][visit][pj]
                     mean_simil += torch.mean(simil)
-                    index_simil = torch.argmin(simil).item() if metric == 'mse' else torch.argmax(simil).item()
-                    visit_similarities[pi][visit][pj] = (index_simil, simil[index_simil])
-                mean_similarities[pi][pj] = mean_simil/len(similarities[pi])
+                    index_simil = (
+                        torch.argmin(simil).item()
+                        if metric == "mse"
+                        else torch.argmax(simil).item()
+                    )
+                    visit_similarities[pi][visit][pj] = (
+                        index_simil,
+                        simil[index_simil],
+                    )
+                mean_similarities[pi][pj] = mean_simil / len(similarities[pi])
 
         # for each patient for each visit find most similar visit in each other patient history
         #  {pj:{v0:{pi: value, }}}
 
         return mean_similarities, visit_similarities
-    
-    def find_most_similar_patients(similarities, metric = 'mse'):
-        
-        most_similar_patients = {patient : [] for patient in tqdm(similarities)}
+
+    def find_most_similar_patients(similarities, metric="mse"):
+
+        most_similar_patients = {patient: [] for patient in tqdm(similarities)}
         for patient in similarities:
             values = similarities[patient].items()
-            if metric == 'mse':
-                most_similar_patients[patient] = sorted(values, key = lambda x: x[1])
+            if metric == "mse":
+                most_similar_patients[patient] = sorted(values, key=lambda x: x[1])
             else:
-                most_similar_patients[patient] = sorted(values, key = lambda x : x[1], reverse = True)
+                most_similar_patients[patient] = sorted(
+                    values, key=lambda x: x[1], reverse=True
+                )
 
         return most_similar_patients
-    def find_most_similar_visits(similarities, metric = 'mse'):
-        most_similar_visits = {patient : {visit : [] for visit in range(len(similarities[patient]))} for patient in similarities}
+
+    def find_most_similar_visits(similarities, metric="mse"):
+        most_similar_visits = {
+            patient: {visit: [] for visit in range(len(similarities[patient]))}
+            for patient in similarities
+        }
         for patient in tqdm(similarities):
             for visit in similarities[patient]:
                 values = similarities[patient][visit].items()
-                if metric == 'mse':
-                    most_similar_visits[patient][visit] = sorted(values, key = lambda x: x[1][1])
+                if metric == "mse":
+                    most_similar_visits[patient][visit] = sorted(
+                        values, key=lambda x: x[1][1]
+                    )
                 else:
-                    most_similar_visits[patient][visit] = sorted(values, key = lambda x: x[1][1], reverse = True)
-                
+                    most_similar_visits[patient][visit] = sorted(
+                        values, key=lambda x: x[1][1], reverse=True
+                    )
+
         return most_similar_visits
-    def get_all_visits_ranked(similarities, metric = 'mse'):
-        similarities_ranked = {patient: {visit : [] for visit in range(len(similarities[patient]))} for patient in similarities}
+
+    def get_all_visits_ranked(similarities, metric="mse"):
+        similarities_ranked = {
+            patient: {visit: [] for visit in range(len(similarities[patient]))}
+            for patient in similarities
+        }
 
         for patient in tqdm(similarities):
             for visit in similarities[patient]:
                 # preprocessing to easily order
                 values = similarities[patient][visit].items()
-                values = [[(elem[0], i, elem[1][i]) for i in range(len(elem[1]))] for elem in values]    
-                values = [item for sublist in values for item in sublist] # flatten
+                values = [
+                    [(elem[0], i, elem[1][i]) for i in range(len(elem[1]))]
+                    for elem in values
+                ]
+                values = [item for sublist in values for item in sublist]  # flatten
                 # sort
-                if metric == 'mse':
-                    similarities_ranked[patient][visit] = sorted(values, key = lambda x: x[2]) 
+                if metric == "mse":
+                    similarities_ranked[patient][visit] = sorted(
+                        values, key=lambda x: x[2]
+                    )
                 else:
-                    similarities_ranked[patient][visit] = sorted(values, key = lambda x: x[2], reverse = True)
+                    similarities_ranked[patient][visit] = sorted(
+                        values, key=lambda x: x[2], reverse=True
+                    )
         return similarities_ranked
 
-    mean_similarities_mse, visit_similarities_mse = aggregate_similarities(similarities_mse)
-    mean_similarities_cos, visit_similarities_cos = aggregate_similarities(similarities_cos, metric = 'cos')
+    mean_similarities_mse, visit_similarities_mse = aggregate_similarities(
+        similarities_mse
+    )
+    mean_similarities_cos, visit_similarities_cos = aggregate_similarities(
+        similarities_cos, metric="cos"
+    )
     most_similar_patients_mse = find_most_similar_patients(mean_similarities_mse)
-    most_similar_patients_cos = find_most_similar_patients(mean_similarities_cos, metric = 'cos')
+    most_similar_patients_cos = find_most_similar_patients(
+        mean_similarities_cos, metric="cos"
+    )
     most_similar_visits_mse = find_most_similar_visits(visit_similarities_mse)
-    most_similar_visits_cos = find_most_similar_visits(visit_similarities_cos, metric = 'cos')
+    most_similar_visits_cos = find_most_similar_visits(
+        visit_similarities_cos, metric="cos"
+    )
     similarities_ranked_mse = get_all_visits_ranked(similarities_mse)
-    similarities_ranked_cos = get_all_visits_ranked(similarities_cos, metric = 'cos')
+    similarities_ranked_cos = get_all_visits_ranked(similarities_cos, metric="cos")
     # # cluster normalized data directly
     kmeans_raw = KMeans(n_clusters=k, random_state=seed).fit(raw_histories)
     kmeans_raw.predict(raw_histories_test)
-    (
-        raw_features,
-        raw_histories,
-        raw_features_unscaled,
-        raw_histories_unscaled,
-        model_histories,
-        subset_das28,
-        subset_basdai,
-        _,
-        hist_per_event,
-    ) = get_histories_and_features(dataset, model, subset=dataset.train_ids)
+
     print("End of script")

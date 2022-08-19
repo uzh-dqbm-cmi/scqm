@@ -167,3 +167,15 @@ class DatasetMultitask(Dataset):
                 if id in self.multitarget_ids:
                     self.multitarget_ids.remove(id)
         return
+
+    def move_to_device(self, device: str) -> None:
+        """Move all tensors to device
+
+        Args:
+            device (str): CPU or GPU
+        """
+        for tensor_name in self.tensor_names:
+            setattr(self, tensor_name, getattr(self, tensor_name).to(device))
+        self.masks_das28.to_device(device, self.event_names)
+        self.masks_basdai.to_device(device, self.event_names)
+        return

@@ -39,6 +39,12 @@ class Masks:
             max_time_since_last_event (int, optional): Maximum time (in days) since last event to keep visit as target. Defaults to 450.
         """
         # get max number of visits for a patient in subset
+        self.tensor_names = [
+            "seq_lengths",
+            "available_target_mask",
+            "target_category",
+            "total_num",
+        ]  # keep track of tensor names to easily move them to another device
         self.min_time_since_last_event = min_time_since_last_event
         self.max_time_since_last_event = max_time_since_last_event
         self.num_targets = [
@@ -104,7 +110,8 @@ class Masks:
                             [
                                 [True if tuple_[0] == event else False]
                                 for tuple_ in cropped_timeline_mask
-                            ]
+                            ],
+                            device=self.device,
                         ),
                     )
 
@@ -150,4 +157,18 @@ class Masks:
             print(
                 f"average number of events {dataset.event_names[event]} {(lengths[event])/number_hist}"
             )
+        return
+
+    def to_device(self, device, event_names):
+        for event in event_names:
+            old_mask = getattr(self, event + "_masks")
+            new_mask = [
+                old_mask[i][elem].to(device)
+                for i in range(len(old_mask))
+                for elem in range(len(old_mask[i]))
+            ]
+            setattr(self, event + "_masks", new_mask)
+
+        for tensor_name in self.tensor_names:
+            setattr(self, tensor_name, getattr(self, tensor_name).to(device))
         return

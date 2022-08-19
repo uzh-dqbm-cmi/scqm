@@ -21,15 +21,6 @@ class CV(ABC):
         self.k = k
         self.partition = DataPartition(self.dataset, k=self.k)
 
-    def set_grid(self, parameters: dict) -> None:
-        """Save grid parameters
-
-        Args:
-            parameters (dict): parameters
-        """
-        self.parameter_names = list(parameters.keys())
-        self.parameters = parameters
-
     @abstractmethod
     def perform_cv(self):
         pass
