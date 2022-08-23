@@ -4,15 +4,15 @@ import random
 import pickle
 
 cvparams = {
-    "size_out_scale": [10, 5],
+    "size_out_scale": [15, 10, 5],
     "num_layers_enc": [2, 5],
     "hidden_enc": [100, 300],
     "num_layers": [1, 3],
-    "num_layers_pred": [2, 4],
-    "hidden_pred": [100],
-    "dropout": [0.0, 0.1, 0.4],
-    "size_history": [15, 30, 50],
-    "lr": [1e-2, 1e-3],
+    "num_layers_pred": [2, 4, 6],
+    "hidden_pred": [100, 200],
+    "dropout": [0.0, 0.1, 0.2],
+    "size_history": [30, 50, 100],
+    "lr": [1e-3],
 }
 
 

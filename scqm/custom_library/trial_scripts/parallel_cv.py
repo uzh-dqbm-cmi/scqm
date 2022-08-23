@@ -17,12 +17,21 @@ from scqm.custom_library.preprocessing.preprocessing import preprocessing
 import numpy as np
 import sys
 import itertools
+import os
 from scqm.custom_library.parameters.cv import get_parameters
+import datetime
 
 if __name__ == "__main__":
 
     fold = int(sys.argv[1])
     print(fold)
+    date = datetime.datetime.now().strftime("%d_%m_%Y")
+    print(f"creating directory")
+    path = "/cluster/work/medinfmk/scqm/tmp/fold" + str(fold) + "/" + date
+    try:
+        os.mkdir(path)
+    except OSError as error:
+        print(error)
     print("loading data")
 
     with open("/cluster/work/medinfmk/scqm/tmp/saved_cv_cpu_17_08.pickle", "rb") as f:
@@ -101,23 +110,13 @@ if __name__ == "__main__":
 
         delattr(trainer, "dataset")
         with open(
-            "/cluster/work/medinfmk/scqm/tmp/fold"
-            + str(fold)
-            + "/trainer_"
-            + str(fold)
-            + "_"
-            + str(index)
-            + ".pickle",
+            path + "/trainer_" + str(fold) + "_" + str(index) + ".pickle",
             "wb",
         ) as handle:
             pickle.dump(trainer, handle)
 
     with open(
-        "/cluster/work/medinfmk/scqm/tmp/fold"
-        + str(fold)
-        + "/results_"
-        + str(fold)
-        + ".pickle",
+        path + "/results_" + str(fold) + ".pickle",
         "wb",
     ) as handle:
         pickle.dump(result_dict, handle)

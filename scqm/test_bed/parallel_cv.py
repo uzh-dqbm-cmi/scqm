@@ -27,7 +27,8 @@ from scqm.custom_library.parameters.cv import get_parameters
 if __name__ == "__main__":
     device = "cpu"
     seed = 0
-    fold = int(sys.argv[1])
+    # fold = int(sys.argv[1])
+    fold = 0
     # create fake data
     df_dict = get_df_dict(num_patients=500)
     real_data = False
@@ -89,7 +90,7 @@ if __name__ == "__main__":
     cv.partition.set_current_fold(fold)
     # with open("scqm/test_bed/dummy_data/params", "rb") as f:
     #     cvparams, combinations = pickle.load(f)
-    cvparams, combinations = get_parameters(fold, 3)
+    cvparams, combinations = get_parameters(fold, 5)
     print(combinations)
     name_mapping = {key: index for index, key in enumerate(list(cvparams.keys()))}
     num_feature_dict = {

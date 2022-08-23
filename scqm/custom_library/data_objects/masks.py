@@ -163,9 +163,8 @@ class Masks:
         for event in event_names:
             old_mask = getattr(self, event + "_masks")
             new_mask = [
-                old_mask[i][elem].to(device)
+                [old_mask[i][elem].to(device) for elem in range(len(old_mask[i]))]
                 for i in range(len(old_mask))
-                for elem in range(len(old_mask[i]))
             ]
             setattr(self, event + "_masks", new_mask)
 
