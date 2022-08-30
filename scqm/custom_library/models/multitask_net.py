@@ -286,6 +286,7 @@ class Multitask(Model):
                     self.history_size,
                 ),
             )
+            #TODO here concat already with general patient info (has to have same size as self.history_size, potential problem ? Since history_size is larger than number of patient features)
             global_attention_weights = torch.nn.Softmax(dim=1)(
                 torch.matmul(combined_lstm_input, self.GlobalAttention)
             )

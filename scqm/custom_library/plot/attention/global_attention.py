@@ -44,7 +44,7 @@ def plot_global_attention(model, dataset, patients, target_name):
     ax.set_xticks(np.arange(len(dataset.event_names)))
     ax.set_xticklabels(dataset.event_names)
     fig.colorbar(im)
-    plt.title("Agrr")
+    plt.title("Global event attention")
     lengths = [len(elem) for elem in global_attention_per_patient]
     max_length = int(np.percentile(lengths, 90))
     means = np.zeros(shape=(max_length, len(global_attention_per_patient[0][0])))

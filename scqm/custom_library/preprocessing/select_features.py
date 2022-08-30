@@ -485,9 +485,9 @@ def extract_multitask_features(
                 "activity_of_rheumatic_disease_today_radai",
             ]
         ]
-        mny_df = df_dict["modifiednewyorkxrayscore"][
-            ["patient_id", "date", "mnyc_score"]
-        ].dropna(subset=["mnyc_score"])
+        # mny_df = df_dict["modifiednewyorkxrayscore"][
+        #     ["patient_id", "date", "mnyc_score"]
+        # ].dropna(subset=["mnyc_score"])
     haq_df = df_dict["haq"][["patient_id", "uid_num", "date", "haq_score"]]
     # keep only some specific medications and change the label of remaining to "other"
     drugs_to_keep = [
@@ -549,7 +549,7 @@ def extract_multitask_features(
     if real_data:
         socioeco_df = socioeco_df[socioeco_df.patient_id.isin(patients)]
         radai_df = radai_df[radai_df.patient_id.isin(patients)]
-        mny_df = mny_df[mny_df.patient_id.isin(patients)]
+        #mny_df = mny_df[mny_df.patient_id.isin(patients)]
     if only_meds:
         patients = med_df["patient_id"].unique()
         print(
@@ -561,7 +561,7 @@ def extract_multitask_features(
         if real_data:
             socioeco_df = socioeco_df[socioeco_df.patient_id.isin(patients)]
             radai_df = radai_df[radai_df.patient_id.isin(patients)]
-            mny_df = mny_df[mny_df.patient_id.isin(patients)]
+            #mny_df = mny_df[mny_df.patient_id.isin(patients)]
 
     # sort dfs
     visits_df.sort_values(["patient_id", "date"], inplace=True)
@@ -588,7 +588,7 @@ def extract_multitask_features(
     if real_data:
         socioeco_df.sort_values(["patient_id", "date"], inplace=True)
         radai_df.sort_values(["patient_id", "date"], inplace=True)
-        mny_df.sort_values(["patient_id", "date"], inplace=True)
+       #mny_df.sort_values(["patient_id", "date"], inplace=True)
     if transform_meds:
         # add new column to med_df indicating for each event if it is a start or end of medication (0 false, 1 true) and replace med_start and med_end
         # by unique column (date). If start date is not available, drop the row. If start and end are available duplicate the row (with different date and is_start dates)
@@ -604,7 +604,7 @@ def extract_multitask_features(
     if not real_data:
         radai_df = None
         socioeco_df = None
-        mny_df = None
+        #mny_df = None
     return (
         general_df,
         med_df,
@@ -614,6 +614,5 @@ def extract_multitask_features(
         targets_df_basdai,
         socioeco_df,
         radai_df,
-        haq_df,
-        mny_df,
+        haq_df
     )

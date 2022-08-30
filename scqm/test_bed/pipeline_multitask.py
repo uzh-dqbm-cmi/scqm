@@ -51,8 +51,7 @@ if __name__ == "__main__":
         targets_df_basdai,
         socioeco_df,
         radai_df,
-        haq_df,
-        mny_df,
+        haq_df
     ) = extract_multitask_features(
         df_dict_processed,
         transform_meds=True,

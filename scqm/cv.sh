@@ -25,10 +25,10 @@
 
 export PYTHONPATH=$PYTHONPATH:/cluster/work/medinfmk/scqm/code/scqm_ct/scqm
 
-srun -u --ntasks 1 --exclusive --gres=gpu:1 --gpus-per-task=1 --cpus-per-task=3 --mem-per-cpu=12000 python3 scqm/custom_library/trial_scripts/parallel_cv.py 0 6 &
-srun -u --ntasks 1 --exclusive --gres=gpu:1 --gpus-per-task=1 --cpus-per-task=3 --mem-per-cpu=12000 python3 scqm/custom_library/trial_scripts/parallel_cv.py 1 6 &
-srun -u --ntasks 1 --exclusive --gres=gpu:1 --gpus-per-task=1 --cpus-per-task=3 --mem-per-cpu=12000 python3 scqm/custom_library/trial_scripts/parallel_cv.py 2 6 &
-srun -u --ntasks 1 --exclusive --gres=gpu:1 --gpus-per-task=1 --cpus-per-task=3 --mem-per-cpu=12000 python3 scqm/custom_library/trial_scripts/parallel_cv.py 3 6 &
-srun -u --ntasks 1 --exclusive --gres=gpu:1 --gpus-per-task=1 --cpus-per-task=3 --mem-per-cpu=12000 python3 scqm/custom_library/trial_scripts/parallel_cv.py 4 6 &
+srun -u --ntasks 1 --exclusive --gres=gpu:1 --gpus-per-task=1 --cpus-per-task=3 --mem-per-cpu=12000 python3 scqm/custom_library/trial_scripts/parallel_cv.py 0 4 &
+srun -u --ntasks 1 --exclusive --gres=gpu:1 --gpus-per-task=1 --cpus-per-task=3 --mem-per-cpu=12000 python3 scqm/custom_library/trial_scripts/parallel_cv.py 1 4 &
+srun -u --ntasks 1 --exclusive --gres=gpu:1 --gpus-per-task=1 --cpus-per-task=3 --mem-per-cpu=12000 python3 scqm/custom_library/trial_scripts/parallel_cv.py 2 4 &
+srun -u --ntasks 1 --exclusive --gres=gpu:1 --gpus-per-task=1 --cpus-per-task=3 --mem-per-cpu=12000 python3 scqm/custom_library/trial_scripts/parallel_cv.py 3 4 &
+srun -u --ntasks 1 --exclusive --gres=gpu:1 --gpus-per-task=1 --cpus-per-task=3 --mem-per-cpu=12000 python3 scqm/custom_library/trial_scripts/parallel_cv.py 4 4 &
 wait
 echo "All jobs completed"

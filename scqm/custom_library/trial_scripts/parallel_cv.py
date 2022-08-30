@@ -34,7 +34,7 @@ if __name__ == "__main__":
         print(error)
     print("loading data")
 
-    with open("/cluster/work/medinfmk/scqm/tmp/saved_cv_cpu_17_08.pickle", "rb") as f:
+    with open("/cluster/work/medinfmk/scqm/tmp/saved_cv_cpu_25_08.pickle", "rb") as f:
         cv = pickle.load(f)
 
     dataset = cv.dataset

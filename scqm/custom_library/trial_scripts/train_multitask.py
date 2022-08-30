@@ -1,7 +1,5 @@
 import os
-
-print("List of paths in PYTHONPATH:", os.environ["PYTHONPATH"])
-
+import sys
 from scqm.custom_library.cv.multitask import CVMultitask
 from scqm.custom_library.models.multitask_net import Multitask
 from scqm.custom_library.trainers.multitask_net import MultitaskTrainer

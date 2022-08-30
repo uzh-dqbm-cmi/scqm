@@ -59,33 +59,3 @@ def load_dfs_all_data(subset=None):
         print(f"name {index} shape {table.shape}")
 
     return df_dict
-
-
-# def load_dfs():
-
-#     # load all tables
-#     data_path = "/opt/data/01_raw"
-#     tables = [f for f in os.listdir(data_path)]
-#     df_dict = {}
-#     for elem in tables:
-#         if "csv" in elem:
-#             df_dict[elem[:-4]] = pd.read_csv(data_path + ("/") + elem).drop_duplicates()
-#         else:
-#             pass
-#             # df_dict[elem] = pd.read_excel(data_path + ('/') +elem)
-#     for index, table in df_dict.items():
-
-#         print(f"name {index} shape {table.shape}")
-#         if df_dict[index].filter(regex=("patient_id")).shape[1] == 1:
-#             # for consistency
-#             df_dict[index] = df_dict[index].rename(
-#                 columns=lambda x: re.sub(".*patient_id", "patient_id", x)
-#             )
-#         else:
-#             print(f"table {index} has not ids for patients")
-#         if "uid_num" or "patient_id" in table.columns:
-#             pass
-#         else:
-#             print("PROBLEM")
-
-#     return df_dict

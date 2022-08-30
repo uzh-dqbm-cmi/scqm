@@ -191,7 +191,7 @@ def get_histories_and_features(dataset, model, subset):
     print(f"saving histories for das28")
     hist_per_event_all = {}
     for index, patient in enumerate(tqdm(subset_das28)):
-        _, _, _, hist, hist_per_event = model.apply(
+        _, _, _, hist, hist_per_event,_,_ = model.apply(
             dataset, patient, "das283bsr_score", return_history=True
         )
         (
@@ -217,7 +217,7 @@ def get_histories_and_features(dataset, model, subset):
     print(f"saving histories for basdai")
 
     for index, patient in enumerate(tqdm(subset_basdai)):
-        _, _, _, hist, hist_per_event = model.apply(
+        _, _, _, hist, hist_per_event,_,_ = model.apply(
             dataset, patient, "basdai_score", return_history=True
         )
         (
