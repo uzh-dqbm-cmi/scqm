@@ -22,7 +22,6 @@ if __name__ == "__main__":
         general_df,
         med_df,
         visits_df,
-        basdai_df,
         targets_df_das28,
         targets_df_asdas,
         socioeco_df,
@@ -38,12 +37,11 @@ if __name__ == "__main__":
         "socio": socioeco_df,
         "radai": radai_df,
         "haq": haq_df,
-        "basdai": basdai_df,
     }
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     min_num_targets = 2
     # instantiate dataset
-    events = ["a_visit", "med", "socio", "radai", "haq", "basdai"]
+    events = ["a_visit", "med", "socio", "radai", "haq"]
     dataset = DatasetMultitask(
         device,
         df_dict_ada,
@@ -62,11 +60,11 @@ if __name__ == "__main__":
     )
     print(f"Dropping patients with less than 3 visits, keeping {len(dataset)}")
     dataset.get_masks()
-    with open("/opt/tmp/dataset_asdas.pickle", "wb") as handle:
+    with open("/opt/tmp/dataset_asdas_without_basdai.pickle", "wb") as handle:
         pickle.dump(dataset, handle)
     dataset.create_dfs()
     dataset.transform_to_numeric_adanet()
 
     cv = CVMultitask(dataset, k=5)
-    with open("/opt/tmp/saved_cv_asdas.pickle", "wb") as f:
+    with open("/opt/tmp/saved_cv_asdas_without_basdai.pickle", "wb") as f:
         pickle.dump(cv, f)

@@ -465,14 +465,6 @@ def extract_multitask_features(
             "ra_crit_rheumatoid_factor",
         ]
     ]
-    basdai_df = df_dict["basdai"][
-        [
-            "patient_id",
-            "date",
-            "basdai_score",
-            "event_id",
-        ]
-    ].dropna(subset=["basdai_score"])
 
     if real_data:
         socioeco_df = df_dict["socioeco"][["patient_id", "uid_num", "date", "smoker"]]
@@ -553,7 +545,6 @@ def extract_multitask_features(
     visits_df.loc[visits_df.patient_id.isin(patients_asdas)] = visits_df.loc[
         visits_df.patient_id.isin(patients_asdas)
     ].dropna(subset=["asdas_score"])
-    basdai_df = basdai_df[basdai_df.patient_id.isin(patients)]
     general_df = general_df[general_df.patient_id.isin(patients)]
     med_df = med_df[med_df.patient_id.isin(patients)]
     haq_df = haq_df[haq_df.patient_id.isin(patients)]
@@ -581,7 +572,6 @@ def extract_multitask_features(
     med_df.sort_values(
         ["patient_id", "medication_start_date", "medication_end_date"], inplace=True
     )
-    basdai_df.sort_values(["patient_id", "date"], inplace=True)
 
     targets_df_das28 = visits_df[
         [
@@ -628,7 +618,6 @@ def extract_multitask_features(
         general_df,
         med_df,
         visits_df,
-        basdai_df,
         targets_df_das28,
         targets_df_asdas,
         socioeco_df,

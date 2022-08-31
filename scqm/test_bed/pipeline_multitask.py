@@ -46,7 +46,6 @@ if __name__ == "__main__":
         general_df,
         med_df,
         visits_df,
-        basdai_df,
         targets_df_das28,
         targets_df_asdas,
         socioeco_df,
@@ -64,8 +63,7 @@ if __name__ == "__main__":
         "med": med_df,
         "targets_das28": targets_df_das28,
         "targets_asdas": targets_df_asdas,
-        "haq": haq_df,
-        "basdai": basdai_df,
+        "haq": haq_df
     }
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     min_num_targets = 2
@@ -75,7 +73,7 @@ if __name__ == "__main__":
         df_dict_fake,
         df_dict_fake["patients"]["patient_id"].unique(),
         ["das283bsr_score", "asdas_score"],
-        ["a_visit", "med", "haq", "basdai"],
+        ["a_visit", "med", "haq"],
         min_num_targets,
     )
     dataset.drop(
