@@ -81,7 +81,7 @@ class Multitask(Model):
             config["hidden_pred"],
             config["dropout"],
         ).to(device)
-        self.PModuleBasdai = PredModule(
+        self.PModuleAsdas = PredModule(
             self.pred_input_size,
             1,
             config["num_layers_pred"],
@@ -92,7 +92,7 @@ class Multitask(Model):
 
         self.parameters = (
             list(self.PModuleDas28.parameters())
-            + list(self.PModuleBasdai.parameters())
+            + list(self.PModuleAsdas.parameters())
             + list(self.p_encoder.parameters())
             + [self.GlobalAttention]
         )
@@ -107,7 +107,7 @@ class Multitask(Model):
             self.lstm_modules[name].train()
         self.p_encoder.train()
         self.PModuleDas28.train()
-        self.PModuleBasdai.train()
+        self.PModuleAsdas.train()
 
     def eval(self):
 
@@ -116,7 +116,7 @@ class Multitask(Model):
             self.lstm_modules[name].eval()
         self.p_encoder.eval()
         self.PModuleDas28.eval()
-        self.PModuleBasdai.eval()
+        self.PModuleAsdas.eval()
 
     def apply_and_get_loss(
         self, dataset: Dataset, criterion: torch.nn, batch: Batch, target_name: str
@@ -157,11 +157,11 @@ class Multitask(Model):
                 batch_indices_targets = batch.indices_targets_das28
                 time_index = dataset.time_index_das28
             else:
-                target_index_in_events = dataset.event_names.index("basdai")
-                target_index_in_tensor = dataset.target_value_index_basdai
-                target_tensor = dataset.targets_basdai_df_scaled_tensor_train
-                batch_indices_targets = batch.indices_targets_basdai
-                time_index = dataset.time_index_basdai
+                target_index_in_events = dataset.event_names.index("a_visit")
+                target_index_in_tensor = dataset.target_value_index_asdas
+                target_tensor = dataset.targets_asdas_df_scaled_tensor_train
+                batch_indices_targets = batch.indices_targets_asdas
+                time_index = dataset.time_index_asdas
             # targets (values)
             target_values = torch.empty(
                 size=(torch.sum(batch.available_target_mask[:, v] == True).item(), 1),
@@ -286,7 +286,7 @@ class Multitask(Model):
                     self.history_size,
                 ),
             )
-            #TODO here concat already with general patient info (has to have same size as self.history_size, potential problem ? Since history_size is larger than number of patient features)
+            # TODO here concat already with general patient info (has to have same size as self.history_size, potential problem ? Since history_size is larger than number of patient features)
             global_attention_weights = torch.nn.Softmax(dim=1)(
                 torch.matmul(combined_lstm_input, self.GlobalAttention)
             )
@@ -311,7 +311,7 @@ class Multitask(Model):
             if target_name == "das283bsr_score":
                 out = self.PModuleDas28(pred_input)
             else:
-                out = self.PModuleBasdai(pred_input)
+                out = self.PModuleAsdas(pred_input)
 
             targets = target_values
             loss += criterion(out, targets)
@@ -337,7 +337,7 @@ class Multitask(Model):
     ):
         with torch.no_grad():
             # method to directly apply the model to a single patient
-            if target_name not in dataset[patient_id].targets.keys():
+            if target_name not in dataset[patient_id].targets_df.keys():
                 raise ValueError("target name not available for this patient")
             else:
                 if target_name == "das283bsr_score":
@@ -349,14 +349,14 @@ class Multitask(Model):
                     time_index = dataset.time_index_das28
                     targets_df = dataset[patient_id].targets_das28_df
 
-                elif target_name == "basdai_score":
-                    mapping = dataset.mapping_for_masks_basdai
-                    masks = dataset.masks_basdai
-                    target_index_in_events = dataset.event_names.index("basdai")
-                    target_index_in_tensor = dataset.target_value_index_basdai
-                    target_tensor = dataset[patient_id].targets_basdai_df_tensor
-                    time_index = dataset.time_index_basdai
-                    targets_df = dataset[patient_id].targets_basdai_df
+                elif target_name == "asdas_score":
+                    mapping = dataset.mapping_for_masks_asdas
+                    masks = dataset.masks_asdas
+                    target_index_in_events = dataset.event_names.index("a_visit")
+                    target_index_in_tensor = dataset.target_value_index_asdas
+                    target_tensor = dataset[patient_id].targets_asdas_df_tensor
+                    time_index = dataset.time_index_asdas
+                    targets_df = dataset[patient_id].targets_asdas_df
 
             patient_mask_index = mapping[patient_id]
             encoder_outputs = {}
@@ -518,7 +518,7 @@ class Multitask(Model):
                 if target_name == "das283bsr_score":
                     predictions[index_target] = self.PModuleDas28(pred_input)
                 else:
-                    predictions[index_target] = self.PModuleBasdai(pred_input)
+                    predictions[index_target] = self.PModuleAsdas(pred_input)
                 index_target += 1
         if return_history:
             return (

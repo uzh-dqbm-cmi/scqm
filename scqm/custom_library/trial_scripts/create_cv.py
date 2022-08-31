@@ -24,21 +24,21 @@ if __name__ == "__main__":
         visits_df,
         basdai_df,
         targets_df_das28,
-        targets_df_basdai,
+        targets_df_asdas,
         socioeco_df,
         radai_df,
-        haq_df
+        haq_df,
     ) = extract_multitask_features(df_dict_pro, transform_meds=True, only_meds=True)
     df_dict_ada = {
         "a_visit": visits_df,
         "patients": general_df,
         "med": med_df,
         "targets_das28": targets_df_das28,
-        "targets_basdai": targets_df_basdai,
+        "targets_asdas": targets_df_asdas,
         "socio": socioeco_df,
         "radai": radai_df,
         "haq": haq_df,
-        "basdai": basdai_df
+        "basdai": basdai_df,
     }
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     min_num_targets = 2
@@ -48,25 +48,25 @@ if __name__ == "__main__":
         device,
         df_dict_ada,
         df_dict_ada["patients"]["patient_id"].unique(),
-        ["das283bsr_score", "basdai_score"],
+        ["das283bsr_score", "asdas_score"],
         events,
         min_num_targets,
-        )
+    )
     # random.sample(list(df_dict_ada["patients"]["patient_id"].unique()), 4000)
     dataset.drop(
         [
             id_
             for id_, patient in dataset.patients.items()
             if len(patient.visit_ids) <= 2
-            ]
-        )
+        ]
+    )
     print(f"Dropping patients with less than 3 visits, keeping {len(dataset)}")
     dataset.get_masks()
-    with open("/opt/tmp/dataset_cpu_25_08.pickle", "wb") as handle:
+    with open("/opt/tmp/dataset_asdas.pickle", "wb") as handle:
         pickle.dump(dataset, handle)
     dataset.create_dfs()
     dataset.transform_to_numeric_adanet()
 
     cv = CVMultitask(dataset, k=5)
-    with open("/opt/tmp/saved_cv_cpu_25_08.pickle", "wb") as f:
+    with open("/opt/tmp/saved_cv_asdas.pickle", "wb") as f:
         pickle.dump(cv, f)

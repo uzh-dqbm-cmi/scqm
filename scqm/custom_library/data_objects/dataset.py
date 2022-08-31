@@ -263,7 +263,7 @@ class Dataset:
                 self.radai_df_proc, columns=["morning_stiffness_duration_radai"]
             )
 
-            #self.mny_df_proc = pd.get_dummies(self.mny_df_proc, columns=["mnyc_score"])
+            # self.mny_df_proc = pd.get_dummies(self.mny_df_proc, columns=["mnyc_score"])
         self.med_df_proc = pd.get_dummies(
             self.med_df_proc,
             columns=[
@@ -535,13 +535,13 @@ class Dataset:
                 self.target_value_index_das28 = list(df[columns].columns).index(
                     "das283bsr_score"
                 )
-            if name == "targets_basdai_df":
+            if name == "targets_asdas_df":
                 # self.target_index = list(df[columns].columns).index(
                 #     self.target_category_name
                 # )
-                self.time_index_basdai = list(df[columns].columns).index("date")
-                self.target_value_index_basdai = list(df[columns].columns).index(
-                    "basdai_score"
+                self.time_index_asdas = list(df[columns].columns).index("date")
+                self.target_value_index_asdas = list(df[columns].columns).index(
+                    "asdas_score"
                 )
 
         # TODO have only one tensor and mapping to train, valid test (instead of 3 different ?)

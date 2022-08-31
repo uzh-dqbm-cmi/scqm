@@ -39,11 +39,11 @@ class MultitaskPartition(DataPartition):
             ]
             for test_fold in range(self.k)
         }
-        self.partitions_test_basdai = {
+        self.partitions_test_asdas = {
             test_fold: [
                 patient
                 for patient in self.partitions_test[test_fold]
-                if self.dataset[patient].target_name == "basdai_score"
+                if self.dataset[patient].target_name == "asdas_score"
             ]
             for test_fold in range(self.k)
         }
@@ -63,11 +63,11 @@ class MultitaskPartition(DataPartition):
             ]
             for train_fold in range(self.k)
         }
-        self.partitions_train_basdai = {
+        self.partitions_train_asdas = {
             train_fold: [
                 patient
                 for patient in self.partitions_train[train_fold]
-                if self.dataset[patient].target_name == "basdai_score"
+                if self.dataset[patient].target_name == "asdas_score"
             ]
             for train_fold in range(self.k)
         }

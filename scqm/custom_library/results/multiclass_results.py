@@ -15,16 +15,16 @@ class MulticlassResults(Results):
             Tuple[pd.DataFrame, Metrics]: df with computed model predictions and metrics object for predictions
         """
         results_df_das28 = pd.DataFrame()
-        results_df_basdai = pd.DataFrame()
+        results_df_asdas = pd.DataFrame()
         patients_das28 = [
             patient
             for patient in patient_ids
             if self.dataset[patient].target_name == "das283bsr_score"
         ]
-        patients_basdai = [
+        patients_asdas = [
             patient
             for patient in patient_ids
-            if self.dataset[patient].target_name == "basdai_score"
+            if self.dataset[patient].target_name == "asdas_score"
         ]
         patients_both = [
             patient
@@ -32,7 +32,7 @@ class MulticlassResults(Results):
             if self.dataset[patient].target_name == "both"
         ]
         metrics_das28 = None
-        metrics_basdai = None
+        metrics_asdas = None
         if len(patients_das28 + patients_both) > 0:
             for patient in patients_das28 + patients_both:
                 (
@@ -76,16 +76,16 @@ class MulticlassResults(Results):
                 results_df_das28["predictions"],
                 results_df_das28["targets"],
             )
-        if len(patients_basdai + patients_both) > 0:
-            for patient in patients_basdai + patients_both:
+        if len(patients_asdas + patients_both) > 0:
+            for patient in patients_asdas + patients_both:
                 (
                     predictions,
                     target_values,
                     time_to_targets,
                     prediction_dates,
-                ) = self.model.apply(self.dataset, patient, "basdai_score")
+                ) = self.model.apply(self.dataset, patient, "asdas_score")
 
-                results_df_basdai = results_df_basdai.append(
+                results_df_asdas = results_df_asdas.append(
                     pd.DataFrame(
                         {
                             "patient_id": patient,
@@ -97,27 +97,27 @@ class MulticlassResults(Results):
                 )
 
             # rescale
-            results_df_basdai["predictions"] = (
-                results_df_basdai["predictions"]
+            results_df_asdas["predictions"] = (
+                results_df_asdas["predictions"]
                 * (
-                    self.dataset.basdai_df_scaling_values[1]["basdai_score"]
-                    - self.dataset.basdai_df_scaling_values[0]["basdai_score"]
+                    self.dataset.a_visit_df_scaling_values[1]["asdas_score"]
+                    - self.dataset.a_visit_df_scaling_values[0]["asdas_score"]
                 )
-                + self.dataset.basdai_df_scaling_values[0]["basdai_score"]
+                + self.dataset.a_visit_df_scaling_values[0]["asdas_score"]
             )
-            results_df_basdai["targets"] = (
-                results_df_basdai["targets"]
+            results_df_asdas["targets"] = (
+                results_df_asdas["targets"]
                 * (
-                    self.dataset.basdai_df_scaling_values[1]["basdai_score"]
-                    - self.dataset.basdai_df_scaling_values[0]["basdai_score"]
+                    self.dataset.a_visit_df_scaling_values[1]["asdas_score"]
+                    - self.dataset.a_visit_df_scaling_values[0]["asdas_score"]
                 )
-                + self.dataset.basdai_df_scaling_values[0]["basdai_score"]
+                + self.dataset.a_visit_df_scaling_values[0]["asdas_score"]
             )
 
-            metrics_basdai = Metrics(
+            metrics_asdas = Metrics(
                 torch.device("cpu"),
-                results_df_basdai["predictions"],
-                results_df_basdai["targets"],
+                results_df_asdas["predictions"],
+                results_df_asdas["targets"],
             )
             # metrics_naive = Metrics(torch.device('cpu'), results_df['naive_base'], results_df['targets'])
-        return results_df_das28, results_df_basdai, metrics_das28, metrics_basdai
+        return results_df_das28, results_df_asdas, metrics_das28, metrics_asdas

@@ -12,16 +12,16 @@ def get_features(
 ):
     with torch.no_grad():
 
-        if target_name not in dataset[patient_id].targets.keys():
+        if target_name not in dataset[patient_id].targets_df.keys():
             raise ValueError("target name not available for this patient")
         else:
             if target_name == "das283bsr_score":
                 mapping = dataset.mapping_for_masks_das28
                 masks = dataset.masks_das28
 
-            elif target_name == "basdai_score":
-                mapping = dataset.mapping_for_masks_basdai
-                masks = dataset.masks_basdai
+            elif target_name == "asdas_score":
+                mapping = dataset.mapping_for_masks_asdas
+                masks = dataset.masks_asdas
 
         patient_mask_index = mapping[patient_id]
         event_tensors = {}
@@ -191,7 +191,7 @@ def get_histories_and_features(dataset, model, subset):
     print(f"saving histories for das28")
     hist_per_event_all = {}
     for index, patient in enumerate(tqdm(subset_das28)):
-        _, _, _, hist, hist_per_event,_,_ = model.apply(
+        _, _, _, hist, hist_per_event, _, _ = model.apply(
             dataset, patient, "das283bsr_score", return_history=True
         )
         (
@@ -217,7 +217,7 @@ def get_histories_and_features(dataset, model, subset):
     print(f"saving histories for basdai")
 
     for index, patient in enumerate(tqdm(subset_basdai)):
-        _, _, _, hist, hist_per_event,_,_ = model.apply(
+        _, _, _, hist, hist_per_event, _, _ = model.apply(
             dataset, patient, "basdai_score", return_history=True
         )
         (

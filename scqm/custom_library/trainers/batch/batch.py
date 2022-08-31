@@ -38,8 +38,8 @@ class Batch:
         dataset: Dataset,
         batch_size=None,
         debug_patient=None,
-        indices_to_include=None,
-        indices_to_exclude=None,
+        indices_to_include=[],
+        indices_to_exclude=[],
     ):
         """
         Select batch of patients from available indices
@@ -52,13 +52,16 @@ class Batch:
         Raises:
             ValueError: if some patients in visits dont correspond to patients in targets (and vice versa)
         """
-        indices_to_include_next = None
+        indices_to_include_next = []
         # during training, only select subset of available indices
         if batch_size:
             # batch size
-            size = min(len(self.available_indices), batch_size)
+            size = min(
+                len(set(self.available_indices).difference(indices_to_exclude)),
+                batch_size,
+            )
             # batch and corresponding tensor indices
-            if indices_to_include:
+            if len(indices_to_include) > 0:
                 self.current_indices = indices_to_include + list(
                     np.random.choice(
                         [
@@ -70,7 +73,7 @@ class Batch:
                         replace=False,
                     )
                 )
-            elif indices_to_exclude:
+            elif len(indices_to_exclude) > 0:
                 self.current_indices = np.random.choice(
                     [
                         index
@@ -129,9 +132,9 @@ class Batch:
 
                 mapping = dataset.mapping_for_masks_das28
                 masks = dataset.masks_das28
-            elif self.target_name == "basdai_score":
-                mapping = dataset.mapping_for_masks_basdai
-                masks = dataset.masks_basdai
+            elif self.target_name == "asdas_score":
+                mapping = dataset.mapping_for_masks_asdas
+                masks = dataset.masks_asdas
         indices_mapping = [mapping[id_] for id_ in self.current_indices]
         self.seq_lengths = masks.seq_lengths[:, indices_mapping, :]
         for event in dataset.event_names:

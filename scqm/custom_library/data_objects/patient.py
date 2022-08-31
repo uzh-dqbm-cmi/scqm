@@ -31,33 +31,31 @@ class Patient(DataObject):
             self.basdai = self.get_basdai()
         self.other_events = self.get_other_events()
         self.timeline = self.get_timeline()
-        # TODO remove first visit from visits to predict
+        # self.targets = self.visits
+        self.targets_to_predict = self.visits
         if self.target_name == "both":
-            self.targets = {"das283bsr_score": self.visits, "basdai_score": self.basdai}
-            self.targets_to_predict = {
-                "das283bsr_score": self.visits,
-                "basdai_score": self.basdai,
-            }
             self.targets_df = {
                 "das283bsr_score": self.targets_das28_df,
-                "basdai_score": self.targets_basdai_df,
+                "asdas_score": self.targets_asdas_df,
+            }
+            self.targets_to_predict = {
+                "das283bsr_score": self.visits,
+                "asdas_score": self.visits,
             }
         elif self.target_name == "das283bsr_score":
-            self.targets = {"das283bsr_score": self.visits}
-            self.targets_to_predict = {"das283bsr_score": self.visits}
             self.targets_df = {"das283bsr_score": self.targets_das28_df}
+            self.targets_to_predict = {"das283bsr_score": self.visits}
         else:
-            self.targets = {"basdai_score": self.basdai}
-            self.targets_to_predict = {"basdai_score": self.basdai}
-            self.targets_df = {"basdai_score": self.targets_basdai_df}
+            self.targets_df = {"asdas_score": self.targets_asdas_df}
+            self.targets_to_predict = {"asdas_score": self.visits}
         return
 
     def get_target_name(self):
         if (
             hasattr(self, "targets_das28_df")
             and self.targets_das28_df["das283bsr_score"].notna().sum() >= 3
-            and hasattr(self, "targets_basdai_df")
-            and self.targets_basdai_df["basdai_score"].notna().sum() >= 3
+            and hasattr(self, "targets_asdas_df")
+            and self.targets_asdas_df["asdas_score"].notna().sum() >= 3
         ):
             self.target_name = "both"
         elif (
@@ -66,10 +64,10 @@ class Patient(DataObject):
         ):
             self.target_name = "das283bsr_score"
         elif (
-            hasattr(self, "targets_basdai_df")
-            and self.targets_basdai_df["basdai_score"].notna().sum() >= 3
+            hasattr(self, "targets_asdas_df")
+            and self.targets_asdas_df["asdas_score"].notna().sum() >= 3
         ):
-            self.target_name = "basdai_score"
+            self.target_name = "asdas_score"
         else:
             self.target_name = "None"
         return
@@ -225,7 +223,7 @@ class Patient(DataObject):
         Returns:
             _type_: _description_
         """
-        if n > len(self.targets[target_name]):
+        if n > len(self.targets_df[target_name]):
             raise ValueError("n bigger than number of targets")
         # get all events up to n-th visit
         else:
@@ -233,15 +231,15 @@ class Patient(DataObject):
             num_of_each_event = torch.zeros(
                 size=(len(self.event_names),), dtype=torch.int32
             )
-            if target_name == "das283bsr_score":
-                index_of_target = self.event_names.index("a_visit")
-            else:
-                index_of_target = self.event_names.index("basdai")
+            index_of_target = self.event_names.index("a_visit")
+
             index = 0
             # date of n-th visit
-            date_nth_target = pd.Timestamp(self.targets[target_name][n - 1].date)
+            date_nth_target = pd.Timestamp(
+                self.targets_df[target_name].iloc[n - 1].date
+            )
             # id
-            uid_nth_target = self.targets[target_name][n - 1].id
+            uid_nth_target = self.targets_df[target_name].iloc[n - 1].uid_num
             # while number of visits < n and while ? other part is redundant no ?
             while (
                 num_of_each_event[index_of_target] < n

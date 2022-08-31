@@ -18,7 +18,7 @@ from scqm.custom_library.preprocessing.preprocessing import preprocessing
 if __name__ == "__main__":
     reload = True
     if reload:
-        with open("/opt/tmp/saved_cv_multitask_mny_09_08.pickle", "rb") as f:
+        with open("/opt/tmp/saved_cv_asdas.pickle", "rb") as f:
             cv = pickle.load(f)
     else:
         df_dict = load_dfs_all_data()
@@ -127,7 +127,7 @@ if __name__ == "__main__":
         n_epochs=100,
         batch_size={
             "das28": int(len(dataset) / 15),
-            "basdai": int(len(dataset) / (15 * 3)),
+            "asdas": int(len(dataset) / (15 * 4.5)),
         },
         lr=1e-3,
         balance_classes=True,
@@ -151,7 +151,7 @@ if __name__ == "__main__":
     #     histories[index_in_history : index_in_history + numbers_of_target[index]] = hist
     #     index_in_history += numbers_of_target[index]
     delattr(trainer, "dataset")
-    with open("/opt/tmp/trainer_multitarget_test_17_08.pickle", "wb") as handle:
+    with open("/opt/tmp/trainer_asdas.pickle", "wb") as handle:
         pickle.dump(trainer, handle)
     # best "/opt/tmp/trainer_multitarget_09_08.pickle"
     # with open("/opt/tmp/train_histories.pickle", "wb") as handle:

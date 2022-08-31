@@ -48,7 +48,8 @@ class Masks:
         self.min_time_since_last_event = min_time_since_last_event
         self.max_time_since_last_event = max_time_since_last_event
         self.num_targets = [
-            len(dataset.patients[index].targets[target_name]) for index in self.indices
+            len(dataset.patients[index].targets_df[target_name])
+            for index in self.indices
         ]
         max_num_targets = max(self.num_targets)
         seq_lengths = torch.zeros(
@@ -82,7 +83,7 @@ class Masks:
         for i, patient in enumerate(self.indices):
             for target in range(
                 0,
-                len(dataset.patients[patient].targets[target_name])
+                len(dataset.patients[patient].targets_df[target_name])
                 - dataset.min_num_targets
                 + 1,
             ):

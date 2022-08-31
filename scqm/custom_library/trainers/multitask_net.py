@@ -44,10 +44,10 @@ class MultitaskTrainer(AdaptivenetTrainer):
         )
         self.loss_per_epoch_das28 = torch.empty(size=(n_epochs, 1))
         self.loss_per_epoch_valid_das28 = torch.empty(size=(n_epochs, 1))
-        self.loss_per_epoch_basdai = torch.empty(size=(n_epochs, 1))
-        self.loss_per_epoch_valid_basdai = torch.empty(size=(n_epochs, 1))
+        self.loss_per_epoch_asdas = torch.empty(size=(n_epochs, 1))
+        self.loss_per_epoch_valid_asdas = torch.empty(size=(n_epochs, 1))
         self.batch_size_das28 = batch_size["das28"]
-        self.batch_size_basdai = batch_size["basdai"]
+        self.batch_size_asdas = batch_size["asdas"]
 
     def update_epoch_and_indices(self, batches: list):
         """Update available indices and epoch if a pass has been made through all the data
@@ -88,26 +88,26 @@ class MultitaskTrainer(AdaptivenetTrainer):
             partition.partitions_test_das28[partition.current_fold]
             + partition.partitions_test_both[partition.current_fold],
             tensor_names=self.dataset.event_names
-            + ["patients", "targets_das28", "targets_basdai"],
+            + ["patients", "targets_das28", "targets_asdas"],
             target_name="das283bsr_score",
         )
         batch_valid_das28.get_batch(self.dataset, debug_patient=None)
         batch_valid_das28.get_masks(self.dataset, debug_patient=None)
 
-        batch_valid_basdai = Batch(
+        batch_valid_asdas = Batch(
             model.device,
-            partition.partitions_test_basdai[partition.current_fold]
+            partition.partitions_test_asdas[partition.current_fold]
             + partition.partitions_test_both[partition.current_fold],
-            partition.partitions_test_basdai[partition.current_fold]
+            partition.partitions_test_asdas[partition.current_fold]
             + partition.partitions_test_both[partition.current_fold],
-            partition.partitions_test_basdai[partition.current_fold]
+            partition.partitions_test_asdas[partition.current_fold]
             + partition.partitions_test_both[partition.current_fold],
             tensor_names=self.dataset.event_names
-            + ["patients", "targets_das28", "targets_basdai"],
-            target_name="basdai_score",
+            + ["patients", "targets_das28", "targets_asdas"],
+            target_name="asdas_score",
         )
-        batch_valid_basdai.get_batch(self.dataset, debug_patient=None)
-        batch_valid_basdai.get_masks(self.dataset, debug_patient=None)
+        batch_valid_asdas.get_batch(self.dataset, debug_patient=None)
+        batch_valid_asdas.get_masks(self.dataset, debug_patient=None)
 
         # debug patient
         if debug_patient:
@@ -126,20 +126,20 @@ class MultitaskTrainer(AdaptivenetTrainer):
             partition.partitions_train_das28[partition.current_fold]
             + partition.partitions_train_both[partition.current_fold],
             tensor_names=self.dataset.event_names
-            + ["patients", "targets_das28", "targets_basdai"],
+            + ["patients", "targets_das28", "targets_asdas"],
             target_name="das283bsr_score",
             special_indices=partition.partitions_train_both[partition.current_fold],
         )
 
-        batch_basdai = Batch(
+        batch_asdas = Batch(
             model.device,
-            partition.partitions_train_basdai[partition.current_fold]
+            partition.partitions_train_asdas[partition.current_fold]
             + partition.partitions_train_both[partition.current_fold],
-            partition.partitions_train_basdai[partition.current_fold]
+            partition.partitions_train_asdas[partition.current_fold]
             + partition.partitions_train_both[partition.current_fold],
             tensor_names=self.dataset.event_names
-            + ["patients", "targets_das28", "targets_basdai"],
-            target_name="basdai_score",
+            + ["patients", "targets_das28", "targets_asdas"],
+            target_name="asdas_score",
             special_indices=partition.partitions_train_both[partition.current_fold],
         )
         while (self.current_epoch < self.n_epochs) and self.early_stopping == False:
@@ -160,15 +160,15 @@ class MultitaskTrainer(AdaptivenetTrainer):
                     for index in batch_das28.special_indices
                     if index not in indices_to_include
                 ]
-            batch_basdai.get_batch(
+            batch_asdas.get_batch(
                 self.dataset,
-                self.batch_size_basdai,
+                self.batch_size_asdas,
                 debug_patient,
                 indices_to_include=indices_to_include,
                 indices_to_exclude=indices_to_exclude,
             )
-            batch_basdai.get_masks(self.dataset, debug_patient)
-            self.update_epoch_and_indices([batch_das28, batch_basdai])
+            batch_asdas.get_masks(self.dataset, debug_patient)
+            self.update_epoch_and_indices([batch_das28, batch_asdas])
 
             self.loss = 0
             if len(batch_das28.current_indices) > 0:
@@ -176,11 +176,11 @@ class MultitaskTrainer(AdaptivenetTrainer):
                     self.dataset, self.criterion, batch_das28, "das283bsr_score"
                 )
                 self.loss += self.loss_das28
-            if len(batch_basdai.current_indices) > 0:
-                self.loss_basdai = model.apply_and_get_loss(
-                    self.dataset, self.criterion, batch_basdai, "basdai_score"
+            if len(batch_asdas.current_indices) > 0:
+                self.loss_asdas = model.apply_and_get_loss(
+                    self.dataset, self.criterion, batch_asdas, "asdas_score"
                 )
-                self.loss += self.loss_basdai
+                self.loss += self.loss_asdas
             if self.loss:
                 # take optimizer step once loss wrt all visits has been computed
                 self.optimizer.zero_grad()
@@ -188,15 +188,13 @@ class MultitaskTrainer(AdaptivenetTrainer):
                 self.optimizer.step()
 
             # store loss and evaluate on validation data
-            if len(batch_basdai.available_indices) == len(batch_basdai.all_indices):
+            if len(batch_asdas.available_indices) == len(batch_asdas.all_indices):
                 with torch.no_grad():
                     self.loss_per_epoch[self.current_epoch - 1] = (
-                        self.loss_das28 + self.loss_basdai
+                        self.loss_das28 + self.loss_asdas
                     )
                     self.loss_per_epoch_das28[self.current_epoch - 1] = self.loss_das28
-                    self.loss_per_epoch_basdai[
-                        self.current_epoch - 1
-                    ] = self.loss_basdai
+                    self.loss_per_epoch_asdas[self.current_epoch - 1] = self.loss_asdas
                     model.eval()
                     # if model.task == 'classification':
                     #     metrics_val = MulticlassMetrics(device=model.device, possible_classes=torch.tensor([0,1,2], device = model.device))
@@ -208,17 +206,17 @@ class MultitaskTrainer(AdaptivenetTrainer):
                         batch_valid_das28,
                         "das283bsr_score",
                     )
-                    self.loss_valid_basdai = model.apply_and_get_loss(
-                        self.dataset, self.criterion, batch_valid_basdai, "basdai_score"
+                    self.loss_valid_asdas = model.apply_and_get_loss(
+                        self.dataset, self.criterion, batch_valid_asdas, "basdai_score"
                     )
-                    self.loss_valid = self.loss_valid_das28 + self.loss_valid_basdai
+                    self.loss_valid = self.loss_valid_das28 + self.loss_valid_asdas
                     self.loss_per_epoch_valid[self.current_epoch - 1] = self.loss_valid
                     self.loss_per_epoch_valid_das28[
                         self.current_epoch - 1
                     ] = self.loss_valid_das28
-                    self.loss_per_epoch_valid_basdai[
+                    self.loss_per_epoch_valid_asdas[
                         self.current_epoch - 1
-                    ] = self.loss_valid_basdai
+                    ] = self.loss_valid_asdas
                     # if valid loss lower than all previous, save trainer/model state as best
                     if self.current_epoch == 1:
                         self.best_model = copy.deepcopy(self.model)
@@ -232,7 +230,7 @@ class MultitaskTrainer(AdaptivenetTrainer):
                     print(
                         f"epoch : {self.current_epoch} loss {self.loss} loss_valid {self.loss_valid}"
                         f"loss das28 {self.loss_das28} loss_valid {self.loss_valid_das28}"
-                        f"loss basdai {self.loss_basdai} loss_valid {self.loss_valid_basdai}"
+                        f"loss asdas {self.loss_asdas} loss_valid {self.loss_valid_asdas}"
                     )
 
                     if self.use_early_stopping:
@@ -262,9 +260,9 @@ class MultitaskTrainer(AdaptivenetTrainer):
         plt.figure()
         plt.plot(
             range(0, len(self.loss_per_epoch[: self.current_epoch]), 1),
-            self.loss_per_epoch_basdai[: self.current_epoch],
+            self.loss_per_epoch_asdas[: self.current_epoch],
         )
         plt.plot(
             range(0, len(self.loss_per_epoch[: self.current_epoch]), 1),
-            self.loss_per_epoch_valid_basdai[: self.current_epoch],
+            self.loss_per_epoch_valid_asdas[: self.current_epoch],
         )

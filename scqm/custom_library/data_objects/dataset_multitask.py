@@ -46,7 +46,7 @@ class DatasetMultitask(Dataset):
         self.patients = {}
         self.multitarget_ids = []
         self.das28_ids = []
-        self.basdai_ids = []
+        self.asdas_ids = []
         for id_ in tqdm(self.patient_ids):
             p = Patient(self.initial_df_dict, id_, self.event_names)
             if p.target_name != "None":
@@ -55,8 +55,8 @@ class DatasetMultitask(Dataset):
                 self.multitarget_ids.append(id_)
             if p.target_name == "das283bsr_score":
                 self.das28_ids.append(id_)
-            if p.target_name == "basdai_score":
-                self.basdai_ids.append(id_)
+            if p.target_name == "asdas_score":
+                self.asdas_ids.append(id_)
         print(
             f"Dropping {len(self.patient_ids)- len(self.patients)} because they have not enough temporality in the targets"
         )
@@ -88,20 +88,20 @@ class DatasetMultitask(Dataset):
             max_time_since_last_event=max_time_since_last_event,
             target_name="das283bsr_score",
         )
-        self.mapping_for_masks_basdai = {
+        self.mapping_for_masks_asdas = {
             patient: index
-            for index, patient in enumerate(self.basdai_ids + self.multitarget_ids)
+            for index, patient in enumerate(self.asdas_ids + self.multitarget_ids)
         }
-        self.reverse_mapping_for_masks_basdai = {
-            value: key for key, value in self.mapping_for_masks_basdai.items()
+        self.reverse_mapping_for_masks_asdas = {
+            value: key for key, value in self.mapping_for_masks_asdas.items()
         }
-        self.masks_basdai = Masks(self.device, self.basdai_ids + self.multitarget_ids)
-        self.masks_basdai.get_masks(
+        self.masks_asdas = Masks(self.device, self.asdas_ids + self.multitarget_ids)
+        self.masks_asdas.get_masks(
             self,
             debug_patient=None,
             min_time_since_last_event=min_time_since_last_event,
             max_time_since_last_event=max_time_since_last_event,
-            target_name="basdai_score",
+            target_name="asdas_score",
         )
 
         # self.mapping_for_masks_mult = {
@@ -126,23 +126,23 @@ class DatasetMultitask(Dataset):
             ]
             for num_target in range(1, max(self.masks_das28.num_targets) + 1)
         }
-        for num_target in range(1, max(self.masks_basdai.num_targets) + 1):
+        for num_target in range(1, max(self.masks_asdas.num_targets) + 1):
             if num_target in self.stratifier.keys():
                 self.stratifier[num_target].extend(
                     [
-                        self.reverse_mapping_for_masks_basdai[patient_index]
-                        for patient_index in range(len(self.masks_basdai.num_targets))
-                        if self.masks_basdai.num_targets[patient_index] == num_target
-                        and self.reverse_mapping_for_masks_basdai[patient_index]
+                        self.reverse_mapping_for_masks_asdas[patient_index]
+                        for patient_index in range(len(self.masks_asdas.num_targets))
+                        if self.masks_asdas.num_targets[patient_index] == num_target
+                        and self.reverse_mapping_for_masks_asdas[patient_index]
                         not in self.multitarget_ids
                     ]
                 )
             else:
                 self.stratifier[num_target] = [
-                    self.reverse_mapping_for_masks_basdai[patient_index]
-                    for patient_index in range(len(self.masks_basdai.num_targets))
-                    if self.masks_basdai.num_targets[patient_index] == num_target
-                    and self.reverse_mapping_for_masks_basdai[patient_index]
+                    self.reverse_mapping_for_masks_asdas[patient_index]
+                    for patient_index in range(len(self.masks_asdas.num_targets))
+                    if self.masks_asdas.num_targets[patient_index] == num_target
+                    and self.reverse_mapping_for_masks_asdas[patient_index]
                     not in self.multitarget_ids
                 ]
 
@@ -177,5 +177,5 @@ class DatasetMultitask(Dataset):
         for tensor_name in self.tensor_names:
             setattr(self, tensor_name, getattr(self, tensor_name).to(device))
         self.masks_das28.to_device(device, self.event_names)
-        self.masks_basdai.to_device(device, self.event_names)
+        self.masks_asdas.to_device(device, self.event_names)
         return

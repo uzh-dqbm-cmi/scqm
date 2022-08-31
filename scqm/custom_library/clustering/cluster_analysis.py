@@ -333,7 +333,7 @@ class ClusterAnalysis:
 
         return
 
-    def plot_embeddings(self, raw=False, subset="test", features='all'):
+    def plot_embeddings(self, raw=False, subset="test", features="all"):
         if raw:
             if subset == "train":
                 tsne = self.tsne_raw_train
@@ -348,7 +348,7 @@ class ClusterAnalysis:
             else:
                 tsne = self.tsne_model_test
                 c = self.raw_histories_unscaled_test
-        if features == 'all':
+        if features == "all":
             features = self.feature_names
             indices = range(len(self.feature_names))
         else:
@@ -379,15 +379,15 @@ class ClusterAnalysis:
                         color=colors[index],
                     )
                     plt.title(name, fontsize=14)
-                plt.xlabel('tnse_0', fontsize=14)
-                plt.ylabel('tsne_1', fontsize=14)
-                plt.legend(prop={'size': 12})
+                plt.xlabel("tnse_0", fontsize=14)
+                plt.ylabel("tsne_1", fontsize=14)
+                plt.legend(prop={"size": 12})
         return
 
-    def plot_targets(self, target_name='das28'):
+    def plot_targets(self, target_name="das28"):
         df_for_plot = pd.DataFrame(columns=list(self.df_das28.columns))
         indices = []
-        if target_name == 'das28':
+        if target_name == "das28":
             subset = self.subset_das28_test
             df = self.df_das28
         else:
@@ -398,11 +398,15 @@ class ClusterAnalysis:
             indices.extend(list(self.patient_in_embedding_test[patient]["indices"]))
             df_for_plot = df_for_plot.append(tmp)
         plt.figure(figsize=(10, 10))
-        plt.scatter(self.tsne_model_test[indices, 0], self.tsne_model_test[indices, 1], c=df_for_plot.targets)
+        plt.scatter(
+            self.tsne_model_test[indices, 0],
+            self.tsne_model_test[indices, 1],
+            c=df_for_plot.targets,
+        )
         plt.colorbar()
         plt.title("Targets " + target_name, fontsize=14)
-        plt.xlabel('tnse_0', fontsize=14)
-        plt.ylabel('tsne_1', fontsize=14)
+        plt.xlabel("tnse_0", fontsize=14)
+        plt.ylabel("tsne_1", fontsize=14)
         plt.figure(figsize=(10, 10))
         return
 
@@ -482,7 +486,6 @@ class ClusterAnalysis:
             plt.colorbar()
         return
 
-
     def plot_diagnoses(self, raw=False, subset="test"):
         if subset == "test":
             embeddings = self.patient_in_embedding_test
@@ -506,10 +509,10 @@ class ClusterAnalysis:
                 label=i,
                 color=colors[index],
             )
-        plt.xlabel('tnse_0', fontsize=14)
-        plt.ylabel('tsne_1', fontsize=14)
-        plt.legend(prop={'size': 12})
-        plt.title('t-SNE overlayed with diagnosis', fontsize=14)
+        plt.xlabel("tnse_0", fontsize=14)
+        plt.ylabel("tsne_1", fontsize=14)
+        plt.legend(prop={"size": 12})
+        plt.title("t-SNE overlayed with diagnosis", fontsize=14)
 
         return
 

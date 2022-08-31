@@ -450,6 +450,7 @@ def extract_multitask_features(
             "date",
             "weight_kg",
             "das283bsr_score",
+            "asdas_score",
             "n_swollen_joints",
             "n_painfull_joints",
             "bsr",
@@ -525,10 +526,18 @@ def extract_multitask_features(
     patients_das28 = tmp.index[tmp == True].tolist()
     print(f'initial number of patients {len(general_df["patient_id"].unique())}')
     print(f"patients with das28 {len(patients_das28)}")
-    # subset of patients with basdai
-    patients_basdai = basdai_df.dropna(subset=["basdai_score"])["patient_id"].unique()
-    print(f"patients with basdai {len(patients_basdai)}")
-    patients = set(list(patients_das28) + list(patients_basdai))
+    # subset of patients with asdas
+    patients_asdas = visits_df.dropna(subset=["asdas_score"])["patient_id"].unique()
+    tmp = (
+        visits_df[visits_df.patient_id.isin(patients_asdas)]
+        .dropna(subset=["asdas_score"])
+        .groupby("patient_id")
+        .apply(len)
+        > 2
+    )
+    patients_asdas = tmp.index[tmp == True].tolist()
+    print(f"patients with asdas {len(patients_asdas)}")
+    patients = set(list(patients_das28) + list(patients_asdas))
     print(
         f'patients with neither {len(set(general_df["patient_id"].unique()).difference(patients))}'
     )
@@ -537,10 +546,13 @@ def extract_multitask_features(
     # visits_df = visits_df.groupby("patient_id").apply(das28_increase)
 
     visits_df = visits_df[visits_df.patient_id.isin(patients)]
-    # for das28 patients, we drop the visits for which it is not available
+    # for das28 patients, we drop the visits for which it is not available (and same for asdas)
     visits_df.loc[visits_df.patient_id.isin(patients_das28)] = visits_df.loc[
         visits_df.patient_id.isin(patients_das28)
     ].dropna(subset=["das283bsr_score"])
+    visits_df.loc[visits_df.patient_id.isin(patients_asdas)] = visits_df.loc[
+        visits_df.patient_id.isin(patients_asdas)
+    ].dropna(subset=["asdas_score"])
     basdai_df = basdai_df[basdai_df.patient_id.isin(patients)]
     general_df = general_df[general_df.patient_id.isin(patients)]
     med_df = med_df[med_df.patient_id.isin(patients)]
@@ -549,7 +561,7 @@ def extract_multitask_features(
     if real_data:
         socioeco_df = socioeco_df[socioeco_df.patient_id.isin(patients)]
         radai_df = radai_df[radai_df.patient_id.isin(patients)]
-        #mny_df = mny_df[mny_df.patient_id.isin(patients)]
+        # mny_df = mny_df[mny_df.patient_id.isin(patients)]
     if only_meds:
         patients = med_df["patient_id"].unique()
         print(
@@ -561,7 +573,7 @@ def extract_multitask_features(
         if real_data:
             socioeco_df = socioeco_df[socioeco_df.patient_id.isin(patients)]
             radai_df = radai_df[radai_df.patient_id.isin(patients)]
-            #mny_df = mny_df[mny_df.patient_id.isin(patients)]
+            # mny_df = mny_df[mny_df.patient_id.isin(patients)]
 
     # sort dfs
     visits_df.sort_values(["patient_id", "date"], inplace=True)
@@ -579,16 +591,23 @@ def extract_multitask_features(
             "das283bsr_score",
         ]
     ].dropna(subset=["das283bsr_score"])
-    targets_df_basdai = basdai_df[["patient_id", "date", "basdai_score"]]
+    targets_df_asdas = visits_df[
+        [
+            "patient_id",
+            "date",
+            "uid_num",
+            "asdas_score",
+        ]
+    ].dropna(subset=["asdas_score"])
 
     targets_df_das28.sort_values(["patient_id", "date"], inplace=True)
-    targets_df_basdai.sort_values(["patient_id", "date"], inplace=True)
+    targets_df_asdas.sort_values(["patient_id", "date"], inplace=True)
 
     haq_df.sort_values(["patient_id", "date"], inplace=True)
     if real_data:
         socioeco_df.sort_values(["patient_id", "date"], inplace=True)
         radai_df.sort_values(["patient_id", "date"], inplace=True)
-       #mny_df.sort_values(["patient_id", "date"], inplace=True)
+    # mny_df.sort_values(["patient_id", "date"], inplace=True)
     if transform_meds:
         # add new column to med_df indicating for each event if it is a start or end of medication (0 false, 1 true) and replace med_start and med_end
         # by unique column (date). If start date is not available, drop the row. If start and end are available duplicate the row (with different date and is_start dates)
@@ -604,15 +623,15 @@ def extract_multitask_features(
     if not real_data:
         radai_df = None
         socioeco_df = None
-        #mny_df = None
+        # mny_df = None
     return (
         general_df,
         med_df,
         visits_df,
         basdai_df,
         targets_df_das28,
-        targets_df_basdai,
+        targets_df_asdas,
         socioeco_df,
         radai_df,
-        haq_df
+        haq_df,
     )

@@ -140,7 +140,9 @@ def get_visit_df(patient_df: pd.DataFrame) -> pd.DataFrame:
     uid_num = random.sample(range(4000), k=len(ids))
     uid_num = [str(elem) for elem in uid_num]
     das283_bsr = random.choices(range(6), k=len(ids))
+    asdas_score = random.choices(range(6), k=len(ids))
     das283_bsr = drop_values(das283_bsr, nan_prop=0.5)
+    asdas_score = drop_values(asdas_score, nan_prop=0.7)
     weight_kg = random.choices(range(40, 200), k=len(ids))
     return pd.DataFrame(
         {
@@ -148,6 +150,7 @@ def get_visit_df(patient_df: pd.DataFrame) -> pd.DataFrame:
             "uid_num": uid_num,
             "date": dates,
             "das283bsr_score": das283_bsr,
+            "asdas_score": asdas_score,
             "weight_kg": weight_kg,
             "n_swollen_joints": np.nan,
             "n_painfull_joints": np.nan,
