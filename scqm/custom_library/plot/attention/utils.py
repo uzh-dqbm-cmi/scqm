@@ -146,24 +146,24 @@ def get_all_attention_and_ranking(model, dataset, patients, target_name):
                 )
                 + dataset.a_visit_df_scaling_values[0]["das283bsr_score"]
             )
-    elif target_name == "basdai_score":
+    elif target_name == "asdas_score":
         for med in rank_dict.keys():
             rank_dict[med]["true_values"] = (
                 np.array(rank_dict[med]["true_values"])
                 * (
-                    dataset.basdai_df_scaling_values[1]["basdai_score"]
-                    - dataset.basdai_df_scaling_values[0]["basdai_score"]
+                    dataset.a_visit_df_scaling_values[1]["asdas_score"]
+                    - dataset.a_visit_df_scaling_values[0]["asdas_score"]
                 )
-                + dataset.basdai_df_scaling_values[0]["basdai_score"]
+                + dataset.a_visit_df_scaling_values[0]["asdas_score"]
             )
 
             rank_dict[med]["predictions"] = (
                 np.array(rank_dict[med]["predictions"])
                 * (
-                    dataset.basdai_df_scaling_values[1]["basdai_score"]
-                    - dataset.basdai_df_scaling_values[0]["basdai_score"]
+                    dataset.a_visit_df_scaling_values[1]["asdas_score"]
+                    - dataset.a_visit_df_scaling_values[0]["asdas_score"]
                 )
-                + dataset.basdai_df_scaling_values[0]["basdai_score"]
+                + dataset.a_visit_df_scaling_values[0]["asdas_score"]
             )
     return (
         meds_all,
@@ -190,13 +190,13 @@ def apply_attention(
             target_index_in_tensor = dataset.target_value_index_das28
             target_tensor = dataset[patient_id].targets_das28_df_tensor
             time_index = dataset.time_index_das28
-        elif target_name == "basdai_score":
-            mapping = dataset.mapping_for_masks_basdai
-            masks = dataset.masks_basdai
-            target_index_in_events = dataset.event_names.index("basdai")
-            target_index_in_tensor = dataset.target_value_index_basdai
-            target_tensor = dataset[patient_id].targets_basdai_df_tensor
-            time_index = dataset.time_index_basdai
+        elif target_name == "asdas_score":
+            mapping = dataset.mapping_for_masks_asdas
+            masks = dataset.masks_asdas
+            target_index_in_events = dataset.event_names.index("a_visit")
+            target_index_in_tensor = dataset.target_value_index_asdas
+            target_tensor = dataset[patient_id].targets_asdas_df_tensor
+            time_index = dataset.time_index_asdas
         patient_mask_index = mapping[patient_id]
         encoder_outputs = {}
         for event in dataset.event_names:
@@ -356,7 +356,7 @@ def apply_attention(
             if target_name == "das283bsr_score":
                 predictions[index_target] = model.PModuleDas28(pred_input)
             else:
-                predictions[index_target] = model.PModuleBasdai(pred_input)
+                predictions[index_target] = model.PModuleAsdas(pred_input)
             index_target += 1
         if model.task == "classification":
             predictions = torch.tensor(

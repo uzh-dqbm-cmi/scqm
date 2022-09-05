@@ -8,7 +8,7 @@ cvparams = {
     "num_layers_enc": [2, 5],
     "hidden_enc": [100, 300],
     "num_layers": [1, 3],
-    "num_layers_pred": [2, 4, 6],
+    "num_layers_pred": [2, 4],
     "hidden_pred": [100, 200],
     "dropout": [0.0, 0.1, 0.2],
     "size_history": [30, 50, 100],

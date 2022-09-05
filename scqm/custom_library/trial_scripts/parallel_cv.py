@@ -34,7 +34,7 @@ if __name__ == "__main__":
         print(error)
     print("loading data")
 
-    with open("/cluster/work/medinfmk/scqm/tmp/saved_cv_cpu_25_08.pickle", "rb") as f:
+    with open("/cluster/work/medinfmk/scqm/tmp/saved_cv_asdas_without_basdai.pickle", "rb") as f:
         cv = pickle.load(f)
 
     dataset = cv.dataset
@@ -50,9 +50,9 @@ if __name__ == "__main__":
     num_feature_dict["patients"] = getattr(
         dataset, "patients" + "_df_scaled_tensor_train"
     ).shape[1]
-    # with open("/cluster/work/medinfmk/scqm/tmp/params.pickle", "rb") as f:
-    #     cvparams, combinations = pickle.load(f)
-    cvparams, combinations = get_parameters(fold, int(sys.argv[2]))
+    with open("/cluster/work/medinfmk/scqm/tmp/params.pickle", "rb") as f:
+        cvparams, combinations = pickle.load(f)
+    #cvparams, combinations = get_parameters(fold, int(sys.argv[2]))
     name_mapping = {key: index for index, key in enumerate(list(cvparams.keys()))}
     result_dict = {comb: np.nan for comb in combinations}
     for index, params in enumerate(combinations):
@@ -98,7 +98,7 @@ if __name__ == "__main__":
             n_epochs=100,
             batch_size={
                 "das28": int(len(dataset) / 15),
-                "basdai": int(len(dataset) / (15 * 3)),
+                "asdas": int(len(dataset) / (15 * 4.5)),
             },
             lr=params[name_mapping["lr"]],
             balance_classes=True,

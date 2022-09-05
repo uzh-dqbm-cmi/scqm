@@ -14,13 +14,13 @@ def plot_patient_predictions(
             if dataset[patient].target_name == "das283bsr_score"
         ]
         ylabel = "Das28"
-    elif target_name == "basdai_score":
+    elif target_name == "asdas_score":
         patients = [
             patient
             for patient in dataset.test_ids
-            if dataset[patient].target_name == "basdai_score"
+            if dataset[patient].target_name == "asdas_score"
         ]
-        ylabel = "basdai"
+        ylabel = "asdas"
     if patient_id is None:
         p = random.sample(patients, 1)[0]
     else:
@@ -111,7 +111,7 @@ def error_analysis(df, n_bins=15):
     )
     plt.xlabel("Frequency", fontsize=14)
     plt.ylabel("MSE", fontsize=14)
-    plt.title("MSE versus frequency of target label", fontsize=14)
+    plt.title("Frequency of target label versus MSE", fontsize=14)
     plt.yticks(fontsize=12)
     plt.xticks(fontsize=12)
     return
