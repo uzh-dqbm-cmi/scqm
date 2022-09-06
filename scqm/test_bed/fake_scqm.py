@@ -18,7 +18,7 @@ def get_patient_ids(num_data: int) -> list:
     patient_ids = []
     for p in range(num_data):
         patient_ids.extend(
-            ["".join(random.choice(string.ascii_lowercase) for i in range(5))]
+            ["".join(random.choice(string.ascii_lowercase) for i in range(6))]
         )
     return patient_ids
 
@@ -137,7 +137,7 @@ def get_visit_df(patient_df: pd.DataFrame) -> pd.DataFrame:
         )
         for patient_id in ids
     ]
-    uid_num = random.sample(range(4000), k=len(ids))
+    uid_num = random.sample(range(100000), k=len(ids))
     uid_num = [str(elem) for elem in uid_num]
     das283_bsr = random.choices(range(6), k=len(ids))
     asdas_score = random.choices(range(6), k=len(ids))
@@ -200,7 +200,7 @@ def get_med_df(patient_df: pd.DataFrame) -> pd.DataFrame:
         for patient_id in ids
     ]
     dates_stop = [random_date(start=date_start) for date_start in dates_start]
-    med_id = random.sample(range(4000), k=len(ids))
+    med_id = random.sample(range(20000), k=len(ids))
     med_id = ["med_" + str(elem) for elem in med_id]
     drug_name = random.choices(
         ["methotrexate", "prednisone", "sulfasalazine", "etanercept", "tofacitinib"],

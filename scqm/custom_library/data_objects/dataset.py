@@ -262,6 +262,43 @@ class Dataset:
             self.radai_df_proc = pd.get_dummies(
                 self.radai_df_proc, columns=["morning_stiffness_duration_radai"]
             )
+            if hasattr(self, "joint_df"):
+                self.joint_df_proc = pd.get_dummies(
+                    self.joint_df_proc,
+                    columns=[
+                        "smoker",
+                        "morning_stiffness_duration_radai",
+                        "medication_generic_drug",
+                        "medication_drug_classification",
+                        "gender",
+                        "anti_ccp",
+                        "ra_crit_rheumatoid_factor",
+                    ],
+                )
+                self.joint_asdas_df_proc = pd.get_dummies(
+                    self.joint_asdas_df_proc,
+                    columns=[
+                        "smoker",
+                        "morning_stiffness_duration_radai",
+                        "medication_generic_drug",
+                        "medication_drug_classification",
+                        "gender",
+                        "anti_ccp",
+                        "ra_crit_rheumatoid_factor",
+                    ],
+                )
+                self.joint_das28_df_proc = pd.get_dummies(
+                    self.joint_das28_df_proc,
+                    columns=[
+                        "smoker",
+                        "morning_stiffness_duration_radai",
+                        "medication_generic_drug",
+                        "medication_drug_classification",
+                        "gender",
+                        "anti_ccp",
+                        "ra_crit_rheumatoid_factor",
+                    ],
+                )
 
             # self.mny_df_proc = pd.get_dummies(self.mny_df_proc, columns=["mnyc_score"])
         self.med_df_proc = pd.get_dummies(
@@ -278,6 +315,38 @@ class Dataset:
         self.a_visit_df_proc = pd.get_dummies(
             self.a_visit_df_proc, columns=["anti_ccp", "ra_crit_rheumatoid_factor"]
         )
+        # joint df
+        if hasattr(self, "joint_df"):
+            self.joint_df_proc = pd.get_dummies(
+                self.joint_df_proc,
+                columns=[
+                    "medication_generic_drug",
+                    "medication_drug_classification",
+                    "gender",
+                    "anti_ccp",
+                    "ra_crit_rheumatoid_factor",
+                ],
+            )
+            self.joint_asdas_df_proc = pd.get_dummies(
+                self.joint_asdas_df_proc,
+                columns=[
+                    "medication_generic_drug",
+                    "medication_drug_classification",
+                    "gender",
+                    "anti_ccp",
+                    "ra_crit_rheumatoid_factor",
+                ],
+            )
+            self.joint_das28_df_proc = pd.get_dummies(
+                self.joint_das28_df_proc,
+                columns=[
+                    "medication_generic_drug",
+                    "medication_drug_classification",
+                    "gender",
+                    "anti_ccp",
+                    "ra_crit_rheumatoid_factor",
+                ],
+            )
         # transform to numeric
         columns_to_exclude = ["patient_id", "uid_num", "med_id", "event_id"]
         for name in self.df_names:
@@ -285,17 +354,7 @@ class Dataset:
             columns = [col for col in df.columns if col not in columns_to_exclude]
             df[columns] = df[columns].apply(pd.to_numeric, axis=1)
             setattr(self, name + "_proc", df)
-        # TODO add condition here
-        if hasattr(self, "joint_df_proc"):
-            self.joint_df_proc = pd.get_dummies(
-                self.joint_df_proc,
-                columns=[
-                    "smoker",
-                    "morning_stiffness_duration_radai",
-                    "medication_generic_drug",
-                    "medication_drug_classification",
-                ],
-            )
+
         return
 
     def transform_to_numeric(self):

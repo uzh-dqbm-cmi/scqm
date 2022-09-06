@@ -34,7 +34,9 @@ if __name__ == "__main__":
         print(error)
     print("loading data")
 
-    with open("/cluster/work/medinfmk/scqm/tmp/saved_cv_asdas_without_basdai.pickle", "rb") as f:
+    with open(
+        "/cluster/work/medinfmk/scqm/tmp/saved_cv_asdas_without_basdai.pickle", "rb"
+    ) as f:
         cv = pickle.load(f)
 
     dataset = cv.dataset
@@ -52,7 +54,7 @@ if __name__ == "__main__":
     ).shape[1]
     with open("/cluster/work/medinfmk/scqm/tmp/params.pickle", "rb") as f:
         cvparams, combinations = pickle.load(f)
-    #cvparams, combinations = get_parameters(fold, int(sys.argv[2]))
+    # cvparams, combinations = get_parameters(fold, int(sys.argv[2]))
     name_mapping = {key: index for index, key in enumerate(list(cvparams.keys()))}
     result_dict = {comb: np.nan for comb in combinations}
     for index, params in enumerate(combinations):

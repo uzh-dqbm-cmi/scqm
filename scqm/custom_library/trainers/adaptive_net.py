@@ -21,7 +21,7 @@ class AdaptivenetTrainer(Trainer):
         balance_classes: bool,
         use_early_stopping: bool,
     ):
-        """Instanciate trainer
+        """Instantiate trainer
 
         Args:
             model (Model): model to train

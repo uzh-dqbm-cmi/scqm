@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import copy
 
-from scqm.custom_library.preprocessing.utils import das28_increase
+from scqm.custom_library.preprocessing.utils import das28_increase, get_joint_df
 from scqm.custom_library.preprocessing.preprocessing import preprocessing, drop_low_var
 
 
@@ -409,6 +409,7 @@ def extract_multitask_features(
     transform_meds: bool = True,
     only_meds: bool = False,
     real_data: bool = True,
+    joint_df: bool = False,
 ):
     """Extract features for das28/basdai model from data
 
@@ -597,7 +598,20 @@ def extract_multitask_features(
     if real_data:
         socioeco_df.sort_values(["patient_id", "date"], inplace=True)
         radai_df.sort_values(["patient_id", "date"], inplace=True)
-    # mny_df.sort_values(["patient_id", "date"], inplace=True)
+    else:
+        radai_df = None
+        socioeco_df = None
+    if joint_df:
+        joint_df = get_joint_df(
+            {
+                "a_visit": visits_df,
+                "patients": general_df,
+                "med": med_df,
+                "socio": socioeco_df,
+                "radai": radai_df,
+                "haq": haq_df,
+            }
+        )
     if transform_meds:
         # add new column to med_df indicating for each event if it is a start or end of medication (0 false, 1 true) and replace med_start and med_end
         # by unique column (date). If start date is not available, drop the row. If start and end are available duplicate the row (with different date and is_start dates)
@@ -610,9 +624,6 @@ def extract_multitask_features(
         med_df = pd.concat([med_df, tmp]).drop(columns=["medication_end_date"])
         med_df.sort_values(["patient_id", "date"], inplace=True)
 
-    if not real_data:
-        radai_df = None
-        socioeco_df = None
         # mny_df = None
     return (
         general_df,
@@ -623,4 +634,5 @@ def extract_multitask_features(
         socioeco_df,
         radai_df,
         haq_df,
+        joint_df,
     )

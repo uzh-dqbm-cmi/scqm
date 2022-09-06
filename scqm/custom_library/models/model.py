@@ -15,12 +15,11 @@ class Model(ABC):
         self.config = config
         self.device = device
 
-    @abstractmethod
     def train(self):
-        pass
+        self.train()
 
     def eval(self):
-        raise NotImplementedError
+        self.eval()
 
     def apply(self):
         raise NotImplementedError

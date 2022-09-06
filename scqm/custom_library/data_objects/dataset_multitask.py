@@ -2,6 +2,8 @@ from scqm.custom_library.data_objects.dataset import Dataset
 from scqm.custom_library.data_objects.patient import Patient
 from scqm.custom_library.data_objects.masks import Masks
 from tqdm import tqdm
+from datetime import timedelta
+import pandas as pd
 
 
 class DatasetMultitask(Dataset):
@@ -48,7 +50,9 @@ class DatasetMultitask(Dataset):
         self.das28_ids = []
         self.asdas_ids = []
         for id_ in tqdm(self.patient_ids):
-            p = Patient(self.initial_df_dict, id_, self.event_names)
+            p = Patient(
+                self.initial_df_dict, id_, self.event_names, self.min_num_targets
+            )
             if p.target_name != "None":
                 self.patients[id_] = p
             if p.target_name == "both":
@@ -178,4 +182,67 @@ class DatasetMultitask(Dataset):
             setattr(self, tensor_name, getattr(self, tensor_name).to(device))
         self.masks_das28.to_device(device, self.event_names)
         self.masks_asdas.to_device(device, self.event_names)
+        return
+
+    def post_process_joint_df(self, min_time_since_last_event: int = 15):
+        joint_df = self.initial_df_dict["joint"]
+        joint_df_das28 = pd.DataFrame(columns=joint_df.columns)
+        joint_targets_das28 = pd.DataFrame(
+            columns=["patient_id", "date", "value", "uid_num"]
+        )
+        joint_df_asdas = pd.DataFrame(columns=joint_df.columns)
+        joint_targets_asdas = pd.DataFrame(
+            columns=["patient_id", "date", "value", "uid_num"]
+        )
+        for patient in self.das28_ids + self.multitarget_ids:
+            for target in self[patient].targets_to_predict["das283bsr_score"]:
+                id_ = target.id
+                date = target.date
+                tmp = joint_df[joint_df.patient_id == patient]
+                target_value = tmp[
+                    (tmp.date == date) & (tmp.uid_num == id_)
+                ].das283bsr_score.item()
+                joint_targets_das28 = joint_targets_das28.append(
+                    pd.Series(
+                        {
+                            "patient_id": patient,
+                            "date": date,
+                            "value": target_value,
+                            "uid_num": id_,
+                        }
+                    ),
+                    ignore_index=True,
+                )
+                features = tmp[
+                    (date - tmp.date) > timedelta(days=min_time_since_last_event)
+                ].iloc[-1]
+                joint_df_das28 = joint_df_das28.append(features)
+        for patient in self.asdas_ids + self.multitarget_ids:
+            for target in self[patient].targets_to_predict["asdas_score"]:
+                id_ = target.id
+                date = target.date
+                tmp = joint_df[joint_df.patient_id == patient]
+                target_value = tmp[
+                    (tmp.date == date) & (tmp.uid_num == id_)
+                ].asdas_score.item()
+                joint_targets_asdas = joint_targets_asdas.append(
+                    pd.Series(
+                        {
+                            "patient_id": patient,
+                            "date": date,
+                            "value": target_value,
+                            "uid_num": id_,
+                        }
+                    ),
+                    ignore_index=True,
+                )
+                features = tmp[
+                    (date - tmp.date) > timedelta(days=min_time_since_last_event)
+                ].iloc[-1]
+                joint_df_asdas = joint_df_asdas.append(features)
+        self.initial_df_dict["joint_das28"] = joint_df_das28
+        self.initial_df_dict["joint_asdas"] = joint_df_asdas
+        self.initial_df_dict["joint_targets_das28"] = joint_targets_das28
+        self.initial_df_dict["joint_targets_asdas"] = joint_targets_asdas
+
         return

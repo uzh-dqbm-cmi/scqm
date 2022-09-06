@@ -11,7 +11,9 @@ import pandas as pd
 class Patient(DataObject):
     """Patient class"""
 
-    def __init__(self, df_dict: dict, patient_id: str, event_names: list):
+    def __init__(
+        self, df_dict: dict, patient_id: str, event_names: list, min_num_targets
+    ):
         """Instantiate a given patient
 
         Args:
@@ -31,23 +33,25 @@ class Patient(DataObject):
             self.basdai = self.get_basdai()
         self.other_events = self.get_other_events()
         self.timeline = self.get_timeline()
-        # self.targets = self.visits
-        self.targets_to_predict = self.visits
         if self.target_name == "both":
             self.targets_df = {
                 "das283bsr_score": self.targets_das28_df,
                 "asdas_score": self.targets_asdas_df,
             }
             self.targets_to_predict = {
-                "das283bsr_score": self.visits,
-                "asdas_score": self.visits,
+                "das283bsr_score": self.visits[min_num_targets - 1 :],
+                "asdas_score": self.visits[min_num_targets - 1 :],
             }
         elif self.target_name == "das283bsr_score":
             self.targets_df = {"das283bsr_score": self.targets_das28_df}
-            self.targets_to_predict = {"das283bsr_score": self.visits}
+            self.targets_to_predict = {
+                "das283bsr_score": self.visits[min_num_targets - 1 :]
+            }
         else:
             self.targets_df = {"asdas_score": self.targets_asdas_df}
-            self.targets_to_predict = {"asdas_score": self.visits}
+            self.targets_to_predict = {
+                "asdas_score": self.visits[min_num_targets - 1 :]
+            }
         return
 
     def get_target_name(self):

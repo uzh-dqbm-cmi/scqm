@@ -29,8 +29,6 @@ from scqm.custom_library.clustering.utils import (
 
 import numpy as np
 
-# setting path
-
 if __name__ == "__main__":
     seed = 0
     # create fake data
@@ -51,11 +49,13 @@ if __name__ == "__main__":
         socioeco_df,
         radai_df,
         haq_df,
+        joint_df,
     ) = extract_multitask_features(
         df_dict_processed,
         transform_meds=True,
         only_meds=True,
         real_data=False,
+        joint_df=True,
     )
     df_dict_fake = {
         "a_visit": visits_df,
@@ -63,7 +63,8 @@ if __name__ == "__main__":
         "med": med_df,
         "targets_das28": targets_df_das28,
         "targets_asdas": targets_df_asdas,
-        "haq": haq_df
+        "haq": haq_df,
+        "joint": joint_df,
     }
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     min_num_targets = 2
@@ -85,7 +86,9 @@ if __name__ == "__main__":
     )
     print(f"Dropping patients with less than 3 visits, keeping {len(dataset)}")
     dataset.get_masks()
+    dataset.post_process_joint_df()
     dataset.create_dfs()
+    # get targets for baseline
     # prepare for training
     dataset.transform_to_numeric_adanet(real_data)
     partition = MultitaskPartition(dataset, k=3)
