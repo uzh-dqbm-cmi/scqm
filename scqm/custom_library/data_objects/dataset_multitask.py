@@ -186,14 +186,11 @@ class DatasetMultitask(Dataset):
 
     def post_process_joint_df(self, min_time_since_last_event: int = 15):
         joint_df = self.initial_df_dict["joint"]
-        joint_df_das28 = pd.DataFrame(columns=joint_df.columns)
-        joint_targets_das28 = pd.DataFrame(
-            columns=["patient_id", "date", "value", "uid_num"]
-        )
-        joint_df_asdas = pd.DataFrame(columns=joint_df.columns)
-        joint_targets_asdas = pd.DataFrame(
-            columns=["patient_id", "date", "value", "uid_num"]
-        )
+
+        joint_df_das28 = pd.DataFrame(columns=list(joint_df.columns) + ["time_to_pred"])
+        joint_targets_das28 = pd.DataFrame(columns=["patient_id", "value", "uid_num"])
+        joint_df_asdas = pd.DataFrame(columns=list(joint_df.columns) + ["time_to_pred"])
+        joint_targets_asdas = pd.DataFrame(columns=["patient_id", "value", "uid_num"])
         for patient in self.das28_ids + self.multitarget_ids:
             for target in self[patient].targets_to_predict["das283bsr_score"]:
                 id_ = target.id
@@ -206,7 +203,6 @@ class DatasetMultitask(Dataset):
                     pd.Series(
                         {
                             "patient_id": patient,
-                            "date": date,
                             "value": target_value,
                             "uid_num": id_,
                         }
@@ -216,6 +212,7 @@ class DatasetMultitask(Dataset):
                 features = tmp[
                     (date - tmp.date) > timedelta(days=min_time_since_last_event)
                 ].iloc[-1]
+                features["time_to_pred"] = date
                 joint_df_das28 = joint_df_das28.append(features)
         for patient in self.asdas_ids + self.multitarget_ids:
             for target in self[patient].targets_to_predict["asdas_score"]:
@@ -229,7 +226,6 @@ class DatasetMultitask(Dataset):
                     pd.Series(
                         {
                             "patient_id": patient,
-                            "date": date,
                             "value": target_value,
                             "uid_num": id_,
                         }
@@ -239,9 +235,41 @@ class DatasetMultitask(Dataset):
                 features = tmp[
                     (date - tmp.date) > timedelta(days=min_time_since_last_event)
                 ].iloc[-1]
+                features["time_to_pred"] = date
                 joint_df_asdas = joint_df_asdas.append(features)
-        self.initial_df_dict["joint_das28"] = joint_df_das28
-        self.initial_df_dict["joint_asdas"] = joint_df_asdas
+        # columns to keep as features
+        columns_to_keep = [
+            "patient_id",
+            "uid_num",
+            "weight_kg",
+            "das283bsr_score",
+            "asdas_score",
+            "n_swollen_joints",
+            "n_painfull_joints",
+            "bsr",
+            "n_painfull_joints_28",
+            "height_cm",
+            "crp",
+            "hb",
+            "n_enthesides",
+            "mda_score",
+            "joints_type",
+            "anti_ccp",
+            "ra_crit_rheumatoid_factor",
+            "medication_generic_drug",
+            "medication_drug_classification",
+            "medication_dose",
+            "medication_start_date",
+            "medication_end_date",
+            "haq_score",
+            "date_of_birth",
+            "gender",
+            "date_first_symptoms",
+            "date_diagnosis",
+            "time_to_pred",
+        ]
+        self.initial_df_dict["joint_das28"] = joint_df_das28[columns_to_keep]
+        self.initial_df_dict["joint_asdas"] = joint_df_asdas[columns_to_keep]
         self.initial_df_dict["joint_targets_das28"] = joint_targets_das28
         self.initial_df_dict["joint_targets_asdas"] = joint_targets_asdas
 

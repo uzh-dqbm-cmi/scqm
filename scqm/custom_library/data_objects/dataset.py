@@ -448,6 +448,8 @@ class Dataset:
                 str(name) + "_scaling_values",
                 (min_train_values, max_train_values),
             )
+            # store columns names and corresponding location in tensor
+            setattr(self, str(name) + "_columns_in_tensor", columns)
             # scale everything
             df[columns] = (df[columns] - min_train_values) / (
                 max_train_values - min_train_values

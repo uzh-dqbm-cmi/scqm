@@ -24,7 +24,8 @@ from sklearn.cluster import KMeans
 import pstats
 import cProfile
 from tqdm import tqdm
-
+import shap
+import matplotlib.pyplot as plt
 
 if __name__ == "__main__":
     seed = 0
@@ -98,7 +99,7 @@ if __name__ == "__main__":
     trainer = MLPTrainer(
         model,
         dataset,
-        n_epochs=10,
+        n_epochs=30,
         batch_size=10,
         lr=1e-2,
         balance_classes=True,
@@ -106,12 +107,24 @@ if __name__ == "__main__":
         target_name="das283bsr_score",
     )
     trainer.train_model(model, partition)
-    # train
 
-    # profiler = cProfile.Profile()
-    # profiler.enable()
-    # start = time.time()
-    # trainer.train_model(model, partition, debug_patient=False)
-    # end = time.time()
-    # print(end - start)
-    # train baseline
+    # try shap
+
+    x_train = dataset.joint_das28_df_scaled_tensor_train[:100]
+    x_test = dataset.joint_das28_df_scaled_tensor_test
+
+    explainer = shap.KernelExplainer(trainer.model, x_train)
+    shap_values = explainer.shap_values(x_test)
+
+    # "all" data points
+    shap.summary_plot(
+        shap_values,
+        x_test,
+        feature_names=dataset.joint_das28_df_columns_in_tensor,
+        show=False,
+    )
+    plt.savefig("shap_all.png")
+    # single data point
+    shap.plots.waterfall(shap_values[2], show=False)
+    plt.savefig("shap_single.png")
+    print("end")

@@ -7,6 +7,7 @@ from scqm.custom_library.trainers.batch.batch import Batch
 import timeit
 
 import torch
+import numpy as np
 
 
 class MLPTrainer(Trainer):
@@ -45,6 +46,7 @@ class MLPTrainer(Trainer):
         self.loss_per_epoch_valid = torch.empty(size=(n_epochs, 1))
         self.start = timeit.default_timer()
         self.total_time = timeit.default_timer()
+        self.criterion = torch.nn.MSELoss()
 
     def train_model(self, model: Model, partition: MultitaskPartition):
         print(f"model device {model.device}")
@@ -64,58 +66,54 @@ class MLPTrainer(Trainer):
         batch_valid.get_batch(self.dataset, debug_patient=None)
         batch = Batch(
             model.device,
-            partition.partitions_train[partition.current_fold],
-            partition.partitions_train[partition.current_fold],
+            partition.partitions_train_das28[partition.current_fold]
+            + partition.partitions_train_both[partition.current_fold],
+            partition.partitions_train_das28[partition.current_fold]
+            + partition.partitions_train_both[partition.current_fold],
             tensor_names=["joint_das28", "joint_targets_das28"],
             target_name="das283bsr_score",
         )
+        train_indices = np.concatenate(
+            [
+                self.dataset.tensor_indices_mapping_train[patient]["joint_das28_df"]
+                for patient in partition.partitions_train_das28[partition.current_fold]
+                + partition.partitions_train_both[partition.current_fold]
+            ]
+        )
         train_tensor = self.dataset.joint_das28_df_scaled_tensor_train
+        train_target = self.dataset.joint_targets_das28_df_scaled_tensor_train
+
+        valid_tensor = self.dataset.joint_das28_df_scaled_tensor_train[
+            batch_valid.indices_joint_das28
+        ]
+        valid_target = self.dataset.joint_targets_das28_df_scaled_tensor_train[
+            batch_valid.indices_joint_targets_das28
+        ]
         while (self.current_epoch < self.n_epochs) and self.early_stopping == False:
-            # model.train()
+            model.train()
 
             batch.get_batch(self.dataset, self.batch_size)
             self.update_epoch_and_indices(batch)
 
             output = model(train_tensor[batch.indices_joint_das28])
-            # self.loss
-            # if self.loss:
-            #     # take optimizer step once loss wrt all visits has been computed
-            #     self.optimizer.zero_grad()
+            self.loss = self.criterion(
+                train_target[batch.indices_joint_targets_das28], output
+            )
+            self.optimizer.zero_grad()
+            self.loss.backward()
+            self.optimizer.step()
+            # store loss and evaluate on validation data
+            if len(batch.available_indices) == len(batch.all_indices):
+                with torch.no_grad():
+                    self.loss_per_epoch[self.current_epoch - 1] = self.loss
 
-            #     self.loss.backward()
-            #     self.optimizer.step()
+                    model.eval()
+                    out_valid = model(valid_tensor)
+                    self.loss_valid = self.criterion(out_valid, valid_target)
+                    self.loss_per_epoch_valid[self.current_epoch - 1] = self.loss_valid
 
-            # # store loss and evaluate on validation data
-            # if len(batch.available_indices) == len(batch.all_indices):
-            #     with torch.no_grad():
-            #         self.loss_per_epoch[self.current_epoch - 1] = self.loss
+                    print(
+                        f"epoch : {self.current_epoch} loss {self.loss} loss_valid {self.loss_valid}"
+                    )
 
-            #         model.eval()
-            #         # if model.task == 'classification':
-            #         #     metrics_val = MulticlassMetrics(device=model.device, possible_classes=torch.tensor([0,1,2], device = model.device))
-            #         # else:
-            #         #     metrics_val = Metrics(device=model.device)
-            #         self.loss_valid = model.apply_and_get_loss(
-            #             self.dataset, self.criterion, batch_valid
-            #         )
-            #         self.loss_per_epoch_valid[self.current_epoch - 1] = self.loss_valid
-            #         # metrics.get_metrics()
-            #         # f1 = metrics.returned_metric
-            #         # self.f1_per_epoch[self.current_epoch - 1] = f1
-            #         # metrics_val.get_metrics()
-            #         # f1_val = metrics_val.returned_metric
-            #         # self.f1_per_epoch_valid[self.current_epoch - 1] = f1_val
-            #         # print(
-            #         #     f'epoch : {self.current_epoch} loss {self.loss} loss_valid {self.loss_valid} f1 {f1} f1_valid {f1_val}')
-            #         # re-initialize metrics for new epoch
-            #         print(
-            #             f"epoch : {self.current_epoch} loss {self.loss} loss_valid {self.loss_valid}"
-            #         )
-            #         # if model.task == 'classification':
-            #         #     metrics = MulticlassMetrics(
-            #         #         device=model.device, possible_classes=torch.tensor([0, 1, 2], device=model.device))
-            #         # else:
-            #         #     metrics = Metrics(device=model.device)
-            #         if self.use_early_stopping:
-            #             self.check_early_stopping()
         return
