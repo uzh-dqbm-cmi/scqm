@@ -299,24 +299,7 @@ class Dataset:
                         "ra_crit_rheumatoid_factor",
                     ],
                 )
-
-            # self.mny_df_proc = pd.get_dummies(self.mny_df_proc, columns=["mnyc_score"])
-        self.med_df_proc = pd.get_dummies(
-            self.med_df_proc,
-            columns=[
-                "medication_generic_drug",
-                "medication_drug_classification",
-            ],
-        )
-        self.patients_df_proc = pd.get_dummies(
-            self.patients_df_proc,
-            columns=["gender"],
-        )
-        self.a_visit_df_proc = pd.get_dummies(
-            self.a_visit_df_proc, columns=["anti_ccp", "ra_crit_rheumatoid_factor"]
-        )
-        # joint df
-        if hasattr(self, "joint_df"):
+        elif hasattr(self, "joint_df"):
             self.joint_df_proc = pd.get_dummies(
                 self.joint_df_proc,
                 columns=[
@@ -347,6 +330,21 @@ class Dataset:
                     "ra_crit_rheumatoid_factor",
                 ],
             )
+        self.med_df_proc = pd.get_dummies(
+            self.med_df_proc,
+            columns=[
+                "medication_generic_drug",
+                "medication_drug_classification",
+            ],
+        )
+        self.patients_df_proc = pd.get_dummies(
+            self.patients_df_proc,
+            columns=["gender"],
+        )
+        self.a_visit_df_proc = pd.get_dummies(
+            self.a_visit_df_proc, columns=["anti_ccp", "ra_crit_rheumatoid_factor"]
+        )
+
         # transform to numeric
         columns_to_exclude = ["patient_id", "uid_num", "med_id", "event_id"]
         for name in self.df_names:

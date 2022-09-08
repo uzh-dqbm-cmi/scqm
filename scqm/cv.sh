@@ -2,7 +2,7 @@
 
 #SBATCH --job-name=cv
 #SBATCH --partition=gpu
-#SBATCH --time=47:00:00
+#SBATCH --time=120:00:00
 
 
 ### Note: --gres=gpu:x should equal to ntasks-per-node

@@ -223,8 +223,8 @@ def get_med_df(patient_df: pd.DataFrame) -> pd.DataFrame:
 
 def get_df_dict(num_patients: int = 10) -> dict:
     patient_df = get_patient_df(num_patients)
-    haq_df = get_haq_df(patient_df)
     visit_df = get_visit_df(patient_df)
+    haq_df = get_haq_df(patient_df)
     med_df = get_med_df(patient_df)
     basdai_df = get_basdai_df(patient_df)
     df_dict = {

@@ -27,7 +27,10 @@ if __name__ == "__main__":
         socioeco_df,
         radai_df,
         haq_df,
-    ) = extract_multitask_features(df_dict_pro, transform_meds=True, only_meds=True)
+        joint_df,
+    ) = extract_multitask_features(
+        df_dict_pro, transform_meds=True, only_meds=True, joint_df=True
+    )
     df_dict_ada = {
         "a_visit": visits_df,
         "patients": general_df,
@@ -37,6 +40,7 @@ if __name__ == "__main__":
         "socio": socioeco_df,
         "radai": radai_df,
         "haq": haq_df,
+        "joint": joint_df,
     }
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     min_num_targets = 2
@@ -50,6 +54,7 @@ if __name__ == "__main__":
         events,
         min_num_targets,
     )
+
     # random.sample(list(df_dict_ada["patients"]["patient_id"].unique()), 4000)
     dataset.drop(
         [
@@ -60,11 +65,14 @@ if __name__ == "__main__":
     )
     print(f"Dropping patients with less than 3 visits, keeping {len(dataset)}")
     dataset.get_masks()
-    with open("/opt/tmp/dataset_asdas_without_basdai.pickle", "wb") as handle:
+    with open(
+        "/cluster/work/medinfmk/scqm/tmp/dataset_with_joint.pickle", "wb"
+    ) as handle:
         pickle.dump(dataset, handle)
+    dataset.post_process_joint_df()
     dataset.create_dfs()
     dataset.transform_to_numeric_adanet()
 
     cv = CVMultitask(dataset, k=5)
-    with open("/opt/tmp/saved_cv_asdas_without_basdai.pickle", "wb") as f:
+    with open("/cluster/work/medinfmk/scqm/tmp/saved_cv_with_joint.pickle", "wb") as f:
         pickle.dump(cv, f)

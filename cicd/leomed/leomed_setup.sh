@@ -15,3 +15,6 @@ export PYTHONPATH=$PYTHONPATH:/cluster/work/medinfmk/scqm/code/scqm_ct/scqm
 
 # Custom package install directory
 export PYTHONPATH=$PYTHONPATH:/opt/code/install_dir/lib/python3.9/site-packages
+
+# venv
+export PATH="$HOME/.local/bin:$PATH"

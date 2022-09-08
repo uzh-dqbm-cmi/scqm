@@ -6,7 +6,8 @@ import pandas as pd
 
 def load_dfs_all_data(subset=None):
     """load all tables"""
-    data_path = "/opt/data/01_raw_scqm_all/SCQM_data_tables_all_data_reduced.pickle"
+    # data_path = "/opt/data/01_raw_scqm_all/SCQM_data_tables_all_data_reduced.pickle"
+    data_path = "/cluster/work/medinfmk/scqm/data/01_raw_scqm_all/SCQM_data_tables_all_data_reduced.pickle"
     with open(data_path, "rb") as handle:
         df_dict = pickle.load(handle)
 

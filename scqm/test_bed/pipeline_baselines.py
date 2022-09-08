@@ -30,7 +30,7 @@ import matplotlib.pyplot as plt
 if __name__ == "__main__":
     seed = 0
     # create fake data
-    df_dict = get_df_dict(num_patients=500)
+    df_dict = get_df_dict(num_patients=200)
     real_data = False
     df_dict_processed = copy.deepcopy(df_dict)
     for index, table in df_dict_processed.items():
@@ -99,8 +99,8 @@ if __name__ == "__main__":
     trainer = MLPTrainer(
         model,
         dataset,
-        n_epochs=30,
-        batch_size=10,
+        n_epochs=10,
+        batch_size=30,
         lr=1e-2,
         balance_classes=True,
         use_early_stopping=False,
@@ -113,18 +113,50 @@ if __name__ == "__main__":
     x_train = dataset.joint_das28_df_scaled_tensor_train[:100]
     x_test = dataset.joint_das28_df_scaled_tensor_test
 
-    explainer = shap.KernelExplainer(trainer.model, x_train)
-    shap_values = explainer.shap_values(x_test)
+    def model_wrapper(x):
+        x_tensor = torch.tensor(x.values)
+        return trainer.model(x_tensor.float()).flatten()
+
+    with torch.no_grad():
+
+        # explainer = shap.Explainer(model_wrapper, np.array(x_train))
+        explainer = shap.Explainer(
+            model_wrapper,
+            pd.DataFrame(
+                np.array(x_train), columns=dataset.joint_das28_df_columns_in_tensor
+            ),
+        )
+        shap_values = explainer(
+            pd.DataFrame(
+                np.array(x_test), columns=dataset.joint_das28_df_columns_in_tensor
+            )
+        )
 
     # "all" data points
+    plt.figure(figsize=(10, 10))
     shap.summary_plot(
         shap_values,
-        x_test,
-        feature_names=dataset.joint_das28_df_columns_in_tensor,
         show=False,
     )
-    plt.savefig("shap_all.png")
+    plt.savefig("shap_all.png", bbox_inches="tight")
     # single data point
+    plt.figure(figsize=(10, 10))
     shap.plots.waterfall(shap_values[2], show=False)
-    plt.savefig("shap_single.png")
+    plt.savefig("shap_waterfall.png", bbox_inches="tight")
+
+    plt.figure(figsize=(10, 10))
+    shap.plots.force(shap_values[2], matplotlib=True, show=False)
+    plt.savefig("shap_force.png", bbox_inches="tight")
+    plt.figure(figsize=(10, 10))
+    shap.plots.bar(shap_values, show=False)
+    plt.savefig("shap_mean.png", bbox_inches="tight")
+
+    plt.figure(figsize=(10, 10))
+    shap.plots.scatter(shap_values[:, "das283bsr_score"], color=shap_values)
+    plt.savefig("shap_scatter.png", bbox_inches="tight")
+
+    plt.figure(figsize=(10, 10))
+    shap.plots.heatmap(shap_values)
+    plt.savefig("shap_heatmap.png", bbox_inches="tight")
+
     print("end")

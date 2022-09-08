@@ -22,6 +22,10 @@ def fill_patients(df, df_patients):
     return df
 
 
+def ffill_and_bfill(df):
+    return df.ffill().bfill()
+
+
 def get_joint_df(df_dict):
     tmp = copy.deepcopy(df_dict)
     tmp["med"] = pd.concat(
@@ -39,6 +43,14 @@ def get_joint_df(df_dict):
             if key != "patients" and df is not None
         ]
     ).sort_values(["patient_id", "date"])
+    # first fill for same visits
+    joint_df = pd.concat(
+        [
+            joint_df.groupby(["patient_id", "uid_num"]).apply(ffill_and_bfill),
+            joint_df[joint_df.uid_num.isna()],
+        ]
+    ).sort_values(["patient_id", "date"])
+    # fill everything
     joint_df = joint_df.groupby("patient_id").apply(ffill_df)
     # aggregate with general info
     for column in tmp["patients"].columns:
