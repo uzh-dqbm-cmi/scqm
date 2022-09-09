@@ -7,7 +7,7 @@ import pickle
 import gc
 
 from scqm.custom_library.cv.cv import CV
-from scqm.custom_library.models.adaptive_net import Adaptivenet
+from legacy.scqm.legacy.models.adaptive_net import Adaptivenet
 from scqm.custom_library.trainers.adaptive_net import AdaptivenetTrainer
 
 

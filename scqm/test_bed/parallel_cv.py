@@ -14,7 +14,7 @@ import torch
 import numpy as np
 import random
 import itertools
-from scqm.custom_library.models.adaptive_net import Adaptivenet
+from legacy.scqm.legacy.models.adaptive_net import Adaptivenet
 from scqm.custom_library.trainers.adaptive_net import AdaptivenetTrainer
 from scqm.custom_library.cv.multitask import CVMultitask
 from scqm.test_bed.fake_scqm import get_df_dict

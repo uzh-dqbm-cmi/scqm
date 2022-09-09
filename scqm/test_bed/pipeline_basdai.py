@@ -14,14 +14,14 @@ import copy
 from scqm.test_bed.fake_scqm import get_df_dict
 from legacy.scqm.legacy.trainers.multiloss import MultilossTrainer
 from scqm.custom_library.trainers.adaptive_net import AdaptivenetTrainer
-from scqm.custom_library.models.other_net_with_double_attention import (
+from legacy.scqm.legacy.models.other_net_with_double_attention import (
     OthernetWithDoubleAttention,
 )
 from legacy.scqm.legacy.models.other_net_with_attention import (
     OthernetWithAttention,
 )
-from scqm.custom_library.models.other_net import Othernet
-from scqm.custom_library.models.adaptive_net import Adaptivenet
+from legacy.scqm.legacy.models.other_net import Othernet
+from legacy.scqm.legacy.models.adaptive_net import Adaptivenet
 import sys
 import cProfile
 import pstats

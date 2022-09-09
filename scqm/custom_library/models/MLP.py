@@ -17,6 +17,7 @@ class MLP(nn.Module):
             [nn.Linear(hidden_size, hidden_size) for i in range(1, num_hidden)]
         )
         self.out = nn.Linear(hidden_size, output_size)
+        self.to(device)
 
     def forward(self, x):
         x = F.relu(self.input_layer(x))

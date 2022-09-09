@@ -207,7 +207,7 @@ class MultitaskTrainer(AdaptivenetTrainer):
                         "das283bsr_score",
                     )
                     self.loss_valid_asdas = model.apply_and_get_loss(
-                        self.dataset, self.criterion, batch_valid_asdas, "basdai_score"
+                        self.dataset, self.criterion, batch_valid_asdas, "asdas_score"
                     )
                     self.loss_valid = self.loss_valid_das28 + self.loss_valid_asdas
                     self.loss_per_epoch_valid[self.current_epoch - 1] = self.loss_valid

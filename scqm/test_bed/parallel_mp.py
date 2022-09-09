@@ -8,7 +8,7 @@ import copy
 from scqm.test_bed.fake_scqm import get_df_dict
 from scqm.custom_library.cv.multitask import CVMultitask
 from scqm.custom_library.trainers.adaptive_net import AdaptivenetTrainer
-from scqm.custom_library.models.adaptive_net import Adaptivenet
+from legacy.scqm.legacy.models.adaptive_net import Adaptivenet
 import torch.multiprocessing as mp
 import itertools
 import random

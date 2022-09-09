@@ -34,9 +34,7 @@ if __name__ == "__main__":
         print(error)
     print("loading data")
 
-    with open(
-        "/cluster/work/medinfmk/scqm/tmp/saved_cv_asdas_without_basdai.pickle", "rb"
-    ) as f:
+    with open("/cluster/work/medinfmk/scqm/tmp/saved_cv_with_joint.pickle", "rb") as f:
         cv = pickle.load(f)
 
     dataset = cv.dataset

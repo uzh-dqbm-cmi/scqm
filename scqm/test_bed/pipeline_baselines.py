@@ -92,8 +92,11 @@ if __name__ == "__main__":
     partition = MultitaskPartition(dataset, k=3)
     fold = int(0)
     partition.set_current_fold(fold)
-
-    input_size = dataset.joint_das28_df_scaled_tensor_train.shape[1]
+    target_name = "asdas_score"
+    if target_name == "das283bsr_score":
+        input_size = dataset.joint_das28_df_scaled_tensor_train.shape[1]
+    elif target_name == "asdas_score":
+        input_size = dataset.joint_asdas_df_scaled_tensor_train.shape[1]
     config = {"input_size": input_size, "output_size": 1}
     model = MLP(config, device)
     trainer = MLPTrainer(
@@ -104,59 +107,59 @@ if __name__ == "__main__":
         lr=1e-2,
         balance_classes=True,
         use_early_stopping=False,
-        target_name="das283bsr_score",
+        target_name=target_name,
     )
     trainer.train_model(model, partition)
 
-    # try shap
+    # # try shap
 
-    x_train = dataset.joint_das28_df_scaled_tensor_train[:100]
-    x_test = dataset.joint_das28_df_scaled_tensor_test
+    # x_train = dataset.joint_das28_df_scaled_tensor_train[:100]
+    # x_test = dataset.joint_das28_df_scaled_tensor_test
 
-    def model_wrapper(x):
-        x_tensor = torch.tensor(x.values)
-        return trainer.model(x_tensor.float()).flatten()
+    # def model_wrapper(x):
+    #     x_tensor = torch.tensor(x.values)
+    #     return trainer.model(x_tensor.float()).flatten()
 
-    with torch.no_grad():
+    # with torch.no_grad():
 
-        # explainer = shap.Explainer(model_wrapper, np.array(x_train))
-        explainer = shap.Explainer(
-            model_wrapper,
-            pd.DataFrame(
-                np.array(x_train), columns=dataset.joint_das28_df_columns_in_tensor
-            ),
-        )
-        shap_values = explainer(
-            pd.DataFrame(
-                np.array(x_test), columns=dataset.joint_das28_df_columns_in_tensor
-            )
-        )
+    #     # explainer = shap.Explainer(model_wrapper, np.array(x_train))
+    #     explainer = shap.Explainer(
+    #         model_wrapper,
+    #         pd.DataFrame(
+    #             np.array(x_train), columns=dataset.joint_das28_df_columns_in_tensor
+    #         ),
+    #     )
+    #     shap_values = explainer(
+    #         pd.DataFrame(
+    #             np.array(x_test), columns=dataset.joint_das28_df_columns_in_tensor
+    #         )
+    #     )
 
-    # "all" data points
-    plt.figure(figsize=(10, 10))
-    shap.summary_plot(
-        shap_values,
-        show=False,
-    )
-    plt.savefig("shap_all.png", bbox_inches="tight")
-    # single data point
-    plt.figure(figsize=(10, 10))
-    shap.plots.waterfall(shap_values[2], show=False)
-    plt.savefig("shap_waterfall.png", bbox_inches="tight")
+    # # "all" data points
+    # plt.figure(figsize=(10, 10))
+    # shap.summary_plot(
+    #     shap_values,
+    #     show=False,
+    # )
+    # plt.savefig("shap_all.png", bbox_inches="tight")
+    # # single data point
+    # plt.figure(figsize=(10, 10))
+    # shap.plots.waterfall(shap_values[2], show=False)
+    # plt.savefig("shap_waterfall.png", bbox_inches="tight")
 
-    plt.figure(figsize=(10, 10))
-    shap.plots.force(shap_values[2], matplotlib=True, show=False)
-    plt.savefig("shap_force.png", bbox_inches="tight")
-    plt.figure(figsize=(10, 10))
-    shap.plots.bar(shap_values, show=False)
-    plt.savefig("shap_mean.png", bbox_inches="tight")
+    # plt.figure(figsize=(10, 10))
+    # shap.plots.force(shap_values[2], matplotlib=True, show=False)
+    # plt.savefig("shap_force.png", bbox_inches="tight")
+    # plt.figure(figsize=(10, 10))
+    # shap.plots.bar(shap_values, show=False)
+    # plt.savefig("shap_mean.png", bbox_inches="tight")
 
-    plt.figure(figsize=(10, 10))
-    shap.plots.scatter(shap_values[:, "das283bsr_score"], color=shap_values)
-    plt.savefig("shap_scatter.png", bbox_inches="tight")
+    # plt.figure(figsize=(10, 10))
+    # shap.plots.scatter(shap_values[:, "das283bsr_score"], color=shap_values)
+    # plt.savefig("shap_scatter.png", bbox_inches="tight")
 
-    plt.figure(figsize=(10, 10))
-    shap.plots.heatmap(shap_values)
-    plt.savefig("shap_heatmap.png", bbox_inches="tight")
+    # plt.figure(figsize=(10, 10))
+    # shap.plots.heatmap(shap_values)
+    # plt.savefig("shap_heatmap.png", bbox_inches="tight")
 
-    print("end")
+    # print("end")
