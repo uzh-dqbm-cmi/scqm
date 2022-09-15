@@ -64,4 +64,4 @@ class Metrics:
         )
         if print_metric:
             print(f"mse : {self.returned_metric}")
-        return
+        return self.returned_metric

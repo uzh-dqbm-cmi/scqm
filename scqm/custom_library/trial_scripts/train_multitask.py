@@ -14,8 +14,11 @@ from scqm.custom_library.partition.multitask_partition import MultitaskPartition
 
 from scqm.custom_library.preprocessing.load_data import load_dfs_all_data
 from scqm.custom_library.preprocessing.preprocessing import preprocessing
+from scqm.custom_library.utils import set_seeds
 
 if __name__ == "__main__":
+
+    set_seeds(0)
     reload = True
     if reload:
         with open("/opt/tmp/saved_cv_asdas_without_basdai.pickle", "rb") as f:

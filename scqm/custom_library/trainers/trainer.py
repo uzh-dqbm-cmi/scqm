@@ -64,7 +64,7 @@ class Trainer:
             ]
             print("early stopping because validation loss is increasing")
 
-    def update_epoch_and_indices(self, batch: Batch):
+    def update_epoch_and_indices(self, batch: Batch, verbose=True):
         """Update available indices and epoch if a pass has been made through all the data
 
         Args:
@@ -77,9 +77,10 @@ class Trainer:
         # a whole pass through the data has been completed
         if len(batch.available_indices) == 0:
             self.stop = timeit.default_timer()
-            print(
-                f"Time: for epoch {(self.stop - self.start)/60} total time {(self.stop - self.total_time)/60}"
-            )
+            if verbose:
+                print(
+                    f"Time: for epoch {(self.stop - self.start)/60} total time {(self.stop - self.total_time)/60}"
+                )
 
             self.start = timeit.default_timer()
             batch.available_indices = batch.all_indices

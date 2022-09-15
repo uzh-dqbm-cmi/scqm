@@ -28,7 +28,7 @@ class ClusterAnalysis:
             self.raw_histories_unscaled,
             self.model_histories,
             self.subset_das28,
-            self.subset_basdai,
+            self.subset_asdas,
             self.patient_in_embedding,
             self.hist_per_event,
         ) = get_histories_and_features(dataset, self.model, subset=dataset.train_ids)
@@ -40,7 +40,7 @@ class ClusterAnalysis:
             self.raw_histories_unscaled_test,
             self.model_histories_test,
             self.subset_das28_test,
-            self.subset_basdai_test,
+            self.subset_asdas_test,
             self.patient_in_embedding_test,
             self.hist_per_event_test,
         ) = get_histories_and_features(dataset, self.model, subset=dataset.test_ids)
@@ -92,9 +92,9 @@ class ClusterAnalysis:
         self.results = MulticlassResults(self.dataset, self.model, self.trainer)
         (
             self.df_das28,
-            self.df_basdai,
+            self.df_asdas,
             self.metrics_das28,
-            self.metrics_basdai,
+            self.metrics_asdas,
         ) = self.results.evaluate_model(self.dataset.test_ids)
         self.get_diagnosis()
 
@@ -137,9 +137,10 @@ class ClusterAnalysis:
         visualizer = KElbowVisualizer(KMeans(), k=(2, 8), metric="calinski_harabasz")
         visualizer.fit(np.array(x.cpu()))
         plt.title(title)
+        plt.show()
         return
 
-    def get_history_for_event(self, event, subset_das28, subset_basdai, hist_per_event):
+    def get_history_for_event(self, event, subset_das28, subset_asdas, hist_per_event):
         numbers_of_target = [
             torch.sum(
                 self.dataset.masks_das28.available_target_mask[
@@ -153,12 +154,12 @@ class ClusterAnalysis:
         numbers_of_target.extend(
             [
                 torch.sum(
-                    self.dataset.masks_basdai.available_target_mask[
-                        self.dataset.mapping_for_masks_basdai[patient]
+                    self.dataset.masks_asdas.available_target_mask[
+                        self.dataset.mapping_for_masks_asdas[patient]
                     ]
                     == True
                 ).item()
-                for patient in subset_basdai
+                for patient in subset_asdas
             ]
         )
         event_histories = torch.empty(
@@ -170,7 +171,7 @@ class ClusterAnalysis:
                 index_in_tensor : index_in_tensor + numbers_of_target[index]
             ] = hist_per_event[patient][event]
             index_in_tensor += numbers_of_target[index]
-        for index, patient in enumerate(subset_basdai):
+        for index, patient in enumerate(subset_asdas):
             event_histories[
                 index_in_tensor : index_in_tensor
                 + numbers_of_target[index + len(subset_das28)]
@@ -180,12 +181,12 @@ class ClusterAnalysis:
 
     def tsne_for_event(self, event="a_visit"):
         event_histories = self.get_history_for_event(
-            event, self.subset_das28, self.subset_basdai, self.hist_per_event
+            event, self.subset_das28, self.subset_asdas, self.hist_per_event
         )
         event_histories_test = self.get_history_for_event(
             event,
             self.subset_das28_test,
-            self.subset_basdai_test,
+            self.subset_asdas_test,
             self.hist_per_event_test,
         )
         setattr(self, event + "_histories_train", event_histories)
@@ -231,6 +232,7 @@ class ClusterAnalysis:
             alpha=0.4,
         )
         plt.title(event + " clusters")
+        plt.show()
         for index, name in enumerate(self.feature_names):
             if name in self.feature_continuous:
                 plt.figure(figsize=(10, 10))
@@ -241,6 +243,7 @@ class ClusterAnalysis:
                 )
                 plt.colorbar()
                 plt.title(event + " decomposition : " + name)
+                plt.show()
             elif name in self.feature_categorical:
                 tmp = [item if item == item else np.nan for item in c[:, index]]
                 df = pd.DataFrame(
@@ -391,8 +394,8 @@ class ClusterAnalysis:
             subset = self.subset_das28_test
             df = self.df_das28
         else:
-            subset = self.subset_basdai_test
-            df = self.df_basdai
+            subset = self.subset_asdas_test
+            df = self.df_asdas
         for patient in subset:
             tmp = df[df.patient_id == patient]
             indices.extend(list(self.patient_in_embedding_test[patient]["indices"]))
@@ -416,9 +419,9 @@ class ClusterAnalysis:
             tmp = self.df_das28[self.df_das28.patient_id == patient]
             tmp["score"] = "das28"
             df_for_plot = df_for_plot.append(tmp)
-        for patient in self.subset_basdai_test:
-            tmp = self.df_basdai[self.df_basdai.patient_id == patient]
-            tmp["score"] = "basdai"
+        for patient in self.subset_asdas_test:
+            tmp = self.df_asdas[self.df_asdas.patient_id == patient]
+            tmp["score"] = "asdas"
             df_for_plot = df_for_plot.append(tmp)
 
         plt.figure(figsize=(10, 10))
@@ -448,12 +451,12 @@ class ClusterAnalysis:
             if subset == "test":
                 patients = [
                     random.choice(self.subset_das28_test),
-                    random.choice(self.subset_basdai_test),
+                    random.choice(self.subset_asdas_test),
                 ]
             else:
                 patients = [
                     random.choice(self.subset_das28),
-                    random.choice(self.subset_basdai),
+                    random.choice(self.subset_asdas),
                 ]
         tsne = self.tsne_model_train if subset == "train" else self.tsne_model_test
         embeddings = (

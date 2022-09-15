@@ -136,7 +136,7 @@ def get_histories_and_features(dataset, model, subset):
     subset_das28 = [
         p for p in subset if dataset[p].target_name in ["both", "das283bsr_score"]
     ]
-    subset_basdai = [p for p in subset if dataset[p].target_name == "basdai_score"]
+    subset_asdas = [p for p in subset if dataset[p].target_name == "asdas_score"]
 
     numbers_of_target = [
         torch.sum(
@@ -151,12 +151,12 @@ def get_histories_and_features(dataset, model, subset):
     numbers_of_target.extend(
         [
             torch.sum(
-                dataset.masks_basdai.available_target_mask[
-                    dataset.mapping_for_masks_basdai[patient]
+                dataset.masks_asdas.available_target_mask[
+                    dataset.mapping_for_masks_asdas[patient]
                 ]
                 == True
             ).item()
-            for patient in subset_basdai
+            for patient in subset_asdas
         ]
     )
     model_histories = torch.empty(size=(sum(numbers_of_target), model.pred_input_size))
@@ -182,7 +182,7 @@ def get_histories_and_features(dataset, model, subset):
     )
     patient_in_embedding = {
         patient: {"indices": [], "target": dataset[patient].target_name}
-        for patient in subset_das28 + subset_basdai
+        for patient in subset_das28 + subset_asdas
     }
     index_in_history = 0
     raw_features = {}
@@ -214,11 +214,11 @@ def get_histories_and_features(dataset, model, subset):
         )
         index_in_history += numbers_of_target[index]
 
-    print(f"saving histories for basdai")
+    print(f"saving histories for asdas")
 
-    for index, patient in enumerate(tqdm(subset_basdai)):
+    for index, patient in enumerate(tqdm(subset_asdas)):
         _, _, _, hist, hist_per_event, _, _ = model.apply(
-            dataset, patient, "basdai_score", return_history=True
+            dataset, patient, "asdas_score", return_history=True
         )
         (
             raw_features[patient],
@@ -232,7 +232,7 @@ def get_histories_and_features(dataset, model, subset):
                 + numbers_of_target[index + len(subset_das28)]
             ],
             raw_features_all[patient],
-        ) = get_features(model, dataset, patient, "basdai_score")
+        ) = get_features(model, dataset, patient, "asdas_score")
         model_histories[
             index_in_history : index_in_history
             + numbers_of_target[index + len(subset_das28)]
@@ -252,7 +252,7 @@ def get_histories_and_features(dataset, model, subset):
         raw_histories_unscaled,
         model_histories,
         subset_das28,
-        subset_basdai,
+        subset_asdas,
         patient_in_embedding,
         hist_per_event_all,
     )

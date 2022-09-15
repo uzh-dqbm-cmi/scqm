@@ -427,6 +427,7 @@ class Dataset:
         self.tensor_indices_mapping_test = {
             index: {name: [] for name in self.df_names} for index in self.test_ids
         }
+        # first find scaling values
         for name in self.df_names:
             df = getattr(self, name + "_proc")
 
@@ -441,17 +442,78 @@ class Dataset:
                 min_train_values[self.target_category_name] = 0
                 max_train_values[self.target_category_name] = 1
             # store scaling values
-            setattr(
-                self,
-                str(name) + "_scaling_values",
-                (min_train_values, max_train_values),
+            if name in ["joint_targets_das28_df", "joint_targets_asdas_df"]:
+                pass
+            elif name in ["joint_das28_df"]:
+                setattr(
+                    self,
+                    str(name) + "_scaling_values",
+                    (min_train_values, max_train_values),
+                )
+                setattr(
+                    self,
+                    "joint_targets_das28_df_scaling_values",
+                    (
+                        pd.Series(
+                            {
+                                "date": min_train_values["date"],
+                                "value": min_train_values["das283bsr_score"],
+                            }
+                        ),
+                        pd.Series(
+                            {
+                                "date": max_train_values["date"],
+                                "value": max_train_values["das283bsr_score"],
+                            }
+                        ),
+                    ),
+                )
+            elif name in ["joint_asdas_df"]:
+                setattr(
+                    self,
+                    str(name) + "_scaling_values",
+                    (min_train_values, max_train_values),
+                )
+                setattr(
+                    self,
+                    "joint_targets_asdas_df_scaling_values",
+                    (
+                        pd.Series(
+                            {
+                                "date": min_train_values["date"],
+                                "value": min_train_values["asdas_score"],
+                            }
+                        ),
+                        pd.Series(
+                            {
+                                "date": max_train_values["date"],
+                                "value": max_train_values["asdas_score"],
+                            }
+                        ),
+                    ),
+                )
+            else:
+                setattr(
+                    self,
+                    str(name) + "_scaling_values",
+                    (min_train_values, max_train_values),
+                )
+        for name in self.df_names:
+            df = getattr(self, name + "_proc")
+
+            # get train min and max values
+            columns_to_exclude = ["patient_id", "uid_num", "med_id", "event_id"]
+            columns = [col for col in df.columns if col not in columns_to_exclude]
+            (min_train_values, max_train_values) = getattr(
+                self, str(name) + "_scaling_values"
             )
             # store columns names and corresponding location in tensor
             setattr(self, str(name) + "_columns_in_tensor", columns)
             # scale everything
-            df[columns] = (df[columns] - min_train_values) / (
-                max_train_values - min_train_values
-            )
+            for col in columns:
+                df[col] = (df[col] - min_train_values[col]) / (
+                    max_train_values[col] - min_train_values[col]
+                )
             # change that, split into train, test, valid tensors and save mappings
             if nan_dummies:
                 setattr(

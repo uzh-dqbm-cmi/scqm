@@ -1,20 +1,20 @@
 #!/bin/bash
 
-#SBATCH --job-name=job
+#SBATCH --job-name=job_2
 #SBATCH --partition=gpu
-#SBATCH --time=02:00:00
+#SBATCH --time=03:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 
 #SBATCH --cpus-per-task=3
 
-# SBATCH --mem=50g
+#SBATCH --mem=50g
 
 #SBATCH --mem-per-cpu=12000
 
 #SBATCH --gres=gpu:1
 
-#SBATCH -o /cluster/work/medinfmk/scqm/logs/job.out 
+#SBATCH -o /cluster/work/medinfmk/scqm/logs/job_2.out 
 #
 export PYTHONPATH=$PYTHONPATH:/cluster/work/medinfmk/scqm/code/scqm_ct/scqm
 export PATH="$HOME/.local/bin:$PATH"

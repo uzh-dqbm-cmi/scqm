@@ -1,16 +1,34 @@
 from scqm.custom_library.partition.partition import DataPartition
 import math
 import numpy as np
+from scqm.custom_library.data_objects.dataset import Dataset
 
 
 class MultitaskPartition(DataPartition):
-    def split(self):
+    def __init__(self, dataset: Dataset, k: int = 5, split_indices: dict = {}):
+        self.dataset = dataset
+        self.k = k
+        self.split(ids=split_indices)
+
+    def split(self, ids={}):
         """create folds"""
         # TODO implement stratifier (on the targets)
         # split data into train and test (no valid)
-        self.train_ids, self.valid_ids, self.test_ids = self.dataset.split_data(
-            prop_valid=0.0, prop_test=0.2
-        )
+        if len(ids) == 0:
+            self.train_ids, self.valid_ids, self.test_ids = self.dataset.split_data(
+                prop_valid=0.0, prop_test=0.2
+            )
+        else:
+            self.dataset.train_ids, self.dataset.valid_ids, self.dataset.test_ids = (
+                ids["train_ids"],
+                ids["valid_ids"],
+                ids["test_ids"],
+            )
+            self.train_ids, self.valid_ids, self.test_ids = (
+                ids["train_ids"],
+                ids["valid_ids"],
+                ids["test_ids"],
+            )
         self.dataset.scale_and_tensor()
         # get partition of size k of train set
         self.fold_size = math.ceil(len(self.dataset.train_ids) / self.k)

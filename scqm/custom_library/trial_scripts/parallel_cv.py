@@ -20,8 +20,11 @@ import itertools
 import os
 from scqm.custom_library.parameters.cv import get_parameters
 import datetime
+from scqm.custom_library.utils import set_seeds
 
 if __name__ == "__main__":
+
+    set_seeds(0)
 
     fold = int(sys.argv[1])
     print(fold)

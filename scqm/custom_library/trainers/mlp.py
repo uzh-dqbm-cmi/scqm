@@ -58,13 +58,17 @@ class MLPTrainer(Trainer):
             partitions_train = partition.partitions_train_das28
             tensor_names = ["joint_das28", "joint_targets_das28"]
             train_tensor = self.dataset.joint_das28_df_scaled_tensor_train
-            train_target = self.dataset.joint_targets_das28_df_scaled_tensor_train
+            train_target = self.dataset.joint_targets_das28_df_scaled_tensor_train[
+                :, self.dataset.joint_targets_das28_df_columns_in_tensor.index("value")
+            ].reshape(len(self.dataset.joint_targets_das28_df_scaled_tensor_train), 1)
         elif self.target_name == "asdas_score":
             partitions_test = partition.partitions_test_asdas
             partitions_train = partition.partitions_train_asdas
             tensor_names = ["joint_asdas", "joint_targets_asdas"]
             train_tensor = self.dataset.joint_asdas_df_scaled_tensor_train
-            train_target = self.dataset.joint_targets_asdas_df_scaled_tensor_train
+            train_target = self.dataset.joint_targets_asdas_df_scaled_tensor_train[
+                :, self.dataset.joint_targets_asdas_df_columns_in_tensor.index("value")
+            ].reshape(len(self.dataset.joint_targets_asdas_df_scaled_tensor_train), 1)
         batch_valid = Batch(
             model.device,
             partitions_test[partition.current_fold]
@@ -98,20 +102,21 @@ class MLPTrainer(Trainer):
                 batch_valid.indices_joint_das28
             ]
             valid_target = self.dataset.joint_targets_das28_df_scaled_tensor_train[
-                batch_valid.indices_joint_targets_das28
-            ]
+                batch_valid.indices_joint_targets_das28,
+                self.dataset.joint_targets_das28_df_columns_in_tensor.index("value"),
+            ].reshape(len(batch_valid.indices_joint_targets_das28), 1)
         elif self.target_name == "asdas_score":
             valid_tensor = self.dataset.joint_asdas_df_scaled_tensor_train[
                 batch_valid.indices_joint_asdas
             ]
             valid_target = self.dataset.joint_targets_asdas_df_scaled_tensor_train[
-                batch_valid.indices_joint_targets_asdas
-            ]
+                batch_valid.indices_joint_targets_asdas,
+                self.dataset.joint_targets_asdas_df_columns_in_tensor.index("value"),
+            ].reshape(len(batch_valid.indices_joint_targets_asdas), 1)
         while (self.current_epoch < self.n_epochs) and self.early_stopping == False:
             model.train()
-
             batch.get_batch(self.dataset, self.batch_size)
-            self.update_epoch_and_indices(batch)
+            self.update_epoch_and_indices(batch, verbose=verbose)
             if self.target_name == "das283bsr_score":
                 batch_indices = batch.indices_joint_das28
                 batch_indices_targets = batch.indices_joint_targets_das28

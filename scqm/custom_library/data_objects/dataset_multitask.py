@@ -188,9 +188,13 @@ class DatasetMultitask(Dataset):
         joint_df = self.initial_df_dict["joint"]
 
         joint_df_das28 = pd.DataFrame(columns=list(joint_df.columns) + ["time_to_pred"])
-        joint_targets_das28 = pd.DataFrame(columns=["patient_id", "value", "uid_num"])
+        joint_targets_das28 = pd.DataFrame(
+            columns=["patient_id", "value", "uid_num", "date"]
+        )
         joint_df_asdas = pd.DataFrame(columns=list(joint_df.columns) + ["time_to_pred"])
-        joint_targets_asdas = pd.DataFrame(columns=["patient_id", "value", "uid_num"])
+        joint_targets_asdas = pd.DataFrame(
+            columns=["patient_id", "value", "uid_num", "date"]
+        )
         print("post-process joint df")
         for patient in tqdm(self.das28_ids + self.multitarget_ids):
             for target in self[patient].targets_to_predict["das283bsr_score"]:
@@ -208,6 +212,7 @@ class DatasetMultitask(Dataset):
                                 "patient_id": [patient],
                                 "value": [target_value],
                                 "uid_num": [id_],
+                                "date": [date],
                             }
                         ),
                     ],
@@ -234,6 +239,7 @@ class DatasetMultitask(Dataset):
                                 "patient_id": [patient],
                                 "value": [target_value],
                                 "uid_num": [id_],
+                                "date": [date],
                             }
                         ),
                     ],
@@ -245,14 +251,17 @@ class DatasetMultitask(Dataset):
                 features["time_to_pred"] = date
                 joint_df_asdas = pd.concat((pd.DataFrame([features]), joint_df_asdas))
         # columns to keep as features
-        columns_to_drop = ["date"]
-        self.initial_df_dict["joint_das28"] = joint_df_das28.drop(
-            columns=columns_to_drop
+        self.initial_df_dict["joint_das28"] = joint_df_das28.sort_values(
+            by=["patient_id", "date"]
         )
-        self.initial_df_dict["joint_asdas"] = joint_df_asdas.drop(
-            columns=columns_to_drop
+        self.initial_df_dict["joint_asdas"] = joint_df_asdas.sort_values(
+            by=["patient_id", "date"]
         )
-        self.initial_df_dict["joint_targets_das28"] = joint_targets_das28
-        self.initial_df_dict["joint_targets_asdas"] = joint_targets_asdas
+        self.initial_df_dict["joint_targets_das28"] = joint_targets_das28.sort_values(
+            by=["patient_id", "date"]
+        )
+        self.initial_df_dict["joint_targets_asdas"] = joint_targets_asdas.sort_values(
+            by=["patient_id", "date"]
+        )
 
         return

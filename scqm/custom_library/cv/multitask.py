@@ -13,7 +13,7 @@ import gc
 
 
 class CVMultitask(CV):
-    def __init__(self, dataset, k: int = 5) -> None:
+    def __init__(self, dataset, k: int = 5, split_indices: dict = {}) -> None:
         """Init method. Create the partition on the data.
 
         Args:
@@ -23,7 +23,9 @@ class CVMultitask(CV):
         set_seeds(0)
         self.dataset = dataset
         self.k = k
-        self.partition = MultitaskPartition(self.dataset, k=self.k)
+        self.partition = MultitaskPartition(
+            self.dataset, k=self.k, split_indices=split_indices
+        )
 
     def perform_cv(self, parameters: dict, fold: int, n_epochs: int = 40) -> None:
         """Perform a CV on a given fold, and save trained model.

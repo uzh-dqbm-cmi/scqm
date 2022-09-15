@@ -105,7 +105,7 @@ class MulticlassMetrics(Metrics):
         self.returned_metric = self.returned_metric / len(self.possible_classes)
         if print_metrics:
             print(f"macro f1 {self.returned_metric} all {self.all_metrics}")
-        return
+        return self.returned_metric
 
     def get_auroc(self):
         """compute auroc"""
