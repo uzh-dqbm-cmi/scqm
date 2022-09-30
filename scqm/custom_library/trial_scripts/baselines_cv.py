@@ -25,7 +25,9 @@ if __name__ == "__main__":
     print("start")
     target_name = "asdas_score"
 
-    with open("/cluster/work/medinfmk/scqm/tmp/saved_cv_with_joint.pickle", "rb") as f:
+    with open(
+        "/cluster/work/medinfmk/scqm/tmp/saved_cv_with_joint_16_09.pickle", "rb"
+    ) as f:
         cv = pickle.load(f)
     dataset = cv.dataset
     partition = cv.partition
@@ -61,7 +63,7 @@ if __name__ == "__main__":
             trainer = MLPTrainer(
                 model,
                 dataset,
-                n_epochs=130,
+                n_epochs=170,
                 batch_size=300,
                 lr=1e-3,
                 balance_classes=True,

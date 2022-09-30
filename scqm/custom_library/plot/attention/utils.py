@@ -330,25 +330,26 @@ def apply_attention(
                     model.history_size,
                 ),
             )
+
+            general_info = (
+                model.p_encoder(dataset[patient_id].patients_df_tensor.to(model.device))
+                .reshape(1, 1, model.history_size)
+                .to(model.device)
+            )
+            combined_input = torch.cat((general_info, combined_lstm_input), dim=1)
             global_attention_weights = torch.nn.Softmax(dim=1)(
-                torch.matmul(combined_lstm_input, model.GlobalAttention)
+                torch.matmul(combined_input, model.GlobalAttention)
             )
             all_global_attention.append(global_attention_weights)
-            combined_lstm_input = torch.reshape(
-                global_attention_weights * combined_lstm_input,
-                shape=(
-                    1,
-                    model.combined_history_size[0],
-                ),
+
+            combined_input = torch.sum(
+                global_attention_weights * combined_input,
+                dim=1,
             )
-            # concat computed patient history with general information
-            general_info = model.p_encoder(
-                dataset[patient_id].patients_df_tensor.to(model.device)
-            )
+
             pred_input = torch.cat(
                 (
-                    general_info,
-                    combined_lstm_input,
+                    combined_input,
                     time_to_targets[index_target],
                 ),
                 dim=1,

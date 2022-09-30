@@ -43,7 +43,7 @@ class MulticlassMetrics(Metrics):
                 predicted_probas if predicted_probas else predictions
             )
 
-    def get_metrics(self, print_metrics: str = False):
+    def get_metrics(self, print_metric: str = False):
         """Compute multiclass metrics
 
         Args:
@@ -103,7 +103,7 @@ class MulticlassMetrics(Metrics):
             self.fpr[class_] = FP / (FP + TN)
             self.tpr[class_] = TP / (TP + FN)
         self.returned_metric = self.returned_metric / len(self.possible_classes)
-        if print_metrics:
+        if print_metric:
             print(f"macro f1 {self.returned_metric} all {self.all_metrics}")
         return self.returned_metric
 

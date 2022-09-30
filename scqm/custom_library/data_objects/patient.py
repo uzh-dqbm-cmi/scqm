@@ -300,14 +300,11 @@ class Patient(DataObject):
                 value_at_visit = self.targets_df[target_name][target_name].iloc[
                     num_of_each_event[index_of_target].item()
                 ]
-                increase = 0 if value_at_visit <= value_before else 1
-            else:
-                increase = np.nan
             return (
                 num_of_each_event,
                 cropped_timeline,
                 cropped_timeline_mask,
-                cropped_timeline_visual,
+                date_nth_target,
                 to_predict,
-                increase,
+                uid_nth_target,
             )

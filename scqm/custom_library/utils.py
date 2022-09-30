@@ -1,5 +1,5 @@
 import numpy as np
-import torch
+
 import random
 import pickle
 import io
@@ -9,6 +9,8 @@ class CPU_Unpickler(pickle.Unpickler):
     """Unpickles files saved using cpu or gpu"""
 
     def find_class(self, module, name):
+        import torch
+
         if module == "torch.storage" and name == "_load_from_bytes":
             return lambda b: torch.load(io.BytesIO(b), map_location="cpu")
         else:
@@ -20,13 +22,16 @@ class CPU_Unpickler(pickle.Unpickler):
     #     file = CPU_Unpickler(handle).load()
 
 
-def set_seeds(seed: int = 0) -> None:
+def set_seeds(seed: int = 0, import_torch: bool = True) -> None:
     """set all relevant seeds
 
     Args:
         seed (int, optional): seed. Defaults to 0.
     """
     random.seed(seed)
-    torch.manual_seed(seed)
+    if import_torch:
+        import torch
+
+        torch.manual_seed(seed)
     np.random.seed(seed)
     return

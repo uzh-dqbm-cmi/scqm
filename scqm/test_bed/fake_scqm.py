@@ -77,7 +77,7 @@ def get_patient_df(num_patients: int = 10) -> pd.DataFrame:
     )
 
 
-def get_haq_df(patient_df: pd.DataFrame) -> pd.DataFrame:
+def get_haq_df(patient_df: pd.DataFrame, visit_df: pd.DataFrame) -> pd.DataFrame:
     """Generate random haq df from patients in patient df
 
     Args:
@@ -88,15 +88,43 @@ def get_haq_df(patient_df: pd.DataFrame) -> pd.DataFrame:
     """
     ids = random.choices(patient_df["patient_id"].values, k=len(patient_df) * 2)
     haq_values = random.choices(range(10), k=len(ids))
-    uid_num = random.sample(range(4000), k=len(ids))
-    dates = [
-        random_date(
-            start=patient_df[patient_df.patient_id == patient_id].date_of_birth.item()
-        )
-        for patient_id in ids
-    ]
+    # select random subset of visit_df corresponding to patients in ids
+    tmp = visit_df[visit_df.patient_id.isin(ids)].sample(n=len(ids))
+    ids = tmp.patient_id.values
+    uid_num = tmp.uid_num.values
+    dates = tmp.date.values
+    # uid_num = random.sample(range(4000), k=len(ids))
+    # dates = [
+    #     random_date(
+    #         start=patient_df[patient_df.patient_id == patient_id].date_of_birth.item()
+    #     )
+    #     for patient_id in ids
+    # ]
     return pd.DataFrame(
         {"patient_id": ids, "date": dates, "uid_num": uid_num, "haq_score": haq_values}
+    )
+
+
+def get_socioeco_df(patient_df: pd.DataFrame, visit_df: pd.DataFrame) -> pd.DataFrame:
+    ids = random.choices(patient_df["patient_id"].values, k=len(patient_df) * 2)
+    smoker_values = random.choices(
+        [
+            "i_am_currently_smoking",
+            "i_have_never_smoked",
+            "i_am_a_former_smoker_for_more_than_a_year",
+            "never_been_smoking",
+            "smoking_currently",
+            "a_former_smoker",
+        ],
+        k=len(ids),
+    )
+    tmp = visit_df[visit_df.patient_id.isin(ids)].sample(n=len(ids))
+    ids = tmp.patient_id.values
+    uid_num = tmp.uid_num.values
+    dates = tmp.date.values
+
+    return pd.DataFrame(
+        {"patient_id": ids, "date": dates, "uid_num": uid_num, "smoker": smoker_values}
     )
 
 
@@ -125,6 +153,42 @@ def get_basdai_df(patient_df: pd.DataFrame) -> pd.DataFrame:
             "date": dates,
             "basdai_score": basdai_values,
             "event_id": event_id,
+        }
+    )
+
+
+def get_radai_df(patient_df: pd.DataFrame) -> pd.DataFrame:
+    ids = random.choices(patient_df["patient_id"].values, k=len(patient_df) * 2)
+    pain_level_values = random.choices(range(10), k=len(ids))
+    activity_radai = random.choices(range(10), k=len(ids))
+    morning_stiffness = random.choices(
+        [
+            "no_morning_stiffness",
+            "1_to_2_hours",
+            "30_minutes_to_1_hour",
+            "2_to_4_hours",
+            "less_than_30_minutes",
+            "all_day",
+            "more_than_4_hours",
+        ],
+        k=len(ids),
+    )
+    event_id = random.sample(range(4000), k=len(ids))
+    event_id = [str(elem) for elem in event_id]
+    dates = [
+        random_date(
+            start=patient_df[patient_df.patient_id == patient_id].date_of_birth.item()
+        )
+        for patient_id in ids
+    ]
+    return pd.DataFrame(
+        {
+            "patient_id": ids,
+            "date": dates,
+            "pain_level_today_radai": pain_level_values,
+            "morning_stiffness_duration_radai": morning_stiffness,
+            "activity_of_rheumatic_disease_today_radai": activity_radai,
+            "uid_num": event_id,
         }
     )
 
@@ -224,15 +288,19 @@ def get_med_df(patient_df: pd.DataFrame) -> pd.DataFrame:
 def get_df_dict(num_patients: int = 10) -> dict:
     patient_df = get_patient_df(num_patients)
     visit_df = get_visit_df(patient_df)
-    haq_df = get_haq_df(patient_df)
+    haq_df = get_haq_df(patient_df, visit_df)
+    socioeco_df = get_socioeco_df(patient_df, visit_df)
     med_df = get_med_df(patient_df)
     basdai_df = get_basdai_df(patient_df)
+    radai_df = get_radai_df(patient_df)
     df_dict = {
         "patients": patient_df,
         "visits": visit_df,
         "haq": haq_df,
+        "socioeco": socioeco_df,
         "medications": med_df,
         "basdai": basdai_df,
+        "radai5": radai_df,
     }
     return df_dict
 
@@ -252,8 +320,9 @@ if __name__ == "__main__":
     columns_haq = ["patient_id", "date", "haq"]
     columns_basdai = ["patient_id", "date", "basdai_score"]
     patient_df = get_patient_df(100)
-    haq_df = get_haq_df(patient_df)
     visit_df = get_visit_df(patient_df)
+    haq_df = get_haq_df(patient_df, visit_df)
+    socioeco_df = get_socioeco_df(patient_df, visit_df)
     med_df = get_med_df(patient_df)
     basdai_df = get_basdai_df(patient_df)
 

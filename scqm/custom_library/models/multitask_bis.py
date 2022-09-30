@@ -14,7 +14,7 @@ from scqm.custom_library.data_objects.dataset import Dataset
 from scqm.custom_library.trainers.batch.batch import Batch
 
 
-class Multitask(Model):
+class MultitaskBis(Model):
     def __init__(self, config: dict, device: str):
         super().__init__(config, device)
         self.task = "regression"
@@ -71,9 +71,7 @@ class Multitask(Model):
             requires_grad=True,
         )
         # + 1 for time to prediction
-        self.pred_input_size = (
-            self.combined_history_size[0] + config["size_history"] + 1
-        )
+        self.pred_input_size = config["size_history"] + 1
         self.PModuleDas28 = PredModule(
             self.pred_input_size,
             1,
@@ -300,13 +298,7 @@ class Multitask(Model):
             global_attention_weights = torch.nn.Softmax(dim=1)(
                 torch.matmul(combined_input, self.GlobalAttention)
             )
-            combined_input = torch.reshape(
-                global_attention_weights * combined_input,
-                shape=(
-                    len(torch.nonzero(batch.available_target_mask[:, v])),
-                    self.combined_history_size[0] + self.history_size,
-                ),
-            )
+            combined_input = torch.sum(global_attention_weights * combined_input, dim=1)
             # general_info = patient_encoding[batch.available_target_mask[:, v]]
             pred_input = torch.cat(
                 (
@@ -460,7 +452,9 @@ class Multitask(Model):
                     t + dataset.min_num_targets - 1, time_index
                 ]
 
-                prediction_dates.append(targets_df["date"].iloc[index_target])
+                prediction_dates.append(
+                    targets_df["date"].iloc[t + dataset.min_num_targets - 1]
+                )
                 # target_categories[index_target] = dataset[patient_id].targets_df_tensor[
                 #     visit + dataset.min_num_targets - 1, dataset.target_index
                 # ]
@@ -509,12 +503,8 @@ class Multitask(Model):
                     torch.matmul(combined_input, self.GlobalAttention)
                 )
                 all_global_attention.append(global_attention_weights)
-                combined_input = torch.reshape(
-                    global_attention_weights * combined_input,
-                    shape=(
-                        1,
-                        self.combined_history_size[0] + self.history_size,
-                    ),
+                combined_input = torch.sum(
+                    global_attention_weights * combined_input, dim=1
                 )
 
                 pred_input = torch.cat(

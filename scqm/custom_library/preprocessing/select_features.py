@@ -467,22 +467,27 @@ def extract_multitask_features(
         ]
     ]
 
-    if real_data:
-        socioeco_df = df_dict["socioeco"][["patient_id", "uid_num", "date", "smoker"]]
-        radai_df = df_dict["radai5"][
-            [
-                "patient_id",
-                "uid_num",
-                "date",
-                "pain_level_today_radai",
-                "morning_stiffness_duration_radai",
-                "activity_of_rheumatic_disease_today_radai",
-            ]
+    radai_df = df_dict["radai5"][
+        [
+            "patient_id",
+            "uid_num",
+            "date",
+            "pain_level_today_radai",
+            "morning_stiffness_duration_radai",
+            "activity_of_rheumatic_disease_today_radai",
         ]
-        # mny_df = df_dict["modifiednewyorkxrayscore"][
-        #     ["patient_id", "date", "mnyc_score"]
-        # ].dropna(subset=["mnyc_score"])
+    ]
+    # mny_df = df_dict["modifiednewyorkxrayscore"][
+    #     ["patient_id", "date", "mnyc_score"]
+    # ].dropna(subset=["mnyc_score"])
     haq_df = df_dict["haq"][["patient_id", "uid_num", "date", "haq_score"]]
+    socioeco_df = df_dict["socioeco"][["patient_id", "uid_num", "date", "smoker"]]
+    # merge visits, haq and socioeco
+
+    for other_df in [socioeco_df, haq_df]:
+        visits_df = pd.merge(
+            visits_df, other_df, on=["patient_id", "uid_num", "date"], how="left"
+        )
     # keep only some specific medications and change the label of remaining to "other"
     drugs_to_keep = [
         "methotrexate",
@@ -504,7 +509,6 @@ def extract_multitask_features(
         ~med_df["medication_generic_drug"].isin(drugs_to_keep),
         "medication_generic_drug",
     ] = "Other"
-
     # subset of patients with das28
     patients_das28 = visits_df.dropna(subset=["das283bsr_score"])["patient_id"].unique()
     # patients for which we will predict das28 must have at least 3 available visits with value
@@ -548,12 +552,9 @@ def extract_multitask_features(
     ].dropna(subset=["asdas_score"])
     general_df = general_df[general_df.patient_id.isin(patients)]
     med_df = med_df[med_df.patient_id.isin(patients)]
-    haq_df = haq_df[haq_df.patient_id.isin(patients)]
 
-    if real_data:
-        socioeco_df = socioeco_df[socioeco_df.patient_id.isin(patients)]
-        radai_df = radai_df[radai_df.patient_id.isin(patients)]
-        # mny_df = mny_df[mny_df.patient_id.isin(patients)]
+    radai_df = radai_df[radai_df.patient_id.isin(patients)]
+    # mny_df = mny_df[mny_df.patient_id.isin(patients)]
     if only_meds:
         patients = med_df["patient_id"].unique()
         print(
@@ -561,11 +562,9 @@ def extract_multitask_features(
         )
         general_df = general_df[general_df.patient_id.isin(patients)]
         visits_df = visits_df[visits_df.patient_id.isin(patients)]
-        haq_df = haq_df[haq_df.patient_id.isin(patients)]
-        if real_data:
-            socioeco_df = socioeco_df[socioeco_df.patient_id.isin(patients)]
-            radai_df = radai_df[radai_df.patient_id.isin(patients)]
-            # mny_df = mny_df[mny_df.patient_id.isin(patients)]
+
+        radai_df = radai_df[radai_df.patient_id.isin(patients)]
+        # mny_df = mny_df[mny_df.patient_id.isin(patients)]
 
     # sort dfs
     visits_df.sort_values(["patient_id", "date"], inplace=True)
@@ -594,22 +593,15 @@ def extract_multitask_features(
     targets_df_das28.sort_values(["patient_id", "date"], inplace=True)
     targets_df_asdas.sort_values(["patient_id", "date"], inplace=True)
 
-    haq_df.sort_values(["patient_id", "date"], inplace=True)
-    if real_data:
-        socioeco_df.sort_values(["patient_id", "date"], inplace=True)
-        radai_df.sort_values(["patient_id", "date"], inplace=True)
-    else:
-        radai_df = None
-        socioeco_df = None
+    radai_df.sort_values(["patient_id", "date"], inplace=True)
+
     if joint_df:
         joint_df = get_joint_df(
             {
                 "a_visit": visits_df,
                 "patients": general_df,
                 "med": med_df,
-                "socio": socioeco_df,
                 "radai": radai_df,
-                "haq": haq_df,
             }
         )
     if transform_meds:
@@ -631,8 +623,6 @@ def extract_multitask_features(
         visits_df,
         targets_df_das28,
         targets_df_asdas,
-        socioeco_df,
         radai_df,
-        haq_df,
         joint_df,
     )

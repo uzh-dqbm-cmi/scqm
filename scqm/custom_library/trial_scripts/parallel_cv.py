@@ -2,6 +2,8 @@ import sys
 
 from scqm.custom_library.cv.multitask import CVMultitask
 from scqm.custom_library.models.multitask_net import Multitask
+from scqm.custom_library.models.multitask_bis import MultitaskBis
+
 from scqm.custom_library.trainers.multitask_net import MultitaskTrainer
 import copy
 import pandas as pd
@@ -30,14 +32,16 @@ if __name__ == "__main__":
     print(fold)
     date = datetime.datetime.now().strftime("%d_%m_%Y")
     print(f"creating directory")
-    path = "/cluster/work/medinfmk/scqm/tmp/fold" + str(fold) + "/" + date
+    path = "/cluster/work/medinfmk/scqm/tmp/fold" + str(fold) + "/" + date + "_sum"
     try:
         os.mkdir(path)
     except OSError as error:
         print(error)
     print("loading data")
 
-    with open("/cluster/work/medinfmk/scqm/tmp/saved_cv_with_joint.pickle", "rb") as f:
+    with open(
+        "/cluster/work/medinfmk/scqm/tmp/saved_cv_with_joint_19_09.pickle", "rb"
+    ) as f:
         cv = pickle.load(f)
 
     dataset = cv.dataset
@@ -53,7 +57,7 @@ if __name__ == "__main__":
     num_feature_dict["patients"] = getattr(
         dataset, "patients" + "_df_scaled_tensor_train"
     ).shape[1]
-    with open("/cluster/work/medinfmk/scqm/tmp/params.pickle", "rb") as f:
+    with open("/cluster/work/medinfmk/scqm/tmp/params_" + date + ".pickle", "rb") as f:
         cvparams, combinations = pickle.load(f)
     # cvparams, combinations = get_parameters(fold, int(sys.argv[2]))
     name_mapping = {key: index for index, key in enumerate(list(cvparams.keys()))}
@@ -94,11 +98,11 @@ if __name__ == "__main__":
             [model_specifics[key]["size_out"] for key in num_feature_dict]
         )
 
-        model = Multitask(model_specifics, device)
+        model = MultitaskBis(model_specifics, device)
         trainer = MultitaskTrainer(
             model,
             dataset,
-            n_epochs=100,
+            n_epochs=250,
             batch_size={
                 "das28": int(len(dataset) / 15),
                 "asdas": int(len(dataset) / (15 * 4.5)),

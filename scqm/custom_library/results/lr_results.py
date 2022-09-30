@@ -5,9 +5,9 @@ import pandas as pd
 import numpy as np
 
 
-class BaselineResults(Results):
-    def evaluate_model(self):
-        if self.trainer.target_name == "das283bsr_score":
+class LRResults(Results):
+    def evaluate_model(self, target_name):
+        if target_name == "das283bsr_score":
             indices_features = np.concatenate(
                 [
                     self.dataset.tensor_indices_mapping_test[patient]["joint_das28_df"]
@@ -35,7 +35,7 @@ class BaselineResults(Results):
             index_value_feature = self.dataset.joint_das28_df_columns_in_tensor.index(
                 "das283bsr_score"
             )
-        elif self.trainer.target_name == "asdas_score":
+        elif target_name == "asdas_score":
             indices_features = np.concatenate(
                 [
                     self.dataset.tensor_indices_mapping_test[patient]["joint_asdas_df"]
@@ -64,17 +64,15 @@ class BaselineResults(Results):
                 "asdas_score"
             )
         with torch.no_grad():
-            pred = self.model(test_tensor).flatten()
+            pred = self.model.predict(test_tensor)
         # rescale
-        pred_rescaled = pred * (max_ - min_) + min_
-        target_rescaled = test_target * (max_ - min_) + min_
+        pred_rescaled = (pred * (max_ - min_) + min_).flatten()
+        target_rescaled = np.array(test_target * (max_ - min_) + min_)
         # for naive
         test_naive_rescaled = test_tensor[:, index_value_feature] * (max_ - min_) + min_
         # metrics
-        mse = (
-            sum((pred_rescaled - target_rescaled) ** 2) / len(target_rescaled)
-        ).item()
-        mae = (sum(abs(pred_rescaled - target_rescaled)) / len(target_rescaled)).item()
+        mse = sum((pred_rescaled - target_rescaled) ** 2) / len(target_rescaled)
+        mae = sum(abs(pred_rescaled - target_rescaled)) / len(target_rescaled)
 
         print(f"MSE {mse} MAE {mae}")
         # naive mse

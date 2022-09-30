@@ -257,79 +257,54 @@ class Dataset:
                 ).dt.days
             setattr(self, name + "_proc", df_processed)
         # specific one hot encoding
-        if real_data:
-            self.socio_df_proc = pd.get_dummies(self.socio_df_proc, columns=["smoker"])
-            self.radai_df_proc = pd.get_dummies(
-                self.radai_df_proc, columns=["morning_stiffness_duration_radai"]
-            )
-            if hasattr(self, "joint_df"):
-                self.joint_df_proc = pd.get_dummies(
-                    self.joint_df_proc,
-                    columns=[
-                        "smoker",
-                        "morning_stiffness_duration_radai",
-                        "medication_generic_drug",
-                        "medication_drug_classification",
-                        "gender",
-                        "anti_ccp",
-                        "ra_crit_rheumatoid_factor",
-                    ],
-                )
-                self.joint_asdas_df_proc = pd.get_dummies(
-                    self.joint_asdas_df_proc,
-                    columns=[
-                        "smoker",
-                        "morning_stiffness_duration_radai",
-                        "medication_generic_drug",
-                        "medication_drug_classification",
-                        "gender",
-                        "anti_ccp",
-                        "ra_crit_rheumatoid_factor",
-                    ],
-                )
-                self.joint_das28_df_proc = pd.get_dummies(
-                    self.joint_das28_df_proc,
-                    columns=[
-                        "smoker",
-                        "morning_stiffness_duration_radai",
-                        "medication_generic_drug",
-                        "medication_drug_classification",
-                        "gender",
-                        "anti_ccp",
-                        "ra_crit_rheumatoid_factor",
-                    ],
-                )
-        elif hasattr(self, "joint_df"):
+
+        if hasattr(self, "joint_df"):
             self.joint_df_proc = pd.get_dummies(
                 self.joint_df_proc,
                 columns=[
+                    "smoker",
+                    "morning_stiffness_duration_radai",
                     "medication_generic_drug",
                     "medication_drug_classification",
-                    "gender",
+                    "anti_ccp",
+                    "ra_crit_rheumatoid_factor",
+                ],
+            )
+            self.joint_df_proc = pd.get_dummies(
+                self.joint_df_proc, columns=["gender"], drop_first=True
+            )
+            self.joint_asdas_df_proc = pd.get_dummies(
+                self.joint_asdas_df_proc,
+                columns=[
+                    "smoker",
+                    "morning_stiffness_duration_radai",
+                    "medication_generic_drug",
+                    "medication_drug_classification",
                     "anti_ccp",
                     "ra_crit_rheumatoid_factor",
                 ],
             )
             self.joint_asdas_df_proc = pd.get_dummies(
-                self.joint_asdas_df_proc,
+                self.joint_asdas_df_proc, columns=["gender"], drop_first=True
+            )
+            self.joint_das28_df_proc = pd.get_dummies(
+                self.joint_das28_df_proc,
                 columns=[
+                    "smoker",
+                    "morning_stiffness_duration_radai",
                     "medication_generic_drug",
                     "medication_drug_classification",
-                    "gender",
                     "anti_ccp",
                     "ra_crit_rheumatoid_factor",
                 ],
             )
             self.joint_das28_df_proc = pd.get_dummies(
-                self.joint_das28_df_proc,
-                columns=[
-                    "medication_generic_drug",
-                    "medication_drug_classification",
-                    "gender",
-                    "anti_ccp",
-                    "ra_crit_rheumatoid_factor",
-                ],
+                self.joint_das28_df_proc, columns=["gender"], drop_first=True
             )
+
+        self.radai_df_proc = pd.get_dummies(
+            self.radai_df_proc, columns=["morning_stiffness_duration_radai"]
+        )
         self.med_df_proc = pd.get_dummies(
             self.med_df_proc,
             columns=[
@@ -338,11 +313,11 @@ class Dataset:
             ],
         )
         self.patients_df_proc = pd.get_dummies(
-            self.patients_df_proc,
-            columns=["gender"],
+            self.patients_df_proc, columns=["gender"], drop_first=True
         )
         self.a_visit_df_proc = pd.get_dummies(
-            self.a_visit_df_proc, columns=["anti_ccp", "ra_crit_rheumatoid_factor"]
+            self.a_visit_df_proc,
+            columns=["anti_ccp", "ra_crit_rheumatoid_factor", "smoker"],
         )
 
         # transform to numeric

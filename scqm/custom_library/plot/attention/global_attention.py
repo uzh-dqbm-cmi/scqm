@@ -39,10 +39,10 @@ def plot_global_attention(model, dataset, patients, target_name):
     fig, ax = plt.subplots(figsize=(8, 2))
     im = ax.imshow(
         sum([np.array(elem[0].cpu()) for elem in all_global_attention]).T
-        / len(global_attention)
+        / len(all_global_attention)
     )
-    ax.set_xticks(np.arange(len(dataset.event_names)))
-    ax.set_xticklabels(dataset.event_names)
+    ax.set_xticks(np.arange(1 + len(dataset.event_names)))
+    ax.set_xticklabels(["general"] + dataset.event_names)
     fig.colorbar(im)
     plt.title("Global event attention")
     lengths = [len(elem) for elem in global_attention_per_patient]
@@ -59,7 +59,7 @@ def plot_global_attention(model, dataset, patients, target_name):
 
     fig, ax = plt.subplots(figsize=(15, 15))
     im = ax.imshow(means)
-    ax.set_xticks(np.arange(len(dataset.event_names)))
-    ax.set_xticklabels(dataset.event_names)
+    ax.set_xticks(np.arange(1 + len(dataset.event_names)))
+    ax.set_xticklabels(["general"] + dataset.event_names)
 
     return all_global_attention

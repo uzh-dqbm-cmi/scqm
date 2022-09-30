@@ -1,7 +1,7 @@
 import os
 import sys
 from scqm.custom_library.cv.multitask import CVMultitask
-from scqm.custom_library.models.multitask_net import Multitask
+from scqm.custom_library.models.multitask_bis import MultitaskBis
 from scqm.custom_library.trainers.multitask_net import MultitaskTrainer
 import copy
 import pandas as pd
@@ -17,7 +17,7 @@ from scqm.custom_library.preprocessing.preprocessing import preprocessing
 from scqm.custom_library.utils import set_seeds
 
 if __name__ == "__main__":
-
+    print("start")
     set_seeds(0)
     reload = True
     if reload:
@@ -26,6 +26,7 @@ if __name__ == "__main__":
         ) as f:
             cv = pickle.load(f)
     else:
+        # TODO adapt (obsolete)
         df_dict = load_dfs_all_data()
         df_dict_pro = preprocessing(df_dict)
         (
@@ -94,7 +95,7 @@ if __name__ == "__main__":
         for event in dataset.event_names
     }
     size_out_dict = {
-        event: int(num_feature_dict[event] / 10) + 1 for event in dataset.event_names
+        event: int(num_feature_dict[event] / 15) + 1 for event in dataset.event_names
     }
     num_feature_dict["patients"] = getattr(
         dataset, "patients" + "_df_scaled_tensor_train"
@@ -104,10 +105,10 @@ if __name__ == "__main__":
     model_specifics = {
         "num_layers_enc": 2,
         "hidden_enc": 100,
-        "size_history": 30,
+        "size_history": 350,
         "num_layers": 1,
         "num_layers_pred": 2,
-        "hidden_pred": 100,
+        "hidden_pred": 200,
         "event_names": dataset.event_names,
         "num_general_features": dataset.patients_df_scaled_tensor_train.shape[1],
         "dropout": 0.0,
@@ -124,17 +125,17 @@ if __name__ == "__main__":
         [model_specifics[key]["size_out"] for key in num_feature_dict]
     )
 
-    model = Multitask(model_specifics, device)
+    model = MultitaskBis(model_specifics, device)
     # n_epochs = 60
     trainer = MultitaskTrainer(
         model,
         dataset,
-        n_epochs=100,
+        n_epochs=250,
         batch_size={
             "das28": int(len(dataset) / 15),
             "asdas": int(len(dataset) / (15 * 4.5)),
         },
-        lr=1e-3,
+        lr=5e-4,
         balance_classes=True,
         use_early_stopping=False,
     )
@@ -156,7 +157,9 @@ if __name__ == "__main__":
     #     histories[index_in_history : index_in_history + numbers_of_target[index]] = hist
     #     index_in_history += numbers_of_target[index]
     delattr(trainer, "dataset")
-    with open("/cluster/work/medinfmk/scqm/tmp/trainer_19_09.pickle", "wb") as handle:
+    with open(
+        "/cluster/work/medinfmk/scqm/tmp/trainer_28_09_bis.pickle", "wb"
+    ) as handle:
         pickle.dump(trainer, handle)
     # best "/opt/tmp/trainer_multitarget_09_08.pickle"
     # with open("/opt/tmp/train_histories.pickle", "wb") as handle:
