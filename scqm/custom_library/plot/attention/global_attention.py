@@ -41,10 +41,20 @@ def plot_global_attention(model, dataset, patients, target_name):
         sum([np.array(elem[0].cpu()) for elem in all_global_attention]).T
         / len(all_global_attention)
     )
+    name_mapping = {
+        "a_visit": "Visits",
+        "med": "Medications",
+        "general": "General",
+        "radai": "Radai",
+    }
     ax.set_xticks(np.arange(1 + len(dataset.event_names)))
-    ax.set_xticklabels(["general"] + dataset.event_names)
+    ax.set_xticklabels(
+        ["General"] + [name_mapping[event] for event in dataset.event_names]
+    )
     fig.colorbar(im)
-    plt.title("Global event attention")
+    ax.set_yticklabels([])
+    ax.get_yaxis().set_ticks([])
+    plt.title("Average global attention")
     lengths = [len(elem) for elem in global_attention_per_patient]
     max_length = int(np.percentile(lengths, 90))
     means = np.zeros(shape=(max_length, len(global_attention_per_patient[0][0])))
@@ -61,5 +71,5 @@ def plot_global_attention(model, dataset, patients, target_name):
     im = ax.imshow(means)
     ax.set_xticks(np.arange(1 + len(dataset.event_names)))
     ax.set_xticklabels(["general"] + dataset.event_names)
-
+    plt.show()
     return all_global_attention

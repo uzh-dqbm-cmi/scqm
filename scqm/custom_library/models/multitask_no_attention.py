@@ -14,8 +14,8 @@ from scqm.custom_library.data_objects.dataset import Dataset
 from scqm.custom_library.trainers.batch.batch import Batch
 
 
-class MultitaskBis(Model):
-    # multitask with sum instead of concat
+class MultitaskNoAtt(Model):
+    # multitask without attention
     def __init__(self, config: dict, device: str):
         super().__init__(config, device)
         self.task = "regression"
@@ -59,18 +59,6 @@ class MultitaskBis(Model):
             ).to(device)
             for name in config["event_names"]
         }
-        self.Attention = {
-            name: torch.nn.Parameter(
-                torch.ones(size=(config["size_history"], 1), device=self.device),
-                requires_grad=True,
-            )
-            for name in config["event_names"]
-        }
-
-        self.GlobalAttention = torch.nn.Parameter(
-            torch.ones(size=(config["size_history"], 1), device=self.device),
-            requires_grad=True,
-        )
         # + 1 for time to prediction
         self.pred_input_size = config["size_history"] + 1
         self.PModuleDas28 = PredModule(
@@ -93,12 +81,10 @@ class MultitaskBis(Model):
             list(self.PModuleDas28.parameters())
             + list(self.PModuleAsdas.parameters())
             + list(self.p_encoder.parameters())
-            + [self.GlobalAttention]
         )
         for name in self.encoders:
             self.parameters += list(self.encoders[name].parameters())
             self.parameters += list(self.lstm_modules[name].parameters())
-            self.parameters += [self.Attention[name]]
 
     def train(self):
         for name in self.encoders:
@@ -267,15 +253,12 @@ class MultitaskBis(Model):
                     unpacked_output = torch.nn.utils.rnn.pad_packed_sequence(
                         output, batch_first=self.batch_first
                     )[0]
-                    attention_weights = torch.nn.Softmax(dim=1)(
-                        torch.matmul(unpacked_output, self.Attention[event])
-                    )
                     combined_lstm[
                         patients,
                         self.combined_history_size[1][
                             index
                         ] : self.combined_history_size[1][index + 1],
-                    ] = torch.sum(unpacked_output * attention_weights, dim=1)
+                    ] = torch.sum(unpacked_output, dim=1)
             # torch.reshape(combined_lstm[batch.available_target_mask[:, v]], shape=(len(torch.nonzero(batch.available_target_mask[:, v])), len(dataset.event_names), self.history_size))
             combined_lstm_input = torch.reshape(
                 combined_lstm[batch.available_target_mask[:, v]],
@@ -296,10 +279,8 @@ class MultitaskBis(Model):
                 ),
             )
             combined_input = torch.cat((general_info, combined_lstm_input), dim=1)
-            global_attention_weights = torch.nn.Softmax(dim=1)(
-                torch.matmul(combined_input, self.GlobalAttention)
-            )
-            combined_input = torch.sum(global_attention_weights * combined_input, dim=1)
+
+            combined_input = torch.sum(combined_input, dim=1)
             # general_info = patient_encoding[batch.available_target_mask[:, v]]
             pred_input = torch.cat(
                 (
@@ -403,11 +384,6 @@ class MultitaskBis(Model):
                 size=(torch.sum(available_target_mask == True).item(), 1, 1),
                 device=self.device,
             )
-            all_attention = {
-                index: {event: [] for event in dataset.event_names}
-                for index in range(torch.sum(available_target_mask == True).item())
-            }
-            all_global_attention = []
 
             index_target = 0
             prediction_dates = []
@@ -474,18 +450,15 @@ class MultitaskBis(Model):
                         unpacked_output = torch.nn.utils.rnn.pad_packed_sequence(
                             output, batch_first=self.batch_first
                         )[0]
-                        attention_weights = torch.nn.Softmax(dim=1)(
-                            torch.matmul(unpacked_output, self.Attention[event])
-                        )
-                        all_attention[index_target][event] = attention_weights
+
                         combined_lstm[
                             0,
                             self.combined_history_size[1][
                                 index
                             ] : self.combined_history_size[1][index + 1],
-                        ] = torch.sum(unpacked_output * attention_weights, dim=1)
+                        ] = torch.sum(unpacked_output, dim=1)
                         histories_per_event[event][index_target] = torch.sum(
-                            unpacked_output * attention_weights, dim=1
+                            unpacked_output, dim=1
                         )
                 combined_lstm_input = torch.reshape(
                     combined_lstm[0],
@@ -500,13 +473,8 @@ class MultitaskBis(Model):
                     dataset[patient_id].patients_df_tensor.to(self.device)
                 ).reshape(1, 1, self.history_size)
                 combined_input = torch.cat((general_info, combined_lstm_input), dim=1)
-                global_attention_weights = torch.nn.Softmax(dim=1)(
-                    torch.matmul(combined_input, self.GlobalAttention)
-                )
-                all_global_attention.append(global_attention_weights)
-                combined_input = torch.sum(
-                    global_attention_weights * combined_input, dim=1
-                )
+
+                combined_input = torch.sum(combined_input, dim=1)
 
                 pred_input = torch.cat(
                     (
@@ -528,8 +496,6 @@ class MultitaskBis(Model):
                 time_to_targets,
                 histories,
                 histories_per_event,
-                all_attention,
-                all_global_attention,
             )
 
         else:

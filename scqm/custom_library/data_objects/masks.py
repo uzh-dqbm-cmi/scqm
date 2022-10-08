@@ -102,7 +102,7 @@ class Masks:
                     target_name=target_name,
                 )
                 self.available_target_mask[i, target] = to_predict
-                self.target_category[i, target] = increase
+                # self.target_category[i, target] = increase
                 for event in dataset.event_names:
                     # masks_dict[event][i].append(torch.broadcast_to(torch.tensor([[True if tuple_[0] == event else False] for tuple_ in cropped_timeline_mask]),
                     #                                               (len(cropped_timeline_mask), model.size_embedding)))

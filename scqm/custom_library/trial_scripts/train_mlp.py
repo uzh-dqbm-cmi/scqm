@@ -22,12 +22,11 @@ from tqdm import tqdm
 
 if __name__ == "__main__":
     set_seeds(0)
+    print(f"cuda ? {torch.cuda.is_available()}")
     print("train mlp")
-    target_name = "asdas_score"
+    target_name = "das283bsr_score"
 
-    with open(
-        "/cluster/work/medinfmk/scqm/tmp/saved_cv_with_joint_16_09.pickle", "rb"
-    ) as f:
+    with open("/cluster/work/medinfmk/scqm/tmp/final_model/saved_cv.pickle", "rb") as f:
         cv = pickle.load(f)
     dataset = cv.dataset
     partition = cv.partition
@@ -37,15 +36,15 @@ if __name__ == "__main__":
         config = {
             "input_size": input_size,
             "output_size": 1,
-            "num_hidden": 5,
-            "hidden_size": 100,
+            "num_hidden": 10,
+            "hidden_size": 40,
         }
     elif target_name == "asdas_score":
         input_size = dataset.joint_asdas_df_scaled_tensor_train.shape[1]
         config = {
             "input_size": input_size,
             "output_size": 1,
-            "num_hidden": 5,
+            "num_hidden": 2,
             "hidden_size": 100,
         }
         # 40
@@ -65,8 +64,10 @@ if __name__ == "__main__":
         )
         trainer.train_model(model, partition, verbose=False)
         delattr(trainer, "dataset")
-        # with open(
-        #     "/cluster/work/medinfmk/scqm/tmp/baselines/mlp_trainer_asdas_" + str(fold) + ".pickle",
-        #     "wb",
-        # ) as handle:
-        #     pickle.dump(trainer, handle)
+        with open(
+            "/cluster/work/medinfmk/scqm/tmp/baselines/mlp_trainer_das28_"
+            + str(fold)
+            + ".pickle",
+            "wb",
+        ) as handle:
+            pickle.dump(trainer, handle)
