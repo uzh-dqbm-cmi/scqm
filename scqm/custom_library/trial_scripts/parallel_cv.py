@@ -3,7 +3,7 @@ import sys
 from scqm.custom_library.cv.multitask import CVMultitask
 from scqm.custom_library.models.multitask_net import Multitask
 from scqm.custom_library.models.multitask_bis import MultitaskBis
-
+from scqm.custom_library.models.multitask_no_attention import MultitaskNoAtt
 from scqm.custom_library.trainers.multitask_net import MultitaskTrainer
 import copy
 import pandas as pd
@@ -32,16 +32,14 @@ if __name__ == "__main__":
     print(fold)
     date = datetime.datetime.now().strftime("%d_%m_%Y")
     print(f"creating directory")
-    path = "/cluster/work/medinfmk/scqm/tmp/fold" + str(fold) + "/" + date + "_sum"
+    path = "/cluster/work/medinfmk/scqm/tmp/fold" + str(fold) + "/" + date + "_noatt"
     try:
         os.mkdir(path)
     except OSError as error:
         print(error)
     print("loading data")
 
-    with open(
-        "/cluster/work/medinfmk/scqm/tmp/saved_cv_with_joint_19_09.pickle", "rb"
-    ) as f:
+    with open("/cluster/work/medinfmk/scqm/tmp/final_model/saved_cv.pickle", "rb") as f:
         cv = pickle.load(f)
 
     dataset = cv.dataset
@@ -98,7 +96,9 @@ if __name__ == "__main__":
             [model_specifics[key]["size_out"] for key in num_feature_dict]
         )
 
-        model = MultitaskBis(model_specifics, device)
+        # model = MultitaskBis(model_specifics, device)
+        model = MultitaskNoAtt(model_specifics, device)
+
         trainer = MultitaskTrainer(
             model,
             dataset,

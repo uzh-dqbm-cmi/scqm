@@ -35,3 +35,14 @@ def set_seeds(seed: int = 0, import_torch: bool = True) -> None:
         torch.manual_seed(seed)
     np.random.seed(seed)
     return
+
+
+class SaveOutput:
+    def __init__(self):
+        self.outputs = []
+
+    def __call__(self, module, module_in, module_out):
+        self.outputs.append(module_out)
+
+    def clear(self):
+        self.outputs = []

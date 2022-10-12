@@ -2,7 +2,7 @@
 
 #SBATCH --job-name=cv_sum
 #SBATCH --partition=gpu
-#SBATCH --time=150:00:00
+#SBATCH --time=170:00:00
 
 
 ### Note: --gres=gpu:x should equal to ntasks-per-node
@@ -20,7 +20,7 @@
 # Number of GPUs per node
 #SBATCH --gres=gpu:5
 
-#SBATCH -o /cluster/work/medinfmk/scqm/logs/sum.out
+#SBATCH -o /cluster/work/medinfmk/scqm/logs/no_att.out
 # Path
 
 export PYTHONPATH=$PYTHONPATH:/cluster/work/medinfmk/scqm/code/scqm_ct/scqm

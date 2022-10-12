@@ -1,9 +1,10 @@
 import torch
 import numpy as np
+from scqm.custom_library.data_objects.masks import Masks
 
 from scqm.custom_library.models.model import Model
 from scqm.custom_library.models.modules.encoders import EventEncoder
-
+from scqm.custom_library.models.modules.transformer import TransformerSCQM
 from scqm.custom_library.models.modules.lstms import (
     LstmEventSpecificPack,
 )
@@ -12,9 +13,10 @@ from scqm.custom_library.models.modules.predictions import PredModule
 
 from scqm.custom_library.data_objects.dataset import Dataset
 from scqm.custom_library.trainers.batch.batch import Batch
+from scqm.custom_library.utils import SaveOutput
 
 
-class MultitaskBis(Model):
+class TransformerModel(Model):
     # multitask with sum instead of concat
     def __init__(self, config: dict, device: str):
         super().__init__(config, device)
@@ -24,16 +26,15 @@ class MultitaskBis(Model):
         # and the cumulative sum of the history sizes, used as indices later to store the
         # outputs of the individual lstms in a combined vector.
         self.combined_history_size = (
-            config["size_history"] * len(config["event_names"]),
-            np.cumsum([0] + [config["size_history"] for name in config["event_names"]]),
+            config["dim_val"] * len(config["event_names"]),
+            np.cumsum([0] + [config["dim_val"] for name in config["event_names"]]),
         )
-        self.history_size = config["size_history"]
         self.config = config
 
         self.encoders = {
             name: EventEncoder(
                 config[name]["num_features"],
-                config[name]["size_out"],
+                config["dim_val"],
                 config["num_layers_enc"],
                 config["hidden_enc"],
                 config["dropout"],
@@ -43,36 +44,29 @@ class MultitaskBis(Model):
 
         self.p_encoder = EventEncoder(
             config["patients"]["num_features"],
-            config["size_history"],
+            config["dim_val"],
             config["num_layers_enc"],
             config["hidden_enc"],
             config["dropout"],
         ).to(device)
 
-        self.lstm_modules = {
-            name: LstmEventSpecificPack(
-                config[name]["size_out"],
-                config["device"],
-                config["batch_first"],
-                config["size_history"],
-                config["num_layers"],
+        self.transformers = {
+            name: TransformerSCQM(
+                config["dim_val"],
+                device,
+                batch_first=config["batch_first"],
+                n_heads=config["n_heads"],
+                dropout=config["dropout"],
             ).to(device)
-            for name in config["event_names"]
-        }
-        self.Attention = {
-            name: torch.nn.Parameter(
-                torch.ones(size=(config["size_history"], 1), device=self.device),
-                requires_grad=True,
-            )
             for name in config["event_names"]
         }
 
         self.GlobalAttention = torch.nn.Parameter(
-            torch.ones(size=(config["size_history"], 1), device=self.device),
+            torch.ones(size=(config["dim_val"], 1), device=self.device),
             requires_grad=True,
         )
         # + 1 for time to prediction
-        self.pred_input_size = config["size_history"] + 1
+        self.pred_input_size = config["dim_val"] + 1
         self.PModuleDas28 = PredModule(
             self.pred_input_size,
             1,
@@ -97,13 +91,12 @@ class MultitaskBis(Model):
         )
         for name in self.encoders:
             self.parameters += list(self.encoders[name].parameters())
-            self.parameters += list(self.lstm_modules[name].parameters())
-            self.parameters += [self.Attention[name]]
+            self.parameters += list(self.transformers[name].parameters())
 
     def train(self):
         for name in self.encoders:
             self.encoders[name].train()
-            self.lstm_modules[name].train()
+            self.transformers[name].train()
         self.p_encoder.train()
         self.PModuleDas28.train()
         self.PModuleAsdas.train()
@@ -112,10 +105,19 @@ class MultitaskBis(Model):
 
         for name in self.encoders:
             self.encoders[name].eval()
-            self.lstm_modules[name].eval()
+            self.transformers[name].eval()
         self.p_encoder.eval()
         self.PModuleDas28.eval()
         self.PModuleAsdas.eval()
+
+    def get_mask(self, lengths, device):
+        max_length = max(lengths)
+        mask = torch.zeros(
+            size=(len(lengths), max_length), dtype=torch.bool, device=device
+        )
+        for index, elem in enumerate(lengths):
+            mask[index, elem:] = 1
+        return mask
 
     def apply_and_get_loss(
         self, dataset: Dataset, criterion: torch.nn, batch: Batch, target_name: str
@@ -187,7 +189,7 @@ class MultitaskBis(Model):
                     size=(
                         len(batch.current_indices),
                         batch.seq_lengths[v][:, index].max().item(),
-                        self.config[event]["size_out"],
+                        self.config["dim_val"],
                     ),
                     device=self.device,
                 )
@@ -252,37 +254,34 @@ class MultitaskBis(Model):
                 #     for elem in patients
                 #     if batch.available_target_mask[elem, v]
                 # ]
+
                 if len(patients) > 0:
                     # compute the lengths of the sequences for each patient with available visit v
                     lengths = batch.seq_lengths[v, patients, index].cpu()
 
-                    pack_padded_sequence = torch.nn.utils.rnn.pack_padded_sequence(
+                    pad_sequence = torch.nn.utils.rnn.pad_sequence(
                         combined[event][patients, :, :],
                         batch_first=self.batch_first,
-                        lengths=lengths,
-                        enforce_sorted=False,
                     )
+                    mask = self.get_mask(lengths, device=self.device)
+                    # output = self.transformers[event](combined[event][patients, :, :])
+                    output = self.transformers[event](pad_sequence, mask)
 
-                    output, (hn, cn) = self.lstm_modules[event](pack_padded_sequence)
-                    unpacked_output = torch.nn.utils.rnn.pad_packed_sequence(
-                        output, batch_first=self.batch_first
-                    )[0]
-                    attention_weights = torch.nn.Softmax(dim=1)(
-                        torch.matmul(unpacked_output, self.Attention[event])
-                    )
+                    output = output[:, -1, :]
+                    # output = torch.sum(output, dim=1)
                     combined_lstm[
                         patients,
                         self.combined_history_size[1][
                             index
                         ] : self.combined_history_size[1][index + 1],
-                    ] = torch.sum(unpacked_output * attention_weights, dim=1)
+                    ] = output
             # torch.reshape(combined_lstm[batch.available_target_mask[:, v]], shape=(len(torch.nonzero(batch.available_target_mask[:, v])), len(dataset.event_names), self.history_size))
             combined_lstm_input = torch.reshape(
                 combined_lstm[batch.available_target_mask[:, v]],
                 shape=(
                     len(torch.nonzero(batch.available_target_mask[:, v])),
                     len(dataset.event_names),
-                    self.history_size,
+                    self.config["dim_val"],
                 ),
             )
             # TODO here concat already with general patient info (has to have same size as self.history_size, potential problem ? Since history_size is larger than number of patient features)
@@ -292,7 +291,7 @@ class MultitaskBis(Model):
                 shape=(
                     len(torch.nonzero(batch.available_target_mask[:, v])),
                     1,
-                    self.history_size,
+                    self.config["dim_val"],
                 ),
             )
             combined_input = torch.cat((general_info, combined_lstm_input), dim=1)
@@ -337,6 +336,7 @@ class MultitaskBis(Model):
         target_name: str,
         return_history: bool = False,
     ):
+
         with torch.no_grad():
             self.eval()
             # method to directly apply the model to a single patient
@@ -365,6 +365,7 @@ class MultitaskBis(Model):
             encoder_outputs = {}
 
             for event in dataset.event_names:
+
                 encoder_outputs[event] = self.encoders[event](
                     getattr(dataset[patient_id], event + "_df_tensor").to(self.device)
                 )
@@ -386,7 +387,7 @@ class MultitaskBis(Model):
                 event: torch.zeros(
                     size=(
                         torch.sum(available_target_mask == True).item(),
-                        self.history_size,
+                        self.config["dim_val"],
                     ),
                     device=self.device,
                 )
@@ -423,7 +424,7 @@ class MultitaskBis(Model):
                         size=(
                             1,
                             seq_lengths[t][index].item(),
-                            self.config[event]["size_out"],
+                            self.config["dim_val"],
                         ),
                         device=self.device,
                     )
@@ -462,44 +463,36 @@ class MultitaskBis(Model):
                 # ]
                 for index, event in enumerate(dataset.event_names):
                     if seq_lengths[t][index].item() > 0:
-                        lengths = seq_lengths[t][index].reshape(1).cpu()
-                        pack_padded_sequence = torch.nn.utils.rnn.pack_padded_sequence(
-                            combined[event],
-                            batch_first=self.batch_first,
-                            lengths=lengths,
-                            enforce_sorted=False,
+                        lengths = seq_lengths[t][index].reshape(1)
+                        mask = self.get_mask(lengths, device=self.device)
+
+                        pad_sequence = torch.nn.utils.rnn.pad_sequence(
+                            combined[event], batch_first=self.batch_first
                         )
-                        output, (hn, cn) = self.lstm_modules[event](
-                            pack_padded_sequence
-                        )
-                        unpacked_output = torch.nn.utils.rnn.pad_packed_sequence(
-                            output, batch_first=self.batch_first
-                        )[0]
-                        attention_weights = torch.nn.Softmax(dim=1)(
-                            torch.matmul(unpacked_output, self.Attention[event])
-                        )
-                        all_attention[index_target][event] = attention_weights
+
+                        output = self.transformers[event](pad_sequence, mask)
+                        # output = torch.sum(output, dim=1)
+
+                        output = output[:, -1, :]
                         combined_lstm[
                             0,
                             self.combined_history_size[1][
                                 index
                             ] : self.combined_history_size[1][index + 1],
-                        ] = torch.sum(unpacked_output * attention_weights, dim=1)
-                        histories_per_event[event][index_target] = torch.sum(
-                            unpacked_output * attention_weights, dim=1
-                        )
+                        ] = output
+
                 combined_lstm_input = torch.reshape(
                     combined_lstm[0],
                     shape=(
                         1,
                         len(dataset.event_names),
-                        self.history_size,
+                        self.config["dim_val"],
                     ),
                 )
                 # concat computed patient history with general information
                 general_info = self.p_encoder(
                     dataset[patient_id].patients_df_tensor.to(self.device)
-                ).reshape(1, 1, self.history_size)
+                ).reshape(1, 1, self.config["dim_val"])
                 combined_input = torch.cat((general_info, combined_lstm_input), dim=1)
                 global_attention_weights = torch.nn.Softmax(dim=1)(
                     torch.matmul(combined_input, self.GlobalAttention)

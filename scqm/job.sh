@@ -2,7 +2,7 @@
 
 #SBATCH --job-name=train
 #SBATCH --partition=gpu
-#SBATCH --time=12:00:00
+#SBATCH --time=15:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 
@@ -11,15 +11,15 @@
 
 #SBATCH --mem-per-cpu=12000
 
-###SBATCH --gres=gpu:rtx1080ti:1
-#SBATCH --gres=gpu:rtx3090:1
-#SBATCH -o /cluster/work/medinfmk/scqm/logs/gpu.out 
+#SBATCH --gres=gpu:rtx1080ti:1
+###SBATCH --gres=gpu:rtx3090:1
+#SBATCH -o /cluster/work/medinfmk/scqm/logs/transf.out 
 #
 export PYTHONPATH=$PYTHONPATH:/cluster/work/medinfmk/scqm/code/scqm_ct/scqm
 export PATH="$HOME/.local/bin:$PATH"
 source ~/envir/scqm/bin/activate
 
-python3 -u scqm/custom_library/trial_scripts/gpu_test.py
+python3 -u scqm/custom_library/trial_scripts/train_transformer.py
 
 
 

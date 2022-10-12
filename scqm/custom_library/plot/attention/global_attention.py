@@ -26,11 +26,15 @@ def plot_global_attention_one_patient(model, dataset, patient, target_name):
 def plot_global_attention(model, dataset, patients, target_name):
     all_global_attention = []
     global_attention_per_patient = []
+    global_attention_save = []
+    local_attention_save = []
     for patient in patients:
-        _, _, global_attention, _, _, _ = apply_attention(
+        _, local_attention, global_attention, _, _, _ = apply_attention(
             model, dataset, patient, target_name
         )
         all_global_attention.extend(global_attention)
+        global_attention_save.append(global_attention)
+        local_attention_save.append(local_attention)
         global_attention_per_patient.append(
             np.array([np.array(elem.cpu()).squeeze() for elem in global_attention])
         )
@@ -55,6 +59,7 @@ def plot_global_attention(model, dataset, patients, target_name):
     ax.set_yticklabels([])
     ax.get_yaxis().set_ticks([])
     plt.title("Average global attention")
+    plt.show()
     lengths = [len(elem) for elem in global_attention_per_patient]
     max_length = int(np.percentile(lengths, 90))
     means = np.zeros(shape=(max_length, len(global_attention_per_patient[0][0])))
@@ -67,9 +72,13 @@ def plot_global_attention(model, dataset, patients, target_name):
                 norm += 1
         means[num_target] = means[num_target] / norm
 
-    fig, ax = plt.subplots(figsize=(15, 15))
-    im = ax.imshow(means)
-    ax.set_xticks(np.arange(1 + len(dataset.event_names)))
-    ax.set_xticklabels(["general"] + dataset.event_names)
+    plt.clf()
+    names = ["General"] + [name_mapping[event] for event in dataset.event_names]
+    for index, event in enumerate(names):
+        plt.plot(range(1, max_length + 1), means[:, index], label=event)
+    plt.legend()
+    plt.ylabel("Global attention")
+    plt.xlabel("Target number")
+    plt.grid(visible=True)
     plt.show()
-    return all_global_attention
+    return (global_attention_save, local_attention_save)

@@ -115,3 +115,29 @@ def error_analysis(df, n_bins=15):
     plt.yticks(fontsize=12)
     plt.xticks(fontsize=12)
     return
+
+
+def count_visits(df):
+    df["count_targets"] = [index for index in range(1, len(df) + 1)]
+    return df
+
+
+def plot_error_vs_target_num(df, num_targets=12):
+    plt.clf()
+    tmp = df.copy()
+    tmp = tmp.groupby("patient_id").apply(
+        lambda x: x.sort_values(by="prediction_dates")
+    )
+    tmp = tmp.groupby("patient_id").apply(count_visits)
+    num_targets = np.arange(1, num_targets)
+    mse = np.empty(len(num_targets))
+    for index, c in enumerate(num_targets):
+        sub = tmp[tmp.count_targets == c]
+        print(len(sub))
+        mse[index] = sum((sub.targets - sub.predictions) ** 2) / len(sub)
+    plt.plot(num_targets, mse, "--*")
+    plt.title("Number of visits versus MSE")
+    plt.ylabel("MSE")
+    plt.xlabel("Number of previous visits")
+    plt.show()
+    return

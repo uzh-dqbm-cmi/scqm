@@ -30,7 +30,7 @@ class Trainer:
         self.use_early_stopping = use_early_stopping
         # flag used during training to indicate whether to stop or not
         self.early_stopping = False
-        # self.optimizer = torch.optim.AdamW(model.parameters, lr=self.lr, weight_decay=0.07)
+
         self.optimizer = torch.optim.AdamW(model.parameters, lr=self.lr)
         self.current_epoch = 0
         self.loss_per_epoch = torch.empty(size=(n_epochs, 1))
