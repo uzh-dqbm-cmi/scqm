@@ -53,9 +53,11 @@ def drugs_taken_at_prediction(
                 if len(med) > 0:
                     med_list = med.medication_generic_drug.values
                     date_list = med.date.values
+                    med_ids = med.med_id.values
                 else:
                     med_list = None
                     date_list = None
+                    med_ids = None
                 df_all = pd.concat(
                     [
                         df_all,
@@ -66,6 +68,7 @@ def drugs_taken_at_prediction(
                                 "uid_num": uid_nth_target,
                                 "drugs": [med_list],
                                 "drugs_dates": [date_list],
+                                "med_ids": [med_ids],
                             }
                         ),
                     ],

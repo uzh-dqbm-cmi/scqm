@@ -385,6 +385,7 @@ class ClusterAnalysis:
                 plt.xlabel("tnse_0", fontsize=14)
                 plt.ylabel("tsne_1", fontsize=14)
                 plt.legend(prop={"size": 12})
+        plt.show()
         return
 
     def plot_targets(self, target_name="das28"):
@@ -411,6 +412,7 @@ class ClusterAnalysis:
         plt.xlabel("tnse_0", fontsize=14)
         plt.ylabel("tsne_1", fontsize=14)
         plt.figure(figsize=(10, 10))
+        plt.show()
         return
 
     def plot_embeddings_versus_targets(self, raw=False):
@@ -446,29 +448,34 @@ class ClusterAnalysis:
         plt.title("Number of predictions")
         return
 
-    def plot_patient_trajectory(self, patients=[], subset="test"):
-        if len(patients) == 0:
-            if subset == "test":
+    def plot_patient_trajectory(self, patients=[], overlap="cluster"):
+
+        tsne = self.tsne_model_test
+        embeddings = self.patient_in_embedding_test
+        if overlap == "cluster":
+            c = self.clusters_test
+            if len(patients) == 0:
                 patients = [
                     random.choice(self.subset_das28_test),
                     random.choice(self.subset_asdas_test),
                 ]
-            else:
-                patients = [
-                    random.choice(self.subset_das28),
-                    random.choice(self.subset_asdas),
-                ]
-        tsne = self.tsne_model_train if subset == "train" else self.tsne_model_test
-        embeddings = (
-            self.patient_in_embedding
-            if subset == "train"
-            else self.patient_in_embedding_test
-        )
-        c = self.clusters_train if subset == "train" else self.clusters_test
+        elif overlap == "das283bsr_score":
+            index_score = self.feature_names.index("das283bsr_score")
+            c = self.raw_histories_unscaled_test[:, index_score].astype(float)
+            alpha = 0.4
+            if len(patients) == 0:
+                patients = random.sample(self.subset_das28_test, 3)
+        elif overlap == "asdas_score":
+            index_score = self.feature_names.index("asdas_score")
+            c = self.raw_histories_unscaled_test[:, index_score].astype(float)
+            alpha = 0.6
+            if len(patients) == 0:
+                patients = random.sample(self.subset_asdas_test, 3)
         for patient in patients:
             plt.figure(figsize=(10, 10))
-            plt.set_cmap("spring")
-            plt.scatter(tsne[:, 0], tsne[:, 1], c=c, alpha=0.4)
+            plt.set_cmap("viridis")
+            plt.scatter(tsne[:, 0], tsne[:, 1], c=c, alpha=alpha)
+            plt.colorbar()
             plt.scatter(
                 tsne[embeddings[patient]["indices"], 0],
                 tsne[embeddings[patient]["indices"], 1],
@@ -486,7 +493,7 @@ class ClusterAnalysis:
                         tsne[embeddings[patient]["indices"], 1][index] + 2,
                     ),
                 )
-            plt.colorbar()
+            plt.show()
         return
 
     def plot_diagnoses(self, raw=False, subset="test"):
@@ -508,7 +515,7 @@ class ClusterAnalysis:
             plt.scatter(
                 dff["tsne_1"],
                 dff["tsne_2"],
-                alpha=0.7,
+                alpha=0.5,
                 label=i,
                 color=colors[index],
             )

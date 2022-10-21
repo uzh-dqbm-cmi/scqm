@@ -25,7 +25,7 @@ def plot_days_to_last_event(timeline_df, event="last_visit"):
     return series
 
 
-def days_to_last_event(dataset, df_results, subset, target_name):
+def days_to_last_event(dataset, df_results, subset, target_name, no_att=False):
     timeline_df = pd.DataFrame(
         columns=[
             "patient_id",
@@ -42,7 +42,10 @@ def days_to_last_event(dataset, df_results, subset, target_name):
     for p in tqdm(subset):
         if target_name == "das283bsr_score":
             df = dataset[p].targets_das28_df
-            days = [30, 50, 100, 200, 300, 350]
+            if no_att:
+                days = [30, 100, 200, 400, 550, 850]
+            else:
+                days = [30, 50, 100, 200, 300, 350]
         else:
             df = dataset[p].targets_asdas_df
             days = [30, 100, 200, 300]
@@ -110,6 +113,8 @@ def days_to_last_event(dataset, df_results, subset, target_name):
     print(y)
     plt.figure()
     plt.title("Days since last visit vs MSE")
-    plt.plot(days, y, ".")
+    plt.plot(days, y, ".--")
+    plt.xlabel("Days")
+    plt.ylabel("MSE")
     plt.show()
     return aggr
