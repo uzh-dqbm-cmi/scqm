@@ -1,7 +1,7 @@
 import os
 import sys
 from scqm.custom_library.cv.multitask import CVMultitask
-from scqm.custom_library.models.transformer import TransformerModel
+from legacy.scqm.legacy.models.transformer import TransformerModel
 from scqm.custom_library.trainers.multitask_net import MultitaskTrainer
 import copy
 import pandas as pd

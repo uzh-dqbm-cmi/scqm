@@ -8,7 +8,7 @@ import cProfile
 import pstats
 from sklearn.cluster import KMeans
 from statistics import mean
-from scqm.custom_library.models.transformer import TransformerModel
+from legacy.scqm.legacy.models.transformer import TransformerModel
 from scqm.custom_library.trainers.multitask_net import MultitaskTrainer
 from scqm.test_bed.fake_scqm import get_df_dict
 import copy
