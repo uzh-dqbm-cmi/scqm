@@ -23,9 +23,11 @@ from tqdm import tqdm
 if __name__ == "__main__":
     set_seeds(0)
     print("start")
-    target_name = "das283bsr_score"
+    target_name = "asdas_score"
 
-    with open("/cluster/work/medinfmk/scqm/tmp/final_model/saved_cv.pickle", "rb") as f:
+    with open(
+        "/cluster/work/medinfmk/scqm/tmp/saved_cv_with_joint_10_11.pickle", "rb"
+    ) as f:
         cv = pickle.load(f)
     dataset = cv.dataset
     partition = cv.partition
@@ -72,7 +74,7 @@ if __name__ == "__main__":
             result_df.iloc[fold, index] = loss_valid
 
     with open(
-        "/cluster/work/medinfmk/scqm/tmp/baselines/mlp_das28.pickle",
+        "/cluster/work/medinfmk/scqm/tmp/baselines/mlp_asdas.pickle",
         "wb",
     ) as handle:
         pickle.dump(result_df, handle)

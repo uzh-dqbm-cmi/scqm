@@ -6,12 +6,12 @@ import numpy as np
 
 
 class BaselineResults(Results):
-    def evaluate_model(self):
+    def evaluate_model(self, subset, return_vectors=False):
         if self.trainer.target_name == "das283bsr_score":
             indices_features = np.concatenate(
                 [
                     self.dataset.tensor_indices_mapping_test[patient]["joint_das28_df"]
-                    for patient in self.dataset.test_ids
+                    for patient in subset
                 ]
             )
             indices_targets = np.concatenate(
@@ -19,7 +19,7 @@ class BaselineResults(Results):
                     self.dataset.tensor_indices_mapping_test[patient][
                         "joint_targets_das28_df"
                     ]
-                    for patient in self.dataset.test_ids
+                    for patient in subset
                 ]
             )
             test_tensor = self.dataset.joint_das28_df_scaled_tensor_test[
@@ -39,7 +39,7 @@ class BaselineResults(Results):
             indices_features = np.concatenate(
                 [
                     self.dataset.tensor_indices_mapping_test[patient]["joint_asdas_df"]
-                    for patient in self.dataset.test_ids
+                    for patient in subset
                 ]
             )
             indices_targets = np.concatenate(
@@ -47,7 +47,7 @@ class BaselineResults(Results):
                     self.dataset.tensor_indices_mapping_test[patient][
                         "joint_targets_asdas_df"
                     ]
-                    for patient in self.dataset.test_ids
+                    for patient in subset
                 ]
             )
             test_tensor = self.dataset.joint_asdas_df_scaled_tensor_test[
@@ -82,4 +82,7 @@ class BaselineResults(Results):
             sum((test_naive_rescaled - target_rescaled) ** 2) / len(target_rescaled)
         ).item()
         print(f"naive mse {naive_mse}")
-        return mse, mae, naive_mse
+        if return_vectors:
+            return mse, mae, naive_mse, pred_rescaled, target_rescaled
+        else:
+            return mse, mae, naive_mse

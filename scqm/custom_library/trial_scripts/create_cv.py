@@ -72,7 +72,7 @@ if __name__ == "__main__":
     print(f"Dropping patients with less than 3 visits, keeping {len(dataset)}")
     dataset.get_masks()
     with open(
-        "/cluster/work/medinfmk/scqm/tmp/dataset_with_joint_19_09.pickle", "wb"
+        "/cluster/work/medinfmk/scqm/tmp/dataset_with_joint_10_11.pickle", "wb"
     ) as handle:
         pickle.dump(dataset, handle)
 
@@ -82,6 +82,6 @@ if __name__ == "__main__":
 
     cv = CVMultitask(dataset, k=5)
     with open(
-        "/cluster/work/medinfmk/scqm/tmp/saved_cv_with_joint_19_09.pickle", "wb"
+        "/cluster/work/medinfmk/scqm/tmp/saved_cv_with_joint_10_11.pickle", "wb"
     ) as f:
         pickle.dump(cv, f)

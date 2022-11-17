@@ -251,12 +251,19 @@ class DatasetMultitask(Dataset):
                 features["time_to_pred"] = date
                 joint_df_asdas = pd.concat((pd.DataFrame([features]), joint_df_asdas))
         # columns to keep as features
-        self.initial_df_dict["joint_das28"] = joint_df_das28.sort_values(
-            by=["patient_id", "date"]
+        joint_df_das28 = joint_df_das28.sort_values(by=["patient_id", "date"])
+        joint_df_asdas = joint_df_asdas.sort_values(by=["patient_id", "date"])
+        joint_df_das28["bmi"] = (
+            joint_df_das28["weight_kg"] / (joint_df_das28["height_cm"] / 100) ** 2
         )
-        self.initial_df_dict["joint_asdas"] = joint_df_asdas.sort_values(
-            by=["patient_id", "date"]
+        joint_df_asdas["bmi"] = (
+            joint_df_asdas["weight_kg"] / (joint_df_asdas["height_cm"] / 100) ** 2
         )
+        joint_df_das28.drop(columns=["weight_kg", "height_cm"], inplace=True)
+        joint_df_asdas.drop(columns=["weight_kg", "height_cm"], inplace=True)
+
+        self.initial_df_dict["joint_das28"] = joint_df_das28
+        self.initial_df_dict["joint_asdas"] = joint_df_asdas
         self.initial_df_dict["joint_targets_das28"] = joint_targets_das28.sort_values(
             by=["patient_id", "date"]
         )

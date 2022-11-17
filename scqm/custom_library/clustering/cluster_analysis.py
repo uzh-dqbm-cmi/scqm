@@ -522,8 +522,26 @@ class ClusterAnalysis:
         plt.xlabel("tnse_0", fontsize=14)
         plt.ylabel("tsne_1", fontsize=14)
         plt.legend(prop={"size": 12})
+        plt.grid(visible=True)
         plt.title("t-SNE overlayed with diagnosis", fontsize=14)
+        plt.show()
+        # each separate diagnostic
+        for index, (i, dff) in enumerate(df.groupby("color")):
+            plt.figure()
+            plt.scatter(
+                dff["tsne_1"],
+                dff["tsne_2"],
+                alpha=0.5,
+                label=i,
+                color=colors[index],
+            )
+            plt.xlabel("tnse_0", fontsize=14)
+            plt.ylabel("tsne_1", fontsize=14)
+            plt.title(f"{i}")
+            plt.grid(visible=True)
 
+            plt.legend(prop={"size": 12})
+            plt.show()
         return
 
     def get_similarities(self, subset=[]):

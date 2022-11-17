@@ -250,7 +250,7 @@ class Dataset:
             df_processed = df.copy()
             date_cols_to_process = list(df.select_dtypes(include=["M8[ns]"]).columns)
             for date_col in date_cols_to_process:
-                # convert into days between 01.01.2022 and date
+                # convert into days between 01/05/2022 and date
                 df_processed[date_col] = (
                     pd.to_datetime(REFERENCE_DATE, format="%d/%m/%Y")
                     - df_processed[date_col]

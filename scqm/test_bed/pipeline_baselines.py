@@ -44,9 +44,7 @@ if __name__ == "__main__":
         visits_df,
         targets_df_das28,
         targets_df_asdas,
-        socioeco_df,
         radai_df,
-        haq_df,
         joint_df,
     ) = extract_multitask_features(
         df_dict_processed,
@@ -59,9 +57,9 @@ if __name__ == "__main__":
         "a_visit": visits_df,
         "patients": general_df,
         "med": med_df,
+        "radai": radai_df,
         "targets_das28": targets_df_das28,
         "targets_asdas": targets_df_asdas,
-        "haq": haq_df,
         "joint": joint_df,
     }
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -72,7 +70,7 @@ if __name__ == "__main__":
         df_dict_fake,
         df_dict_fake["patients"]["patient_id"].unique(),
         ["das283bsr_score", "asdas_score"],
-        ["a_visit", "med", "haq"],
+        ["a_visit", "med", "radai"],
         min_num_targets,
     )
     dataset.drop(

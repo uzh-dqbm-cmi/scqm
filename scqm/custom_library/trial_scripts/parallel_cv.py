@@ -32,14 +32,16 @@ if __name__ == "__main__":
     print(fold)
     date = datetime.datetime.now().strftime("%d_%m_%Y")
     print(f"creating directory")
-    path = "/cluster/work/medinfmk/scqm/tmp/fold" + str(fold) + "/" + date + "_noatt"
+    path = "/cluster/work/medinfmk/scqm/tmp/fold" + str(fold) + "/" + date + "_att"
     try:
         os.mkdir(path)
     except OSError as error:
         print(error)
     print("loading data")
 
-    with open("/cluster/work/medinfmk/scqm/tmp/final_model/saved_cv.pickle", "rb") as f:
+    with open(
+        "/cluster/work/medinfmk/scqm/tmp/saved_cv_with_joint_10_11.pickle", "rb"
+    ) as f:
         cv = pickle.load(f)
 
     dataset = cv.dataset
@@ -96,13 +98,13 @@ if __name__ == "__main__":
             [model_specifics[key]["size_out"] for key in num_feature_dict]
         )
 
-        # model = MultitaskBis(model_specifics, device)
-        model = MultitaskNoAtt(model_specifics, device)
+        model = MultitaskBis(model_specifics, device)
+        # model = MultitaskNoAtt(model_specifics, device)
 
         trainer = MultitaskTrainer(
             model,
             dataset,
-            n_epochs=250,
+            n_epochs=200,
             batch_size={
                 "das28": int(len(dataset) / 15),
                 "asdas": int(len(dataset) / (15 * 4.5)),

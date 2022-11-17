@@ -9,8 +9,6 @@ import pickle
 import copy
 from scqm.custom_library.global_vars import REFERENCE_DATE
 
-# TODO in preprocessing medication_drug_classification is sometimes missing but we know it
-
 
 def preprocess_haq(df):
     mapping = {
@@ -46,6 +44,34 @@ def preprocess_sf12(df):
         "extremely": 4,
     }
     return df.replace(to_replace=mapping)
+
+
+def preprocess_visits(df):
+    df_processed = df.copy()
+    df_processed.loc[
+        df_processed["date"] > datetime.strptime(REFERENCE_DATE, "%d/%m/%Y"),
+        "date",
+    ] -= np.timedelta64(1, "Y")
+    # preprocess height and weight
+    df_processed.loc[df_processed["height_cm"] < 50, "height_cm"] = np.nan
+    df_processed.loc[df_processed["weight_kg"] < 30, "weight_kg"] = np.nan
+    return df_processed
+
+
+def preprocess_medications(df):
+    df_processed = df.copy()
+    df_processed.loc[
+        df_processed["medication_dose"].astype(float) > 13000, "medication_dose"
+    ] = np.nan
+    df_processed.loc[
+        df_processed["medication_start_date"] < np.datetime64("1950-01-01"),
+        "medication_start_date",
+    ] += np.timedelta64(100, "Y")
+    df_processed.loc[
+        df_processed["stored_start_date"] < np.datetime64("1950-01-01"),
+        "stored_start_date",
+    ] += np.timedelta64(100, "Y")
+    return df_processed
 
 
 def clean_dates(df_dict: dict) -> dict:
@@ -143,12 +169,12 @@ def preprocessing(df_dict: dict, real_data: bool = True) -> dict:
     for index, table in df_dict_processed.items():
         date_columns = table.filter(regex=("date")).columns
         df_dict_processed[index][date_columns] = table[date_columns].apply(
-            pd.to_datetime
+            pd.to_datetime, format="%Y/%m/%d"
         )
         df_dict_processed[index] = df_dict_processed[index].replace("unknown", np.nan)
 
     df_dict_processed["medications"]["last_medication_change"] = pd.to_datetime(
-        df_dict_processed["medications"]["last_medication_change"]
+        df_dict_processed["medications"]["last_medication_change"], format="%Y/%m/%d"
     )
     # unify date column name
     for index, elem in df_dict_processed.items():
@@ -156,27 +182,18 @@ def preprocessing(df_dict: dict, real_data: bool = True) -> dict:
         if len(name) == 1:
             df_dict_processed[index] = elem.rename(columns={name[0]: "date"})
     # some inconsistency in medication and haq dates
-    df_dict_processed["medications"].loc[
-        df_dict_processed["medications"]["medication_start_date"]
-        < np.datetime64("1950-01-01"),
-        "medication_start_date",
-    ] += np.timedelta64(100, "Y")
-    df_dict_processed["medications"].loc[
-        df_dict_processed["medications"]["stored_start_date"]
-        < np.datetime64("1950-01-01"),
-        "stored_start_date",
-    ] += np.timedelta64(100, "Y")
+
     df_dict_processed["haq"] = df_dict_processed["haq"][
         df_dict_processed["haq"]["date"] > np.datetime64("1951-01-01")
     ]
     df_dict_processed["haq"] = preprocess_haq(df_dict_processed["haq"])
     df_dict_processed["sf_12"] = preprocess_sf12(df_dict_processed["sf_12"])
-    # errors in vistits_df
-    df_dict_processed["visits"].loc[
-        df_dict_processed["visits"]["date"]
-        > datetime.strptime(REFERENCE_DATE, "%d/%m/%Y"),
-        "date",
-    ] -= np.timedelta64(1, "Y")
+    # errors in visits_df
+    df_dict_processed["visits"] = preprocess_visits(df_dict_processed["visits"])
+    # errors in med df
+    df_dict_processed["medications"] = preprocess_medications(
+        df_dict_processed["medications"]
+    )
     # manually change date names in other dfs
     df_dict_processed["ratingenscore"] = df_dict_processed["ratingenscore"].rename(
         columns={"imaging_score_scoring_date": "date"}

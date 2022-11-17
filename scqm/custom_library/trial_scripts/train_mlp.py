@@ -26,7 +26,9 @@ if __name__ == "__main__":
     print("train mlp")
     target_name = "das283bsr_score"
 
-    with open("/cluster/work/medinfmk/scqm/tmp/final_model/saved_cv.pickle", "rb") as f:
+    with open(
+        "/cluster/work/medinfmk/scqm/tmp/saved_cv_with_joint_10_11.pickle", "rb"
+    ) as f:
         cv = pickle.load(f)
     dataset = cv.dataset
     partition = cv.partition
@@ -37,14 +39,14 @@ if __name__ == "__main__":
             "input_size": input_size,
             "output_size": 1,
             "num_hidden": 10,
-            "hidden_size": 40,
+            "hidden_size": 100,
         }
     elif target_name == "asdas_score":
         input_size = dataset.joint_asdas_df_scaled_tensor_train.shape[1]
         config = {
             "input_size": input_size,
             "output_size": 1,
-            "num_hidden": 2,
+            "num_hidden": 3,
             "hidden_size": 100,
         }
         # 40
@@ -65,7 +67,7 @@ if __name__ == "__main__":
         trainer.train_model(model, partition, verbose=False)
         delattr(trainer, "dataset")
         with open(
-            "/cluster/work/medinfmk/scqm/tmp/baselines/mlp_trainer_das28_"
+            "/cluster/work/medinfmk/scqm/tmp/baselines/mlp_trainer_das28"
             + str(fold)
             + ".pickle",
             "wb",

@@ -96,9 +96,13 @@ def drugs_taken_at_prediction(
         prev_value, dataset=dataset, target_name=target_name
     )
     aggr["50_improvement"] = aggr.targets <= aggr.prev_values - 0.5 * aggr.prev_values
+    aggr["20_improvement"] = aggr.targets <= aggr.prev_values - 0.2 * aggr.prev_values
     aggr["improvement"] = aggr.targets < aggr.prev_values
     aggr["50_improvement_pred"] = (
         aggr.predictions <= aggr.prev_values - 0.5 * aggr.prev_values
+    )
+    aggr["20_improvement_pred"] = (
+        aggr.predictions <= aggr.prev_values - 0.2 * aggr.prev_values
     )
     aggr["improvement_pred"] = aggr.predictions < aggr.prev_values
     aggr_exploded = (
@@ -113,6 +117,8 @@ def drugs_taken_at_prediction(
                 "prev_values",
                 "50_improvement",
                 "50_improvement_pred",
+                "20_improvement",
+                "20_improvement_pred",
                 "improvement",
                 "improvement_pred",
             ]
