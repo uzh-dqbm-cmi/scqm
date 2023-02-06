@@ -190,6 +190,7 @@ def apply_attention(
             target_index_in_tensor = dataset.target_value_index_das28
             target_tensor = dataset[patient_id].targets_das28_df_tensor
             time_index = dataset.time_index_das28
+            targets_df = dataset[patient_id].targets_das28_df
         elif target_name == "asdas_score":
             mapping = dataset.mapping_for_masks_asdas
             masks = dataset.masks_asdas
@@ -197,6 +198,7 @@ def apply_attention(
             target_index_in_tensor = dataset.target_value_index_asdas
             target_tensor = dataset[patient_id].targets_asdas_df_tensor
             time_index = dataset.time_index_asdas
+            targets_df = dataset[patient_id].targets_asdas_df
         patient_mask_index = mapping[patient_id]
         encoder_outputs = {}
         for event in dataset.event_names:
@@ -296,7 +298,6 @@ def apply_attention(
             time_to_targets[index_target] = target_tensor[
                 visit + dataset.min_num_targets - 1, time_index
             ]
-
             for index, event in enumerate(dataset.event_names):
                 if seq_lengths[visit][index].item() > 0:
                     events[index_target, index] = 1

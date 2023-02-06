@@ -47,9 +47,12 @@ def drugs_taken_at_prediction(
                 tmp = pd.DataFrame(cropped_timeline, columns=["date", "type", "id"])
                 tmp = tmp[tmp.type.str.contains("med")]
                 tmp = tmp.drop_duplicates(subset="id", keep=False)
-                med = dataset[p].med_df.merge(
-                    tmp, left_on=["med_id", "date"], right_on=["id", "date"]
-                )
+                if len(tmp) > 0:
+                    med = dataset[p].med_df.merge(
+                        tmp, left_on=["med_id", "date"], right_on=["id", "date"]
+                    )
+                else:
+                    med = []
                 if len(med) > 0:
                     med_list = med.medication_generic_drug.values
                     date_list = med.date.values

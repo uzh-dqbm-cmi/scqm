@@ -4,9 +4,13 @@ from scqm.custom_library.plot.attention.utils import (
 )
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.pylab as pl
+import matplotlib
 
 
 def plot_visit_attention(model, dataset, patient, target_name):
+    # patient = '3be81170-6daf-ca49-62a6-fb84ba672b6c'
+
     _, _, _, _, all_patients_all_attention, _ = get_all_attention_and_ranking(
         model, dataset, [patient], target_name
     )
@@ -19,26 +23,49 @@ def plot_visit_attention(model, dataset, patient, target_name):
         ],
         dtype=object,
     )
-    reg_data = regularise_array(values, val=-1)
-    # meds = [med_event[1] + ' (' + med_event[0] + ')' for med_event in meds_and_attention[len(meds_and_attention)-1]]
-    fig, ax = plt.subplots(figsize=(7, 7))
-    im = ax.imshow(reg_data)
-    ax.set_xticks(np.arange(reg_data.shape[1]))
-    ax.set_xticklabels([i + 1 for i in range(reg_data.shape[1])])
-    ax.set_yticks(np.arange(len(reg_data)))
-    ax.set_yticklabels(
-        ["prediction of visit " + str(index + 2) for index in range(len(reg_data))]
-    )
-    plt.xlabel("Visit number ")
-    plt.title("Attention given to past visits to predict next")
-    im.set_cmap("viridis")
-    fig.colorbar(
-        im,
-    )
+    arr = values
+    val = 0
+    lengths = [len(d) for d in arr]
+    max_length = max(lengths)
+    reg_array = np.zeros(shape=(arr.shape[0], max_length))
+
+    for i in np.arange(arr.shape[0]):
+        reg_array[i] = np.append(arr[i], np.zeros(max_length - lengths[i]) + val)
+    plt.figure(figsize=(10, 7))
+    # plt.grid(True)
+    width = 0.99
+    n = len(reg_array.T)
+    colors = pl.cm.jet(np.linspace(0, 0.7, n))
+
+    for visit in range(len(reg_array.T)):
+        plt.bar(
+            range(2, len(reg_array.T[0, :]) + 2),
+            reg_array.T[visit, :],
+            width=width,
+            bottom=sum(reg_array.T[visit + 1 :, :]),
+            label=f"clinical measures #{visit + 1}",
+            color=colors[visit],
+            edgecolor="black",
+        )
+    plt.legend()
+    plt.xlabel("Predicted target")
+    plt.ylabel("Local attention for clinical measures")
+    plt.xticks(range(1, len(reg_array.T[0, :]) + 2))
+    plt.xlim([1.5, 9.5])
+    plt.ylim([0, 1])
+    plt.title("Evolution of attention for local clinical measures")
+
     return
 
 
-def aggregate_visit_attention(model, dataset, patients, all_patients_all_attention):
+def aggregate_visit_attention(model, dataset, patients, target_name):
+    font = {"family": "normal", "size": 14}
+
+    matplotlib.rc("font", **font)
+    _, _, _, _, all_patients_all_attention, _ = get_all_attention_and_ranking(
+        model, dataset, patients, target_name
+    )
+    max_num = 11
     patients_to_keep = [
         patient for patient in patients if len(all_patients_all_attention[patient]) > 0
     ]
@@ -92,37 +119,39 @@ def aggregate_visit_attention(model, dataset, patients, all_patients_all_attenti
             for length in visit_histories_to_keep.keys()
         ]
     )
-    reg_data = regularise_array(aggregated_histories, val=-1)
-    fig, ax = plt.subplots(figsize=(20, 20))
-    im = ax.imshow(reg_data)
-    ax.set_xticks(np.arange(reg_data.shape[1]))
-    ax.set_xticklabels([i + 1 for i in range(reg_data.shape[1])])
-    ax.set_yticks(np.arange(len(reg_data)))
-    ax.set_yticklabels([str(key + 1) for key in visit_histories_to_keep.keys()])
-    plt.ylabel("Prediction number")
-    plt.xlabel("Visit history ")
-    plt.title("Average attention given to past visits to predict next")
-    im.set_cmap("viridis")
-    fig.colorbar(
-        im,
-    )
-    aggregated_histories_norm = np.array(
-        [elem * len(elem) for elem in aggregated_histories]
-    )
+    lengths = [len(d) for d in aggregated_histories]
+    reg_array = np.zeros(shape=(aggregated_histories.shape[0], max_visit_length))
 
-    reg_data = regularise_array(aggregated_histories_norm, val=-1)
-    fig, ax = plt.subplots(figsize=(20, 20))
-    im = ax.imshow(reg_data)
-    ax.set_xticks(np.arange(reg_data.shape[1]))
-    ax.set_xticklabels([i + 1 for i in range(reg_data.shape[1])])
-    ax.set_yticks(np.arange(len(reg_data)))
-    ax.set_yticklabels([str(key + 1) for key in visit_histories_to_keep.keys()])
-    plt.ylabel("Prediction number")
-    plt.xlabel("Visit history ")
-    plt.title("Rescaled")
-    im.set_cmap("viridis")
-    fig.colorbar(
-        im,
-    )
+    for i in np.arange(aggregated_histories.shape[0]):
+        reg_array[i] = np.append(
+            aggregated_histories[i], np.zeros(max_visit_length - lengths[i])
+        )
+    # plt.figure(figsize=(10,7))
+    fig, ax = plt.subplots(figsize=(6, 5))
+
+    # plt.grid(True)
+    width = 0.99
+
+    colors = pl.cm.jet(np.linspace(0, 0.7, max_num))
+
+    for visit in range(max_num):
+        plt.bar(
+            range(1, max_num + 1),
+            reg_array.T[visit, :max_num],
+            width=width,
+            bottom=sum(reg_array.T[visit + 1 :, :])[:max_num],
+            label=f"CM of visit {visit + 1}",
+            color=colors[visit],
+            edgecolor="black",
+        )
+    ax.legend(bbox_to_anchor=(1.05, 0.87))
+    # plt.legend()
+    plt.xlabel("Number of CM available for prediction")
+    plt.ylabel("Local attention for CM")
+    plt.xticks(range(1, max_num + 2))
+    plt.xlim([0.5, max_num + 0.5])
+    plt.ylim([0, 1])
+    plt.title("Evolution of local attention \n for clinical measures (CM)")
+    plt.show()
+    matplotlib.rcParams.update(matplotlib.rcParamsDefault)
     return
-    return visit_histories, aggregated_histories

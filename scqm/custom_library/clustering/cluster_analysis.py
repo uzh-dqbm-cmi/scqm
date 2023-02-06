@@ -446,6 +446,7 @@ class ClusterAnalysis:
         )
         plt.colorbar()
         plt.title("Number of predictions")
+        plt.show()
         return
 
     def plot_patient_trajectory(self, patients=[], overlap="cluster"):

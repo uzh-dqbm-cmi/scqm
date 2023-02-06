@@ -141,3 +141,30 @@ def plot_error_vs_target_num(df, num_targets=12):
     plt.xlabel("Number of previous visits")
     plt.show()
     return
+
+
+def plot_cm_vs_mse(dfs, max_visits=11):
+    def count_length(df):
+        df["num_targets"] = [i for i in range(1, len(df) + 1)]
+        return df
+
+    MSES = np.empty(shape=(len(dfs), max_visits))
+    for index in dfs:
+        df_with_count = dfs[index].groupby("patient_id").apply(count_length)
+        for j, v in enumerate(range(1, max_visits + 1)):
+            tmp = df_with_count[df_with_count.num_targets <= v]
+            MSES[index, j] = sum((tmp.targets - tmp.predictions) ** 2) / len(tmp)
+            # mses.append(sum((tmp.targets - tmp.predictions)**2)/len(tmp))
+    MSES_mean = np.mean(MSES, axis=0)
+    MSES_std = np.std(MSES, axis=0)
+    fig, ax = plt.subplots(figsize=(6, 4))
+    plt.errorbar(range(len(MSES_mean)), MSES_mean, MSES_std, linestyle="--", marker="o")
+    # plt.xticks(range(1, max_num + 2))
+    ax.grid(visible=True, linestyle="dotted")
+    ax.set_xticks(range(0, max_visits))
+    ax.set_xticklabels(["<=" + str(i) for i in range(1, max_visits + 1)], rotation=45)
+    ax.set_xlabel("Number of CM available for prediction")
+    ax.set_ylabel("Mean squarred error")
+    plt.title("Prediction MSE versus \nnumber of previous CM")
+    plt.show()
+    return
