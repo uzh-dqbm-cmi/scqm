@@ -62,7 +62,7 @@ if __name__ == "__main__":
         metrics_train_asdas,
     ) = ({}, {}, {}, {})
     print("Computing clusters")
-    for fold in range(0, 5):
+    for fold in range(0, 1):
         print(fold)
         with open(
             "/cluster/work/medinfmk/scqm/tmp/fold"
@@ -123,28 +123,32 @@ if __name__ == "__main__":
             dataset, df_asdas_train_dict[key], subset_asdas_train, "asdas_score"
         )
 
-    K = 50
-    similarities_das28 = np.empty((K, 5))
-    similarities_asdas = np.empty((K, 5))
+    #K = 50
 
-    for fold in range(5):
+    K_asdas = [1, 5, 10, 20, 30, 50, 250, 750, 1500, 2500, 3500, 4500, 5000]
+    K_das28 = [1, 5, 10, 20, 30, 50, 500, 2000, 10000, 15000, 20000, 25000, 30000]
+    similarities_das28 = np.empty((len(K_das28), 5))
+    similarities_asdas = np.empty((len(K_asdas), 5))
+
+    for fold in range(1):
         index = 0
         print(fold)
-        for k in range(1, K + 1):
-            (
-                das28_similar_targets_mse_knn,
-                das28_baseline_targets_mse_knn,
-                das28_random_targets_mse_knn,
-                _,
-                _,
-                _,
-            ) = get_knn_similarity_performance(
-                df_das28_drugs[fold].copy(),
-                df_das28_drugs_train[fold].copy(),
-                cluster_analysis[fold],
-                tol=1,
-                k=k,
-            )
+        for k in K_asdas:
+            print(k)
+            # (
+            #     das28_similar_targets_mse_knn,
+            #     das28_baseline_targets_mse_knn,
+            #     das28_random_targets_mse_knn,
+            #     _,
+            #     _,
+            #     _,
+            # ) = get_knn_similarity_performance(
+            #     df_das28_drugs[fold].copy(),
+            #     df_das28_drugs_train[fold].copy(),
+            #     cluster_analysis[fold],
+            #     tol=1,
+            #     k=k,
+            # )
             (
                 asdas_similar_targets_mse_knn,
                 asdas_baseline_targets_mse_knn,
@@ -159,14 +163,50 @@ if __name__ == "__main__":
                 tol=1,
                 k=k,
             )
-            similarities_das28[index, fold] = das28_similar_targets_mse_knn
+            # similarities_das28[index, fold] = das28_similar_targets_mse_knn
             similarities_asdas[index, fold] = asdas_similar_targets_mse_knn
             index += 1
 
+    for fold in range(1):
+        index = 0
+        print(fold)
+        for k in K_das28:
+            print(k)
+            (
+                das28_similar_targets_mse_knn,
+                das28_baseline_targets_mse_knn,
+                das28_random_targets_mse_knn,
+                _,
+                _,
+                _,
+            ) = get_knn_similarity_performance(
+                df_das28_drugs[fold].copy(),
+                df_das28_drugs_train[fold].copy(),
+                cluster_analysis[fold],
+                tol=1,
+                k=k,
+            )
+            # (
+            #     asdas_similar_targets_mse_knn,
+            #     asdas_baseline_targets_mse_knn,
+            #     asdas_random_targets_mse_knn,
+            #     _,
+            #     _,
+            #     _,
+            # ) = get_knn_similarity_performance(
+            #     df_asdas_drugs[fold].copy(),
+            #     df_asdas_drugs_train[fold].copy(),
+            #     cluster_analysis[fold],
+            #     tol=1,
+            #     k=k,
+            # )
+            similarities_das28[index, fold] = das28_similar_targets_mse_knn
+            # similarities_asdas[index, fold] = asdas_similar_targets_mse_knn
+            index += 1
     print(similarities_das28)
     print(similarities_asdas)
-    with open("/cluster/work/medinfmk/scqm/tmp/simil_das28.pickle", "wb") as handle:
+    with open("/cluster/work/medinfmk/scqm/tmp/simil_das28_incr_k.pickle", "wb") as handle:
         pickle.dump(similarities_das28, handle)
 
-    with open("/cluster/work/medinfmk/scqm/tmp/simil_asdas.pickle", "wb") as handle:
+    with open("/cluster/work/medinfmk/scqm/tmp/simil_asdas_incr_k.pickle", "wb") as handle:
         pickle.dump(similarities_asdas, handle)

@@ -46,15 +46,16 @@ def get_knn_similarity_performance(
         (df_test.targets - similar_targets.mean(axis=1)) ** 2
     ) / len(df_test)
 
-    baseline_targets = get_baseline_targets(df_test, df_train, tol, num=k)
-    random_targets = get_random_targets(df_test, df_train, num=k)
-    baseline_targets_mse = sum((df_test.targets - baseline_targets) ** 2) / len(df_test)
-    random_targets_mse = sum((df_test.targets - random_targets) ** 2) / len(df_test)
+    # baseline_targets = get_baseline_targets(df_test, df_train, tol, num=k)
+    # random_targets = get_random_targets(df_test, df_train, num=k)
+    # baseline_targets_mse = sum((df_test.targets - baseline_targets) ** 2) / len(df_test)
+    # random_targets_mse = sum((df_test.targets - random_targets) ** 2) / len(df_test)
+    baseline_targets_mse, random_targets_mse, baseline_targets_mae, random_targets_mae = [], [], [], []
     similar_targets_mae = sum(
         abs(df_test.targets - similar_targets.mean(axis=1))
     ) / len(df_test)
-    baseline_targets_mae = sum(abs(df_test.targets - baseline_targets)) / len(df_test)
-    random_targets_mae = sum(abs(df_test.targets - random_targets)) / len(df_test)
+    # baseline_targets_mae = sum(abs(df_test.targets - baseline_targets)) / len(df_test)
+    # random_targets_mae = sum(abs(df_test.targets - random_targets)) / len(df_test)
 
     return (
         similar_targets_mse,

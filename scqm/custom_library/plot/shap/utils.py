@@ -64,7 +64,6 @@ def dfs_as_numeric(features, targets, patients_train, patients_valid, patients_t
         "date_of_birth",
         "date_first_symptoms",
         "date_diagnosis",
-        "time_to_pred",
     ]:
         df[date_col] = (
             pd.to_datetime(REFERENCE_DATE, format="%d/%m/%Y") - df[date_col]
@@ -288,6 +287,8 @@ def prepare_features(dataset, patients, target_name):
         ],
         axis=1,
     )
-    features["time_to_pred"] = targets_df.reset_index(drop=True).date
+    features['time_to_pred'] = (targets_df.reset_index(
+        drop=True).date - visits_final_df.reset_index(drop=True)["date"]).dt.days
+
 
     return features, targets_df

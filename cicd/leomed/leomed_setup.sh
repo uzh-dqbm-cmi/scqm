@@ -6,7 +6,7 @@ alias sing_cecile_gpu='srun --cpus-per-task 2 --mem-per-cpu 13G --time 48:00:00 
 # jupyter notebook
 alias jup_cecile='jupyter notebook --no-browser --ip=$(hostname -i) --port 6070'
 # gpu job
-alias gpu_job='srun --job-name gpu_inter --cpus-per-task 3 --mem-per-cpu 15G --time  72:00:00 -p gpu --gres=gpu:rtx3090:1 --pty bash'
+alias gpu_job='srun --job-name gpu_inter --cpus-per-task 3 --mem-per-cpu 15G --time  72:00:00 -p gpu --gres=gpu:rtx1080ti:1 --pty bash'
 
 
 

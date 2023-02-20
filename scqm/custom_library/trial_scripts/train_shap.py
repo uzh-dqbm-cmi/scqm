@@ -103,7 +103,7 @@ if __name__ == "__main__":
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-            if epoch % 100 == 0:
+            if epoch % 10 == 0:
                 with torch.no_grad():
                     X_batch_valid, y_batch_valid = next(iter(valid_loader))
                     y_valid_pred = model(X_batch_valid)
@@ -116,7 +116,7 @@ if __name__ == "__main__":
         to_save[fold]["losses_valid"] = losses_valid
 
     with open(
-        "/cluster/work/medinfmk/scqm/tmp/baselines/shap_das28" + str(fold) + ".pickle",
+        "/cluster/work/medinfmk/scqm/tmp/baselines/shap_das28.pickle",
         "wb",
     ) as handle:
         pickle.dump(to_save, handle)
